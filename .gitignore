@@ -1,0 +1,43 @@
+# Python Virtual Environments
+.venv/
+venv/
+
+# Dependencies & Build Output
+node_modules/
+target/
+dist/
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# Environment Files
+.env
+.env.local
+.env.*.local
+!.env.example
+!**/.env.example
+!frontend/.env.development
+
+# Chroma Vector Database & SQLite
+chroma/
+chroma_data/
+ai-service/data/
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Spark & Hive Metastore / Derby
+spark-warehouse/
+metastore_db/
+derby.log
+
+# IDE & Editor Configuration
+.idea/
+.vscode/
+*.iml
+
+# OS Generated Files
+.DS_Store
