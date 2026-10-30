@@ -27,7 +27,7 @@ public class CompanyProfileController {
     }
 
     @PutMapping
-    public Result<Void> updateProfile(@RequestBody CompanyProfileUpdateDTO dto) {
+    public Result<Void> updateProfile(@Valid @RequestBody CompanyProfileUpdateDTO dto) {
         companyProfileService.updateProfile(dto);
         return Result.success("企业基本资料保存成功", null);
     }

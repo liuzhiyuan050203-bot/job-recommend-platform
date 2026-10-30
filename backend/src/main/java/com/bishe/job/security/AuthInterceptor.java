@@ -193,11 +193,28 @@ public class AuthInterceptor implements HandlerInterceptor {
         return uri;
     }
 
-    /** 含路径穿越片段的请求一律拒绝 */
+    /**
+     * 含路径穿越的请求一律 400。同时看容器给出的路径、原始百分号编码（%2e%2e）和解码后的结果，
+     * 避免编码点号被还原成 .. 之后绕过角色前缀判断。
+     */
     private boolean suspicious(HttpServletRequest request, String uri) {
-        String raw = request.getRequestURI();
-        return uri.contains("/../") || uri.endsWith("/..") || uri.contains("/./")
-                || raw.contains("..") || raw.contains("\\");
+        String raw = request.getRequestURI() == null ? "" : request.getRequestURI();
+        String lower = raw.toLowerCase();
+        String decoded = raw;
+        try {
+            decoded = java.net.URLDecoder.decode(raw, StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException ex) {
+            return true;
+        }
+        return hasDotDot(uri) || hasDotDot(raw) || hasDotDot(decoded)
+                || lower.contains("%2e%2e") || lower.contains("%2e.") || lower.contains(".%2e")
+                || lower.contains("%5c")
+                || uri.contains("\\") || raw.contains("\\") || decoded.contains("\\")
+                || uri.contains("/./") || decoded.contains("/./");
+    }
+
+    private boolean hasDotDot(String value) {
+        return value != null && value.contains("..");
     }
 
     private boolean reject(HttpServletResponse response, int code, String msg) throws Exception {

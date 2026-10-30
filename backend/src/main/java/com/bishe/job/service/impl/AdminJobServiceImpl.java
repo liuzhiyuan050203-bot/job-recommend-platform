@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bishe.job.common.BusinessException;
 import com.bishe.job.common.PageResult;
+import com.bishe.job.common.Pages;
 import com.bishe.job.dto.AuditDTO;
 import com.bishe.job.entity.EntCompany;
 import com.bishe.job.entity.JobCategory;
@@ -38,7 +39,7 @@ public class AdminJobServiceImpl implements AdminJobService {
     @Override
     public PageResult<AdminJobVO> listJobs(Integer auditStatus, Integer shelfStatus, Long companyId,
                                             String keyword, long current, long size) {
-        Page<JobPosition> page = new Page<>(current, size);
+        Page<JobPosition> page = Pages.of(current, size);
         LambdaQueryWrapper<JobPosition> wrapper = new LambdaQueryWrapper<>();
 
         if (auditStatus != null) {

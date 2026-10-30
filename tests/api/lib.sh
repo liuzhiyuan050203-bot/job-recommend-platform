@@ -11,7 +11,7 @@ save_state() { # save_state KEY VALUE —— 在脚本之间共享变量
 # req METHOD PATH [TOKEN] [JSON]  -> 设置 $HTTP（状态码）与 $BODY
 req() {
   local m=$1 p=$2 t=$3 d=$4
-  local args=(-s -o /tmp/_body -w '%{http_code}' -X "$m" "$BASE$p")
+  local args=(-s --path-as-is -o /tmp/_body -w '%{http_code}' -X "$m" "$BASE$p")
   [ -n "$t" ] && args+=(-H "Authorization: Bearer $t")
   [ -n "$d" ] && args+=(-H 'Content-Type: application/json' --data-raw "$d")
   HTTP=$(curl "${args[@]}"); BODY=$(cat /tmp/_body)

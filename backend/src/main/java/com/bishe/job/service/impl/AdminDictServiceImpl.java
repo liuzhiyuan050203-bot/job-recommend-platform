@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bishe.job.common.BusinessException;
 import com.bishe.job.common.PageResult;
+import com.bishe.job.common.Pages;
 import com.bishe.job.dto.CategoryDTO;
 import com.bishe.job.dto.SkillTagDTO;
 import com.bishe.job.entity.JobCategory;
@@ -125,7 +126,7 @@ public class AdminDictServiceImpl implements AdminDictService {
 
     @Override
     public PageResult<SkillTagVO> listSkillTags(String direction, String keyword, long current, long size) {
-        Page<SkillTag> page = new Page<>(current, size);
+        Page<SkillTag> page = Pages.of(current, size);
         LambdaQueryWrapper<SkillTag> wrapper = new LambdaQueryWrapper<>();
 
         if (StringUtils.hasText(direction)) {

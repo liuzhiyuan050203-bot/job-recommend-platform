@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bishe.job.common.BusinessException;
 import com.bishe.job.common.PageResult;
+import com.bishe.job.common.Pages;
 import com.bishe.job.entity.CmsArticle;
 import com.bishe.job.entity.CmsBanner;
 import com.bishe.job.entity.ComComment;
@@ -74,7 +75,7 @@ public class PublicContentServiceImpl implements PublicContentService {
 
     @Override
     public PageResult<ArticleVO> listArticles(Integer type, String keyword, long current, long size) {
-        Page<CmsArticle> page = new Page<>(current, size);
+        Page<CmsArticle> page = Pages.of(current, size);
         LambdaQueryWrapper<CmsArticle> wrapper = new LambdaQueryWrapper<CmsArticle>()
                 .eq(CmsArticle::getStatus, 1);
 
@@ -187,7 +188,7 @@ public class PublicContentServiceImpl implements PublicContentService {
 
     @Override
     public PageResult<PostVO> listPosts(Integer postType, Long companyId, String keyword, long current, long size) {
-        Page<ComPost> page = new Page<>(current, size);
+        Page<ComPost> page = Pages.of(current, size);
         LambdaQueryWrapper<ComPost> wrapper = new LambdaQueryWrapper<ComPost>()
                 .eq(ComPost::getAuditStatus, 1);
 

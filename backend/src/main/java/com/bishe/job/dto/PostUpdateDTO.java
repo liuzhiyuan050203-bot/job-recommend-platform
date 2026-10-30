@@ -20,6 +20,7 @@ public class PostUpdateDTO {
     private String title;
 
     @NotBlank(message = "内容不能为空")
+    @Size(max = 65535, message = "内容长度不能超过 65535")
     private String content;
 
     @Min(value = 1, message = "评分范围 1-5")

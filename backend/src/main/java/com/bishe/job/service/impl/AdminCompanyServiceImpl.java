@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bishe.job.common.BusinessException;
 import com.bishe.job.common.PageResult;
+import com.bishe.job.common.Pages;
 import com.bishe.job.dto.AuditDTO;
 import com.bishe.job.entity.EntCompany;
 import com.bishe.job.entity.SysUser;
@@ -34,7 +35,7 @@ public class AdminCompanyServiceImpl implements AdminCompanyService {
 
     @Override
     public PageResult<AdminCompanyVO> listCompanies(Integer auditStatus, String keyword, long current, long size) {
-        Page<EntCompany> page = new Page<>(current, size);
+        Page<EntCompany> page = Pages.of(current, size);
         LambdaQueryWrapper<EntCompany> wrapper = new LambdaQueryWrapper<>();
 
         if (auditStatus != null) {

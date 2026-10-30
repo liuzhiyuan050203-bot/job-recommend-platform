@@ -21,6 +21,10 @@ public class SysUser {
 
     private String username;
 
+    /**
+     * BCrypt 哈希。@JsonIgnore 只作用于 Jackson 序列化，避免接口带回密码；
+     * MyBatis 仍通过 getter/setter 读写该列。
+     */
     @JsonIgnore
     private String password;
 

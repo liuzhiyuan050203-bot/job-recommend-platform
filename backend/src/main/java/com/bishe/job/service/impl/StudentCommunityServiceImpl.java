@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bishe.job.common.BusinessException;
 import com.bishe.job.common.PageResult;
+import com.bishe.job.common.Pages;
 import com.bishe.job.dto.CommentCreateDTO;
 import com.bishe.job.dto.PostCreateDTO;
 import com.bishe.job.dto.PostUpdateDTO;
@@ -47,7 +48,7 @@ public class StudentCommunityServiceImpl implements StudentCommunityService {
     @Override
     public PageResult<PostVO> listMyPosts(long current, long size) {
         Long userId = UserContext.get().getId();
-        Page<ComPost> page = new Page<>(current, size);
+        Page<ComPost> page = Pages.of(current, size);
         LambdaQueryWrapper<ComPost> wrapper = new LambdaQueryWrapper<ComPost>()
                 .eq(ComPost::getUserId, userId)
                 .orderByDesc(ComPost::getCreateTime);

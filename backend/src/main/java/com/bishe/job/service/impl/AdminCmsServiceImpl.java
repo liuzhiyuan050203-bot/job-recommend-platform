@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bishe.job.common.BusinessException;
 import com.bishe.job.common.PageResult;
+import com.bishe.job.common.Pages;
 import com.bishe.job.dto.ArticleDTO;
 import com.bishe.job.dto.ArticleStatusDTO;
 import com.bishe.job.dto.BannerDTO;
@@ -40,7 +41,7 @@ public class AdminCmsServiceImpl implements AdminCmsService {
 
     @Override
     public PageResult<BannerVO> listBanners(long current, long size) {
-        Page<CmsBanner> page = new Page<>(current, size);
+        Page<CmsBanner> page = Pages.of(current, size);
         LambdaQueryWrapper<CmsBanner> wrapper = new LambdaQueryWrapper<CmsBanner>()
                 .orderByAsc(CmsBanner::getSortNo)
                 .orderByDesc(CmsBanner::getId);
@@ -103,7 +104,7 @@ public class AdminCmsServiceImpl implements AdminCmsService {
 
     @Override
     public PageResult<ArticleVO> listArticles(Integer type, Integer status, String keyword, long current, long size) {
-        Page<CmsArticle> page = new Page<>(current, size);
+        Page<CmsArticle> page = Pages.of(current, size);
         LambdaQueryWrapper<CmsArticle> wrapper = new LambdaQueryWrapper<>();
 
         if (type != null) {

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bishe.job.common.BusinessException;
 import com.bishe.job.common.PageResult;
+import com.bishe.job.common.Pages;
 import com.bishe.job.entity.SysUser;
 import com.bishe.job.mapper.SysUserMapper;
 import com.bishe.job.security.RoleCodes;
@@ -30,7 +31,7 @@ public class AdminUserServiceImpl implements AdminUserService {
 
     @Override
     public PageResult<AdminUserVO> listUsers(Integer role, Integer status, String keyword, long current, long size) {
-        Page<SysUser> page = new Page<>(current, size);
+        Page<SysUser> page = Pages.of(current, size);
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
 
         if (role != null) {

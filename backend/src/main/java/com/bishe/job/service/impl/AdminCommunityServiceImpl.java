@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bishe.job.common.BusinessException;
 import com.bishe.job.common.PageResult;
+import com.bishe.job.common.Pages;
 import com.bishe.job.dto.AuditDTO;
 import com.bishe.job.entity.ComComment;
 import com.bishe.job.entity.ComPost;
@@ -46,7 +47,7 @@ public class AdminCommunityServiceImpl implements AdminCommunityService {
 
     @Override
     public PageResult<PostVO> listPosts(Integer auditStatus, String keyword, long current, long size) {
-        Page<ComPost> page = new Page<>(current, size);
+        Page<ComPost> page = Pages.of(current, size);
         LambdaQueryWrapper<ComPost> wrapper = new LambdaQueryWrapper<>();
 
         if (auditStatus != null) {
@@ -99,7 +100,7 @@ public class AdminCommunityServiceImpl implements AdminCommunityService {
 
     @Override
     public PageResult<CommentVO> listComments(Integer auditStatus, String keyword, long current, long size) {
-        Page<ComComment> page = new Page<>(current, size);
+        Page<ComComment> page = Pages.of(current, size);
         LambdaQueryWrapper<ComComment> wrapper = new LambdaQueryWrapper<>();
 
         if (auditStatus != null) {
