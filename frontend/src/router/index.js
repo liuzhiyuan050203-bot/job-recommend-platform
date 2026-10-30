@@ -17,6 +17,30 @@ const routes = [
     meta: { title: '首页', public: true }
   },
   {
+    path: '/articles',
+    name: 'ArticleList',
+    component: () => import('@/views/ArticleList.vue'),
+    meta: { title: '校园资讯与政策公告', public: true }
+  },
+  {
+    path: '/articles/:id',
+    name: 'ArticleDetail',
+    component: () => import('@/views/ArticleDetail.vue'),
+    meta: { title: '文章详情', public: true }
+  },
+  {
+    path: '/community',
+    name: 'CommunityList',
+    component: () => import('@/views/CommunityList.vue'),
+    meta: { title: '面经与企业评价社区', public: true }
+  },
+  {
+    path: '/community/:id',
+    name: 'PostDetail',
+    component: () => import('@/views/PostDetail.vue'),
+    meta: { title: '面经详情', public: true }
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/Login.vue'),
@@ -67,14 +91,14 @@ const routes = [
       {
         path: 'profile',
         name: 'StudentProfile',
-        component: Placeholder,
-        meta: { title: '个人档案与技能', desc: '个人档案、学历信息与技能标签将在这里维护' }
+        component: () => import('@/views/student/Profile.vue'),
+        meta: { title: '个人档案与技能' }
       },
       {
         path: 'community',
         name: 'StudentCommunity',
-        component: Placeholder,
-        meta: { title: '面经社区', desc: '面经与企业评价社区将在这里开放' }
+        component: () => import('@/views/student/MyPosts.vue'),
+        meta: { title: '面经社区' }
       }
     ]
   },
@@ -93,8 +117,8 @@ const routes = [
       {
         path: 'profile',
         name: 'CompanyProfile',
-        component: Placeholder,
-        meta: { title: '企业资料与资质', desc: '企业基本资料、营业执照与资质提交将在这里完成' }
+        component: () => import('@/views/company/Profile.vue'),
+        meta: { title: '企业资料与资质' }
       },
       {
         path: 'jobs',
@@ -131,14 +155,14 @@ const routes = [
       {
         path: 'companies',
         name: 'AdminCompanies',
-        component: Placeholder,
-        meta: { title: '企业审核', desc: '企业资质审核将在这里处理' }
+        component: () => import('@/views/admin/CompanyAudit.vue'),
+        meta: { title: '企业审核' }
       },
       {
         path: 'jobs',
         name: 'AdminJobs',
-        component: Placeholder,
-        meta: { title: '职位审核', desc: '职位合规审核将在这里处理' }
+        component: () => import('@/views/admin/JobAudit.vue'),
+        meta: { title: '职位审核' }
       },
       {
         path: 'content',
@@ -149,26 +173,26 @@ const routes = [
       {
         path: 'banners',
         name: 'AdminBanners',
-        component: Placeholder,
-        meta: { title: '轮播图', desc: '首页轮播图将在这里配置' }
+        component: () => import('@/views/admin/BannerManage.vue'),
+        meta: { title: '轮播图' }
       },
       {
         path: 'articles',
         name: 'AdminArticles',
-        component: Placeholder,
-        meta: { title: '文章', desc: '双选会公告、就业政策与资讯将在这里发布' }
+        component: () => import('@/views/admin/ArticleManage.vue'),
+        meta: { title: '文章' }
       },
       {
         path: 'categories',
         name: 'AdminCategories',
-        component: Placeholder,
-        meta: { title: '职位分类', desc: '职位分类树将在这里维护' }
+        component: () => import('@/views/admin/CategoryManage.vue'),
+        meta: { title: '职位分类' }
       },
       {
         path: 'skills',
         name: 'AdminSkills',
-        component: Placeholder,
-        meta: { title: '技能标签', desc: '技能标签字典将在这里维护' }
+        component: () => import('@/views/admin/SkillTagManage.vue'),
+        meta: { title: '技能标签' }
       },
       {
         path: 'applications',

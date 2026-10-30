@@ -1,7 +1,12 @@
 <template>
   <div class="home-container">
+    <!-- 顶部状态与导航条 -->
     <div class="top-bar">
       <div class="brand" @click="router.push('/')">高校就业推荐平台</div>
+      <div class="top-nav-links">
+        <el-button link @click="router.push('/articles')">就业资讯与公告</el-button>
+        <el-button link @click="router.push('/community')">求职面经社区</el-button>
+      </div>
       <div class="top-actions">
         <template v-if="userStore.isLoggedIn">
           <span class="welcome">你好，{{ userStore.nickname }}</span>
@@ -14,7 +19,22 @@
         </template>
       </div>
     </div>
-    <!-- 顶部主横幅 -->
+
+    <!-- 首页轮播图 -->
+    <section v-if="banners.length > 0" class="banner-section">
+      <el-carousel :interval="4000" type="card" height="240px">
+        <el-carousel-item v-for="item in banners" :key="item.id" @click="handleBannerClick(item)">
+          <div class="carousel-card">
+            <el-image :src="item.imageUrl" fit="cover" class="carousel-img" />
+            <div class="carousel-title-mask">
+              <span>{{ item.title }}</span>
+            </div>
+          </div>
+        </el-carousel-item>
+      </el-carousel>
+    </section>
+
+    <!-- 顶部主标题与健康状态 -->
     <header class="hero-section">
       <div class="hero-badge">毕业设计 · 2026届</div>
       <h1 class="hero-title">基于 Spark 与 RAG 的高校就业推荐平台</h1>
@@ -41,23 +61,18 @@
         </div>
 
         <div class="health-tags">
-          <!-- 总体服务状态 -->
           <div class="status-item">
             <span class="item-name">后端主服务 (8080):</span>
             <el-tag :type="healthStatus.serverOk ? 'success' : 'danger'" effect="dark">
               {{ healthStatus.serverOk ? '运行正常 (Connected)' : '连接失败 (Disconnected)' }}
             </el-tag>
           </div>
-
-          <!-- 数据库状态 (db 字段) -->
           <div class="status-item">
             <span class="item-name">数据库 (db):</span>
             <el-tag :type="healthStatus.dbOk ? 'success' : 'warning'" effect="light">
               {{ healthStatus.db }}
             </el-tag>
           </div>
-
-          <!-- AI / RAG 智能体服务状态 (aiService 字段) -->
           <div class="status-item">
             <span class="item-name">AI智能体服务 (aiService):</span>
             <el-tag :type="healthStatus.aiOk ? 'success' : 'info'" effect="light">
@@ -74,6 +89,104 @@
       </div>
     </header>
 
+    <!-- 三栏文章资讯区 (双选会公告 / 就业政策 / 面试指南) -->
+    <section class="articles-columns-section">
+      <div class="section-header">
+        <h2 class="section-title">校园资讯与就业政策专栏</h2>
+        <el-button link type="primary" @click="router.push('/articles')">
+          查看全部资讯 <el-icon><ArrowRight /></el-icon>
+        </el-button>
+      </div>
+
+      <el-row :gutter="20">
+        <!-- 栏目 1：双选会公告 -->
+        <el-col :xs="24" :md="8">
+          <el-card shadow="hover" class="column-card">
+            <template #header>
+              <div class="column-header">
+                <span class="col-title success-col"><el-icon><Calendar /></el-icon> 双选会公告</span>
+                <el-button link size="small" @click="router.push('/articles?type=1')">更多</el-button>
+              </div>
+            </template>
+            <div v-if="fairsList.length === 0" class="empty-col">暂无最新公告</div>
+            <ul v-else class="article-mini-list">
+              <li v-for="a in fairsList" :key="a.id" @click="router.push(`/articles/${a.id}`)">
+                <span class="mini-title">{{ a.title }}</span>
+                <span class="mini-date">{{ a.publishTime ? a.publishTime.substring(5, 10) : a.createTime.substring(5, 10) }}</span>
+              </li>
+            </ul>
+          </el-card>
+        </el-col>
+
+        <!-- 栏目 2：就业政策 -->
+        <el-col :xs="24" :md="8">
+          <el-card shadow="hover" class="column-card">
+            <template #header>
+              <div class="column-header">
+                <span class="col-title primary-col"><el-icon><Document /></el-icon> 就业政策解读</span>
+                <el-button link size="small" @click="router.push('/articles?type=2')">更多</el-button>
+              </div>
+            </template>
+            <div v-if="policyList.length === 0" class="empty-col">暂无最新政策</div>
+            <ul v-else class="article-mini-list">
+              <li v-for="a in policyList" :key="a.id" @click="router.push(`/articles/${a.id}`)">
+                <span class="mini-title">{{ a.title }}</span>
+                <span class="mini-date">{{ a.publishTime ? a.publishTime.substring(5, 10) : a.createTime.substring(5, 10) }}</span>
+              </li>
+            </ul>
+          </el-card>
+        </el-col>
+
+        <!-- 栏目 3：面试指南与资讯 -->
+        <el-col :xs="24" :md="8">
+          <el-card shadow="hover" class="column-card">
+            <template #header>
+              <div class="column-header">
+                <span class="col-title warning-col"><el-icon><Guide /></el-icon> 面试指南与资讯</span>
+                <el-button link size="small" @click="router.push('/articles?type=3')">更多</el-button>
+              </div>
+            </template>
+            <div v-if="newsList.length === 0" class="empty-col">暂无指南资讯</div>
+            <ul v-else class="article-mini-list">
+              <li v-for="a in newsList" :key="a.id" @click="router.push(`/articles/${a.id}`)">
+                <span class="mini-title">{{ a.title }}</span>
+                <span class="mini-date">{{ a.publishTime ? a.publishTime.substring(5, 10) : a.createTime.substring(5, 10) }}</span>
+              </li>
+            </ul>
+          </el-card>
+        </el-col>
+      </el-row>
+    </section>
+
+    <!-- 最新求职面经与企业评价 -->
+    <section class="community-preview-section">
+      <div class="section-header">
+        <h2 class="section-title">最新校招面经与企业评价</h2>
+        <el-button link type="primary" @click="router.push('/community')">
+          进入社区互动广场 <el-icon><ArrowRight /></el-icon>
+        </el-button>
+      </div>
+
+      <el-row :gutter="20">
+        <el-col v-for="p in latestPosts" :key="p.id" :xs="24" :sm="12" :md="6">
+          <el-card shadow="hover" class="home-post-card" @click="router.push(`/community/${p.id}`)">
+            <div class="hp-top">
+              <el-tag :type="p.postType === 1 ? 'success' : 'warning'" size="small">
+                {{ p.postTypeName }}
+              </el-tag>
+              <span v-if="p.companyName" class="hp-company">{{ p.companyName }}</span>
+            </div>
+            <h4 class="hp-title">{{ p.title }}</h4>
+            <p class="hp-content">{{ p.content }}</p>
+            <div class="hp-footer">
+              <span class="hp-author">{{ p.authorName }}</span>
+              <span class="hp-comments"><el-icon><ChatDotRound /></el-icon> {{ p.commentCount }}</span>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+    </section>
+
     <!-- 三端入口快捷导航 -->
     <section class="portals-section">
       <h2 class="section-title">系统多端协同入口</h2>
@@ -85,7 +198,7 @@
               <el-icon><User /></el-icon>
             </div>
             <h3>学生门户</h3>
-            <p>职位多维检索、个性化雷达图、简历在线构建与 User-CF / 内容智能匹配推荐。</p>
+            <p>维护个人档案与技能、简历在线构建、面经社区互动、雷达图与推荐职位。</p>
             <div class="card-action">
               <el-button type="primary" size="large" @click="navigateTo('/student')">
                 进入学生端
@@ -102,7 +215,7 @@
               <el-icon><OfficeBuilding /></el-icon>
             </div>
             <h3>企业门户</h3>
-            <p>招聘岗位发布、初筛/面试状态机流转、面试日程提醒、招聘转化漏斗分析。</p>
+            <p>完善企业基本资料、营业执照资质认证、岗位招聘发布与初筛/面试流转。</p>
             <div class="card-action">
               <el-button type="success" size="large" @click="navigateTo('/company')">
                 进入企业端
@@ -119,7 +232,7 @@
               <el-icon><Setting /></el-icon>
             </div>
             <h3>管理员门户</h3>
-            <p>资质审核认证、双选会政策管理、面经评论审核、Spark 统计就业数据大屏。</p>
+            <p>企业资质审核、职位合规审核、面经评论内容审查、轮播与文章资讯配置。</p>
             <div class="card-action">
               <el-button type="danger" size="large" @click="navigateTo('/admin')">
                 进入管理端
@@ -154,12 +267,19 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getHealth } from '@/api/health'
+import { getBanners, getArticles, getPosts } from '@/api/public'
 import EChart from '@/components/EChart.vue'
 import { useUserStore } from '@/stores/user'
 import { roleHome } from '@/utils/role'
 
 const router = useRouter()
 const userStore = useUserStore()
+
+const banners = ref([])
+const fairsList = ref([])
+const policyList = ref([])
+const newsList = ref([])
+const latestPosts = ref([])
 
 const goWorkspace = () => {
   const user = userStore.userInfo
@@ -173,6 +293,16 @@ const goWorkspace = () => {
 const handleLogout = () => {
   userStore.logout()
   ElMessage.success('已退出登录')
+}
+
+const handleBannerClick = (item) => {
+  if (item.linkUrl) {
+    if (item.linkUrl.startsWith('http')) {
+      window.open(item.linkUrl, '_blank')
+    } else {
+      router.push(item.linkUrl)
+    }
+  }
 }
 
 const healthLoading = ref(false)
@@ -209,6 +339,31 @@ const checkBackendHealth = async () => {
     }
   } finally {
     healthLoading.value = false
+  }
+}
+
+const fetchPublicHomeData = async () => {
+  try {
+    // 轮播图
+    banners.value = (await getBanners()) || []
+
+    // 双选会公告
+    const fairs = await getArticles({ type: 1, current: 1, size: 5 })
+    fairsList.value = fairs.records || []
+
+    // 就业政策
+    const policies = await getArticles({ type: 2, current: 1, size: 5 })
+    policyList.value = policies.records || []
+
+    // 面试指南
+    const news = await getArticles({ type: 3, current: 1, size: 5 })
+    newsList.value = news.records || []
+
+    // 最新面经
+    const postsRes = await getPosts({ current: 1, size: 4 })
+    latestPosts.value = postsRes.records || []
+  } catch (err) {
+    console.error('加载公共内容失败:', err)
   }
 }
 
@@ -309,6 +464,7 @@ const salaryBarChartOption = computed(() => {
 
 onMounted(() => {
   checkBackendHealth()
+  fetchPublicHomeData()
 })
 </script>
 
@@ -323,7 +479,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .brand {
@@ -331,6 +487,11 @@ onMounted(() => {
   font-weight: 700;
   color: #1a202c;
   cursor: pointer;
+}
+
+.top-nav-links {
+  display: flex;
+  gap: 16px;
 }
 
 .top-actions {
@@ -342,6 +503,35 @@ onMounted(() => {
 .welcome {
   color: #4a5568;
   font-size: 14px;
+}
+
+.banner-section {
+  margin-bottom: 30px;
+}
+
+.carousel-card {
+  position: relative;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.carousel-img {
+  width: 100%;
+  height: 100%;
+}
+
+.carousel-title-mask {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  color: #ffffff;
+  padding: 12px 16px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .hero-section {
@@ -426,16 +616,152 @@ onMounted(() => {
   text-align: left;
 }
 
-.portals-section {
-  margin-bottom: 40px;
+.articles-columns-section, .community-preview-section {
+  margin-bottom: 36px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
 }
 
 .section-title {
   font-size: 20px;
   font-weight: 600;
   color: #2d3748;
-  margin-bottom: 20px;
+  margin: 0;
+}
+
+.column-card {
+  border-radius: 10px;
+  height: 230px;
+  display: flex;
+  flex-direction: column;
+}
+
+.column-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.col-title {
+  font-weight: 600;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.success-col { color: #67c23a; }
+.primary-col { color: #409eff; }
+.warning-col { color: #e6a23c; }
+
+.empty-col {
+  color: #a0aec0;
+  font-size: 13px;
   text-align: center;
+  margin-top: 40px;
+}
+
+.article-mini-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.article-mini-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--el-border-color-lighter);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.article-mini-list li:hover .mini-title {
+  color: var(--el-color-primary);
+}
+
+.mini-title {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 78%;
+}
+
+.mini-date {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.home-post-card {
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  height: 100%;
+}
+
+.home-post-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--el-box-shadow-light);
+}
+
+.hp-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.hp-company {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hp-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin: 0 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hp-content {
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+  line-height: 1.5;
+  height: 36px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  margin: 0 0 10px;
+}
+
+.hp-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  border-top: 1px solid var(--el-border-color-lighter);
+  padding-top: 8px;
+}
+
+.portals-section {
+  margin-bottom: 40px;
 }
 
 .portal-card {

@@ -62,8 +62,11 @@ public class UserAssembler {
         }
         StudentProfileVO vo = new StudentProfileVO();
         vo.setId(profile.getId());
+        vo.setUserId(profile.getUserId());
         vo.setRealName(profile.getRealName());
         vo.setGender(profile.getGender());
+        vo.setGenderName(genderName(profile.getGender()));
+        vo.setBirthday(profile.getBirthday());
         vo.setStudentNo(profile.getStudentNo());
         vo.setSchool(profile.getSchool());
         vo.setCollege(profile.getCollege());
@@ -72,7 +75,10 @@ public class UserAssembler {
         vo.setEducationName(educationName(profile.getEducation()));
         vo.setGraduationYear(profile.getGraduationYear());
         vo.setExpectCity(profile.getExpectCity());
+        vo.setExpectSalaryMin(profile.getExpectSalaryMin());
+        vo.setExpectSalaryMax(profile.getExpectSalaryMax());
         vo.setExpectDirection(profile.getExpectDirection());
+        vo.setSelfIntro(profile.getSelfIntro());
         return vo;
     }
 
@@ -82,20 +88,37 @@ public class UserAssembler {
         }
         CompanyProfileVO vo = new CompanyProfileVO();
         vo.setId(company.getId());
+        vo.setUserId(company.getUserId());
         vo.setCompanyName(company.getCompanyName());
         vo.setShortName(company.getShortName());
+        vo.setLogoUrl(company.getLogoUrl());
         vo.setIndustry(company.getIndustry());
         vo.setScale(company.getScale());
         vo.setProvince(company.getProvince());
         vo.setCity(company.getCity());
         vo.setAddress(company.getAddress());
+        vo.setWebsite(company.getWebsite());
+        vo.setIntro(company.getIntro());
         vo.setCreditCode(company.getCreditCode());
+        vo.setLicenseUrl(company.getLicenseUrl());
         vo.setContactName(company.getContactName());
         vo.setContactPhone(company.getContactPhone());
         vo.setContactEmail(company.getContactEmail());
         vo.setAuditStatus(company.getAuditStatus());
         vo.setAuditRemark(company.getAuditRemark());
+        vo.setAuditTime(company.getAuditTime());
         return vo;
+    }
+
+    private String genderName(Integer gender) {
+        if (gender == null) {
+            return "未知";
+        }
+        return switch (gender) {
+            case 1 -> "男";
+            case 2 -> "女";
+            default -> "未知";
+        };
     }
 
     private String educationName(Integer education) {

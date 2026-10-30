@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.util.UrlPathHelper;
 
 import java.nio.charset.StandardCharsets;
 
@@ -45,6 +46,9 @@ public class AuthInterceptor implements HandlerInterceptor {
             return true;
         }
         String uri = requestPath(request);
+        if (suspicious(request, uri)) {
+            return reject(response, 400, "非法请求路径");
+        }
         if (isPublic(uri)) {
             return true;
         }
@@ -137,16 +141,27 @@ public class AuthInterceptor implements HandlerInterceptor {
         return null;
     }
 
+    /**
+     * 计算用于权限判断的路径：必须与 Spring MVC 路由匹配时看到的路径一致，
+     * 因此先做 URL 解码、去掉 ;矩阵参数、合并多余斜杠，防止 /api/%61dmin、/api/admin;x 之类绕过角色校验。
+     */
     private String requestPath(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-        String contextPath = request.getContextPath();
-        if (StringUtils.hasText(contextPath) && uri.startsWith(contextPath)) {
-            uri = uri.substring(contextPath.length());
-        }
+        UrlPathHelper helper = new UrlPathHelper();
+        helper.setUrlDecode(true);
+        helper.setRemoveSemicolonContent(true);
+        String uri = helper.getPathWithinApplication(request);
+        uri = uri.replaceAll("/{2,}", "/");
         if (uri.length() > 1 && uri.endsWith("/")) {
             uri = uri.substring(0, uri.length() - 1);
         }
         return uri;
+    }
+
+    /** 含路径穿越片段的请求一律拒绝 */
+    private boolean suspicious(HttpServletRequest request, String uri) {
+        String raw = request.getRequestURI();
+        return uri.contains("/../") || uri.endsWith("/..") || uri.contains("/./")
+                || raw.contains("..") || raw.contains("\\");
     }
 
     private boolean reject(HttpServletResponse response, int code, String msg) throws Exception {
