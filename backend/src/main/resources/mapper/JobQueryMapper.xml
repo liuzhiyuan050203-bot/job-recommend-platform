@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bishe.job.mapper.JobQueryMapper">
+
+    <!-- 学生可见职位：已审核、已上架、未删除，且所属企业资质已通过 -->
+    <sql id="visibleJob">
+        p.deleted = 0
+        AND p.audit_status = 1
+        AND p.shelf_status = 1
+        AND c.deleted = 0
+        AND c.audit_status = 1
+    </sql>
+
+    <sql id="cardColumns">
+        p.id,
+        p.title,
+        p.tech_direction AS techDirection,
+        p.category_id AS categoryId,
+        p.province,
+        p.city,
+        p.district,
+        p.address,
+        p.salary_min AS salaryMin,
+        p.salary_max AS salaryMax,
+        p.salary_months AS salaryMonths,
+        p.education,
+        p.experience_req AS experienceReq,
+        p.job_type AS jobType,
+        p.headcount,
+        p.welfare,
+        p.company_id AS companyId,
+        IF(c.short_name IS NOT NULL AND c.short_name &lt;&gt; '', c.short_name, c.company_name) AS companyName,
+        c.logo_url AS companyLogo,
+        p.publish_time AS publishTime,
+        p.view_count AS viewCount,
+        p.favorite_count AS favoriteCount,
+        p.apply_count AS applyCount,
+        p.shelf_status AS shelfStatus,
+        p.audit_status AS auditStatus
+    </sql>
+
+    <!--
+      排序只在 choose 白名单里写死，不使用 ${}，避免把 sort 拼进 SQL。
+      学历：职位要求 education &lt;= 传入值（0 不限最小，见 PublicJobService 注释）。
+      薪资：区间重叠，job.salary_max &gt;= salaryMin 且 job.salary_min &lt;= salaryMax。
+    -->
+    <select id="searchJobs" resultType="com.bishe.job.vo.PublicJobVO">
+        SELECT
+        <include refid="cardColumns"/>
+        FROM job_position p
+        INNER JOIN ent_company c ON c.id = p.company_id
+        <where>
+            <include refid="visibleJob"/>
+            <if test="q.keyword != null and q.keyword != ''">
+                AND (
+                    p.title LIKE CONCAT('%', #{q.keyword}, '%') ESCAPE '\\'
+                    OR c.company_name LIKE CONCAT('%', #{q.keyword}, '%') ESCAPE '\\'
+                    OR c.short_name LIKE CONCAT('%', #{q.keyword}, '%') ESCAPE '\\'
+                )
+            </if>
+            <if test="q.techDirection != null and q.techDirection != ''">
+                AND p.tech_direction = #{q.techDirection}
+            </if>
+            <if test="q.categoryId != null">
+                AND p.category_id = #{q.categoryId}
+            </if>
+            <if test="q.city != null and q.city != ''">
+                AND p.city = #{q.city}
+            </if>
+            <if test="q.salaryMin != null">
+                AND p.salary_max &gt;= #{q.salaryMin}
+            </if>
+            <if test="q.salaryMax != null">
+                AND p.salary_min &lt;= #{q.salaryMax}
+            </if>
+            <if test="q.education != null">
+                AND p.education &lt;= #{q.education}
+            </if>
+            <if test="q.jobType != null">
+                AND p.job_type = #{q.jobType}
+            </if>
+            <if test="q.tagIds != null and q.tagIds.size() &gt; 0">
+                AND EXISTS (
+                    SELECT 1 FROM job_position_tag t
+                    WHERE t.position_id = p.id
+                      AND t.deleted = 0
+                      AND t.tag_id IN
+                    <foreach collection="q.tagIds" item="tagId" open="(" separator="," close=")">
+                        #{tagId}
+                    </foreach>
+                )
+            </if>
+        </where>
+        <choose>
+            <when test="q.sort == 'salary'">
+                ORDER BY p.salary_max DESC, p.id DESC
+            </when>
+            <when test="q.sort == 'hot'">
+                ORDER BY p.view_count DESC, p.id DESC
+            </when>
+            <otherwise>
+                ORDER BY p.publish_time DESC, p.id DESC
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="selectVisible" resultType="com.bishe.job.vo.PublicJobVO">
+        SELECT
+        <include refid="cardColumns"/>,
+        p.description,
+        p.requirement
+        FROM job_position p
+        INNER JOIN ent_company c ON c.id = p.company_id
+        WHERE p.id = #{id}
+          AND <include refid="visibleJob"/>
+    </select>
+
+    <select id="listTags" resultType="com.bishe.job.vo.PositionTagVO">
+        SELECT t.position_id AS positionId, t.tag_id AS tagId, s.name AS tagName
+        FROM job_position_tag t
+        INNER JOIN skill_tag s ON s.id = t.tag_id AND s.deleted = 0
+        WHERE t.deleted = 0
+          AND t.position_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        ORDER BY s.sort_no ASC, s.id ASC
+    </select>
+</mapper>

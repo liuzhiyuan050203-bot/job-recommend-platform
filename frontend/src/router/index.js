@@ -7,8 +7,6 @@ import StudentLayout from '@/layouts/StudentLayout.vue'
 import CompanyLayout from '@/layouts/CompanyLayout.vue'
 import AdminLayout from '@/layouts/AdminLayout.vue'
 
-const Placeholder = () => import('@/views/Placeholder.vue')
-
 const routes = [
   {
     path: '/',
@@ -61,8 +59,8 @@ const routes = [
       {
         path: 'home',
         name: 'StudentHome',
-        component: Placeholder,
-        meta: { title: '首页', desc: '学生首页将展示推荐职位、技能雷达与求职进度' }
+        component: () => import('@/views/student/Home.vue'),
+        meta: { title: '首页' }
       },
       {
         path: 'jobs',
@@ -71,10 +69,16 @@ const routes = [
         meta: { title: '职位搜索' }
       },
       {
+        path: 'jobs/:id',
+        name: 'StudentJobDetail',
+        component: () => import('@/views/student/JobDetail.vue'),
+        meta: { title: '职位详情', activeMenu: '/student/jobs' }
+      },
+      {
         path: 'favorites',
         name: 'StudentFavorites',
-        component: Placeholder,
-        meta: { title: '我的收藏', desc: '收藏的职位将在这里集中查看' }
+        component: () => import('@/views/student/Favorites.vue'),
+        meta: { title: '我的收藏' }
       },
       {
         path: 'applications',
@@ -135,8 +139,8 @@ const routes = [
       {
         path: 'interviews',
         name: 'CompanyInterviews',
-        component: Placeholder,
-        meta: { title: '面试安排', desc: '面试日程与提醒将在这里安排' }
+        component: () => import('@/views/company/Interviews.vue'),
+        meta: { title: '面试安排' }
       }
     ]
   },
@@ -197,8 +201,8 @@ const routes = [
       {
         path: 'applications',
         name: 'AdminApplications',
-        component: Placeholder,
-        meta: { title: '投递总览', desc: '全平台投递记录将在这里查看' }
+        component: () => import('@/views/admin/ApplicationOverview.vue'),
+        meta: { title: '投递总览' }
       }
     ]
   },

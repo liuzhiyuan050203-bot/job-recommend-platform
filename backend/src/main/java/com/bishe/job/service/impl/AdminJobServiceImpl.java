@@ -36,12 +36,19 @@ public class AdminJobServiceImpl implements AdminJobService {
     private final JobCategoryMapper jobCategoryMapper;
 
     @Override
-    public PageResult<AdminJobVO> listJobs(Integer auditStatus, String keyword, long current, long size) {
+    public PageResult<AdminJobVO> listJobs(Integer auditStatus, Integer shelfStatus, Long companyId,
+                                            String keyword, long current, long size) {
         Page<JobPosition> page = new Page<>(current, size);
         LambdaQueryWrapper<JobPosition> wrapper = new LambdaQueryWrapper<>();
 
         if (auditStatus != null) {
             wrapper.eq(JobPosition::getAuditStatus, auditStatus);
+        }
+        if (shelfStatus != null) {
+            wrapper.eq(JobPosition::getShelfStatus, shelfStatus);
+        }
+        if (companyId != null) {
+            wrapper.eq(JobPosition::getCompanyId, companyId);
         }
         if (StringUtils.hasText(keyword)) {
             String kw = keyword.trim();

@@ -11,7 +11,7 @@
         </el-tag>
       </div>
       <el-menu
-        :default-active="route.path"
+        :default-active="activeMenu"
         router
         class="aside-menu"
         background-color="#1e222d"
@@ -72,6 +72,7 @@
           show-icon
           :closable="false"
         />
+        <slot name="banner" />
         <router-view />
       </el-main>
     </el-container>
@@ -127,8 +128,9 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const displayName = computed(() => userStore.nickname)
+const activeMenu = computed(() => route.meta.activeMenu || route.path)
 const currentMenuTitle = computed(() => {
-  const match = props.menuItems.find((item) => item.path === route.path)
+  const match = props.menuItems.find((item) => item.path === activeMenu.value)
   return match ? match.title : (route.meta.title || '当前页面')
 })
 

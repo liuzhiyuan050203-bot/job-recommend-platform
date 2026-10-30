@@ -253,3 +253,11 @@ export function deleteAdminSkillTag(id) {
     method: 'delete'
   })
 }
+
+export function getAdminOverview() {
+  return request({ url: '/admin/overview', method: 'get' })
+}
+
+export function getAdminApplications(params) {
+  return request({ url: '/admin/applications', method: 'get', params })
+}

@@ -10,6 +10,10 @@
               <el-option label="已通过" :value="1" />
               <el-option label="已驳回" :value="2" />
             </el-select>
+            <el-select v-model="filterShelf" placeholder="上下架" clearable style="width: 120px" @change="handleSearch">
+              <el-option label="已上架" :value="1" />
+              <el-option label="已下架" :value="0" />
+            </el-select>
 
             <el-input
               v-model="keyword"
@@ -160,6 +164,7 @@ const loading = ref(false)
 const submittingAudit = ref(false)
 const jobs = ref([])
 const filterStatus = ref(0) // 默认待审
+const filterShelf = ref(null)
 const keyword = ref('')
 
 const pagination = reactive({
@@ -182,7 +187,8 @@ const fetchJobs = async () => {
     const params = {
       current: pagination.current,
       size: pagination.size,
-      auditStatus: filterStatus.value !== null ? filterStatus.value : undefined,
+      auditStatus: filterStatus.value !== null && filterStatus.value !== '' ? filterStatus.value : undefined,
+      shelfStatus: filterShelf.value !== null && filterShelf.value !== '' ? filterShelf.value : undefined,
       keyword: keyword.value.trim() || undefined
     }
     const res = await getAdminJobs(params)

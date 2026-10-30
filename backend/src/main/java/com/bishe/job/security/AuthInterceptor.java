@@ -23,7 +23,8 @@ import java.nio.charset.StandardCharsets;
 /**
  * 登录与角色拦截。
  * <p>
- * /api/public/**、/api/health 放行；/api/student/** 仅学生；/api/company/** 仅企业；
+ * /api/public/**、/api/health 放行，但若携带有效令牌会写入当前用户（可选认证），
+ * 无效或过期令牌按匿名处理，不返回 401；/api/student/** 仅学生；/api/company/** 仅企业；
  * /api/admin/** 仅管理员；其余 /api/** 登录即可。每次请求都会核对数据库中的账号状态，
  * 禁用后旧令牌立即失效。企业资质未通过时，只允许访问 /api/company/profile/**。
  */
@@ -50,6 +51,7 @@ public class AuthInterceptor implements HandlerInterceptor {
             return reject(response, 400, "非法请求路径");
         }
         if (isPublic(uri)) {
+            authenticateOptional(request);
             return true;
         }
 
@@ -105,6 +107,40 @@ public class AuthInterceptor implements HandlerInterceptor {
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
         UserContext.clear();
+    }
+
+    /**
+     * 公开接口上的可选认证：令牌有效且账号正常时写入 UserContext，否则保持匿名。
+     * 不因无效令牌拒绝请求。
+     */
+    private void authenticateOptional(HttpServletRequest request) {
+        String token = resolveToken(request);
+        if (!StringUtils.hasText(token)) {
+            return;
+        }
+        try {
+            Long userId = jwtUtil.parseUserId(token);
+            SysUser user = sysUserMapper.selectById(userId);
+            if (user == null || !AccountStatus.isActive(user.getStatus())) {
+                return;
+            }
+            Integer companyAuditStatus = null;
+            if (Integer.valueOf(RoleCodes.COMPANY).equals(user.getRole())) {
+                EntCompany company = entCompanyMapper.selectOne(new LambdaQueryWrapper<EntCompany>()
+                        .eq(EntCompany::getUserId, user.getId()));
+                companyAuditStatus = company == null ? null : company.getAuditStatus();
+            }
+            LoginUser loginUser = new LoginUser();
+            loginUser.setId(user.getId());
+            loginUser.setUsername(user.getUsername());
+            loginUser.setRole(user.getRole());
+            loginUser.setStatus(user.getStatus());
+            loginUser.setNickname(user.getNickname());
+            loginUser.setCompanyAuditStatus(companyAuditStatus);
+            UserContext.set(loginUser);
+        } catch (JwtException | IllegalArgumentException ex) {
+            log.debug("公开接口忽略无效令牌");
+        }
     }
 
     private boolean isPublic(String uri) {

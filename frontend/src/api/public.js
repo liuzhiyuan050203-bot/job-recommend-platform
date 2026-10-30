@@ -51,3 +51,18 @@ export function getPost(id) {
     method: 'get'
   })
 }
+
+export function searchJobs(params) {
+  return request({
+    url: '/public/jobs',
+    method: 'get',
+    params
+  })
+}
+
+export function getJob(id) {
+  return request({
+    url: `/public/jobs/${id}`,
+    method: 'get'
+  })
+}

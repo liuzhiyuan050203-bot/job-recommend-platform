@@ -90,3 +90,55 @@ export function deleteComment(id) {
     method: 'delete'
   })
 }
+
+export function getResumes() {
+  return request({ url: '/student/resumes', method: 'get' })
+}
+
+export function getResume(id) {
+  return request({ url: `/student/resumes/${id}`, method: 'get' })
+}
+
+export function createResume(data) {
+  return request({ url: '/student/resumes', method: 'post', data })
+}
+
+export function updateResume(id, data) {
+  return request({ url: `/student/resumes/${id}`, method: 'put', data })
+}
+
+export function setDefaultResume(id) {
+  return request({ url: `/student/resumes/${id}/default`, method: 'put' })
+}
+
+export function deleteResume(id) {
+  return request({ url: `/student/resumes/${id}`, method: 'delete' })
+}
+
+export function getFavorites(params) {
+  return request({ url: '/student/favorites', method: 'get', params })
+}
+
+export function addFavorite(jobId) {
+  return request({ url: '/student/favorites', method: 'post', data: { jobId } })
+}
+
+export function removeFavorite(jobId) {
+  return request({ url: `/student/favorites/${jobId}`, method: 'delete' })
+}
+
+export function applyJob(data) {
+  return request({ url: '/student/applications', method: 'post', data })
+}
+
+export function getApplications(params) {
+  return request({ url: '/student/applications', method: 'get', params })
+}
+
+export function getApplication(id) {
+  return request({ url: `/student/applications/${id}`, method: 'get' })
+}
+
+export function getUpcomingInterviews() {
+  return request({ url: '/student/interviews/upcoming', method: 'get' })
+}
