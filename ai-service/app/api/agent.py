@@ -25,7 +25,7 @@ async def get_agent_status():
 @router.get("/stream-demo", summary="Agent SSE 流式对话演示")
 async def stream_demo(
     q: str = Query(default="请推荐适合计算机专业应届生的就业方向", description="用户问题"),
-    role: str = Query(default="student", description="角色: student / enterprise / admin"),
+    role: str = Query(default="student", description="角色: student / company / admin"),
 ):
     """Server-Sent Events (SSE) 流式传输演示接口.
 

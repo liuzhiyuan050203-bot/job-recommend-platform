@@ -18,7 +18,7 @@ class AgentService:
     """智能体业务服务类."""
 
     def __init__(self) -> None:
-        self.roles = ["student", "enterprise", "admin"]
+        self.roles = ["student", "company", "admin"]
 
     def get_status(self) -> Dict[str, Any]:
         """获取智能体模块状态."""

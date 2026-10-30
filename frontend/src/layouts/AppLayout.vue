@@ -1,6 +1,5 @@
 <template>
   <el-container class="layout-container">
-    <!-- 侧边栏 -->
     <el-aside width="240px" class="layout-aside">
       <div class="aside-logo" @click="router.push('/')">
         <el-icon class="logo-icon"><Briefcase /></el-icon>
@@ -23,6 +22,7 @@
           v-for="item in menuItems"
           :key="item.path"
           :index="item.path"
+          :disabled="item.disabled"
         >
           <el-icon v-if="item.icon">
             <component :is="item.icon" />
@@ -32,9 +32,7 @@
       </el-menu>
     </el-aside>
 
-    <!-- 主体区域 -->
     <el-container>
-      <!-- 顶栏 -->
       <el-header class="layout-header">
         <div class="header-left">
           <el-breadcrumb separator="/">
@@ -51,11 +49,12 @@
           <el-dropdown @command="handleUserCommand">
             <span class="user-info">
               <el-avatar :size="32" icon="UserFilled" class="user-avatar" />
-              <span class="username">{{ userStore.userInfo.name || roleName + '用户' }}</span>
+              <span class="username">{{ displayName }}</span>
               <el-icon><ArrowDown /></el-icon>
             </span>
             <template #dropdown>
               <el-dropdown-menu>
+                <el-dropdown-item command="password">修改密码</el-dropdown-item>
                 <el-dropdown-item command="home">返回主页</el-dropdown-item>
                 <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
               </el-dropdown-menu>
@@ -64,19 +63,45 @@
         </div>
       </el-header>
 
-      <!-- 内容区 -->
       <el-main class="layout-main">
+        <el-alert
+          v-if="auditAlert"
+          class="audit-alert"
+          :title="auditAlert"
+          type="warning"
+          show-icon
+          :closable="false"
+        />
         <router-view />
       </el-main>
     </el-container>
   </el-container>
+
+  <el-dialog v-model="pwdVisible" title="修改密码" width="420px" @closed="resetPasswordForm">
+    <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-width="90px">
+      <el-form-item label="原密码" prop="oldPassword">
+        <el-input v-model="pwdForm.oldPassword" type="password" show-password maxlength="32" autocomplete="current-password" />
+      </el-form-item>
+      <el-form-item label="新密码" prop="newPassword">
+        <el-input v-model="pwdForm.newPassword" type="password" show-password maxlength="32" autocomplete="new-password" />
+      </el-form-item>
+      <el-form-item label="确认新密码" prop="confirmPassword">
+        <el-input v-model="pwdForm.confirmPassword" type="password" show-password maxlength="32" autocomplete="new-password" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="pwdVisible = false">取消</el-button>
+      <el-button type="primary" :loading="pwdLoading" @click="submitPassword">保存</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
+import { useUserStore } from '@/stores/user'
+import { updatePassword } from '@/api/user'
 
 const props = defineProps({
   roleName: {
@@ -90,6 +115,10 @@ const props = defineProps({
   menuItems: {
     type: Array,
     required: true
+  },
+  auditAlert: {
+    type: String,
+    default: ''
   }
 })
 
@@ -97,20 +126,84 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
+const displayName = computed(() => userStore.nickname)
 const currentMenuTitle = computed(() => {
   const match = props.menuItems.find((item) => item.path === route.path)
-  return match ? match.title : '当前页面'
+  return match ? match.title : (route.meta.title || '当前页面')
 })
 
+const pwdVisible = ref(false)
+const pwdLoading = ref(false)
+const pwdFormRef = ref()
+const pwdForm = reactive({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+const validateConfirm = (_rule, value, callback) => {
+  if (!value) {
+    callback(new Error('请再次输入新密码'))
+    return
+  }
+  if (value !== pwdForm.newPassword) {
+    callback(new Error('两次输入的密码不一致'))
+    return
+  }
+  callback()
+}
+
+const pwdRules = {
+  oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, max: 32, message: '新密码长度需为 6-32 位', trigger: 'blur' }
+  ],
+  confirmPassword: [{ validator: validateConfirm, trigger: 'blur' }]
+}
+
+const resetPasswordForm = () => {
+  pwdForm.oldPassword = ''
+  pwdForm.newPassword = ''
+  pwdForm.confirmPassword = ''
+  pwdFormRef.value?.clearValidate()
+}
+
+const submitPassword = async () => {
+  const valid = await pwdFormRef.value.validate().catch(() => false)
+  if (!valid) return
+  pwdLoading.value = true
+  try {
+    await updatePassword({
+      oldPassword: pwdForm.oldPassword,
+      newPassword: pwdForm.newPassword
+    })
+    ElMessage.success('密码修改成功')
+    pwdVisible.value = false
+  } catch {
+    // 拦截器已提示
+  } finally {
+    pwdLoading.value = false
+  }
+}
+
 const handleUserCommand = (cmd) => {
-  if (cmd === 'home') {
+  if (cmd === 'password') {
+    pwdVisible.value = true
+  } else if (cmd === 'home') {
     router.push('/')
   } else if (cmd === 'logout') {
     userStore.logout()
     ElMessage.success('已退出登录')
-    router.push('/')
+    router.push('/login')
   }
 }
+
+onMounted(() => {
+  if (userStore.isLoggedIn) {
+    userStore.fetchMe().catch(() => {})
+  }
+})
 </script>
 
 <style scoped>
@@ -124,6 +217,10 @@ const handleUserCommand = (cmd) => {
   color: #fff;
   display: flex;
   flex-direction: column;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow: hidden;
 }
 
 .aside-logo {
@@ -159,6 +256,7 @@ const handleUserCommand = (cmd) => {
 .aside-menu {
   border-right: none;
   flex: 1;
+  overflow-y: auto;
 }
 
 .layout-header {
@@ -169,6 +267,9 @@ const handleUserCommand = (cmd) => {
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .header-right {
@@ -182,6 +283,7 @@ const handleUserCommand = (cmd) => {
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  outline: none;
 }
 
 .user-avatar {
@@ -196,5 +298,9 @@ const handleUserCommand = (cmd) => {
 .layout-main {
   padding: 20px;
   overflow-y: auto;
+}
+
+.audit-alert {
+  margin-bottom: 16px;
 }
 </style>

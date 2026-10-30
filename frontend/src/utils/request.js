@@ -1,63 +1,78 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-import { useUserStore } from '@/stores/user'
 
 const service = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE || 'http://localhost:8080',
-  timeout: 10000
+  baseURL: '/api',
+  timeout: 15000
 })
 
-// 请求拦截器
 service.interceptors.request.use(
   (config) => {
-    let token = ''
-    try {
-      const userStore = useUserStore()
-      token = userStore.token
-    } catch {
-      // Pinia 未初始化时降级读取 localStorage
-    }
-    if (!token) {
-      token = localStorage.getItem('token') || ''
-    }
-
+    const token = localStorage.getItem('token')
     if (token) {
       config.headers = config.headers || {}
-      config.headers['Authorization'] = `Bearer ${token}`
-      config.headers['token'] = token
+      config.headers.Authorization = `Bearer ${token}`
     }
     return config
   },
-  (error) => {
-    console.error('Request Error:', error)
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
-// 响应拦截器
+async function clearSession() {
+  try {
+    const { useUserStore } = await import('@/stores/user')
+    useUserStore().logout()
+  } catch {
+    localStorage.removeItem('token')
+    localStorage.removeItem('userInfo')
+    localStorage.removeItem('role')
+  }
+}
+
 service.interceptors.response.use(
   (response) => {
-    // 兼容 blob 或 arraybuffer 下载
     if (response.config.responseType === 'blob' || response.config.responseType === 'arraybuffer') {
       return response.data
     }
-
     const res = response.data
-
-    // 统一处理 { code, msg, data } 结构
     if (res && typeof res === 'object' && 'code' in res) {
       if (res.code === 200) {
         return res.data
       }
-      const msg = res.msg || res.message || '请求失败'
+      const msg = res.msg || '请求失败'
       ElMessage.error(msg)
       return Promise.reject(new Error(msg))
     }
-
     return res
   },
-  (error) => {
-    const msg = error.response?.data?.msg || error.response?.data?.message || error.message || '网络连接异常'
+  async (error) => {
+    const status = error.response?.status
+    const data = error.response?.data
+    const msg = data?.msg || data?.message || error.message || '网络连接异常'
+
+    if (status === 401) {
+      ElMessage.error(msg || '未登录或登录已过期')
+      await clearSession()
+      try {
+        const { default: router } = await import('@/router')
+        if (router.currentRoute.value.path !== '/login') {
+          const redirect = router.currentRoute.value.fullPath
+          router.push({
+            path: '/login',
+            query: redirect && redirect !== '/' ? { redirect } : {}
+          })
+        }
+      } catch {
+        // 路由未就绪时只清理登录态
+      }
+      return Promise.reject(error)
+    }
+
+    if (status === 403) {
+      ElMessage.error(data?.msg || '无权限')
+      return Promise.reject(error)
+    }
+
     ElMessage.error(msg)
     return Promise.reject(error)
   }

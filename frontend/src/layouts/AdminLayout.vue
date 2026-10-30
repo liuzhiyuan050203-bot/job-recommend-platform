@@ -10,8 +10,14 @@
 import AppLayout from './AppLayout.vue'
 
 const menus = [
-  { title: '用户审核', path: '/admin/users', icon: 'UserFilled' },
-  { title: '内容管理', path: '/admin/content', icon: 'Files' },
-  { title: '数据大屏', path: '/admin/analytics', icon: 'TrendCharts' }
+  { title: '用户管理', path: '/admin/users', icon: 'UserFilled' },
+  { title: '企业审核', path: '/admin/companies', icon: 'Stamp' },
+  { title: '职位审核', path: '/admin/jobs', icon: 'DocumentChecked' },
+  { title: '内容审核', path: '/admin/content', icon: 'Files' },
+  { title: '轮播图', path: '/admin/banners', icon: 'Picture' },
+  { title: '文章', path: '/admin/articles', icon: 'Notebook' },
+  { title: '职位分类', path: '/admin/categories', icon: 'Grid' },
+  { title: '技能标签', path: '/admin/skills', icon: 'PriceTag' },
+  { title: '投递总览', path: '/admin/applications', icon: 'List' }
 ]
 </script>

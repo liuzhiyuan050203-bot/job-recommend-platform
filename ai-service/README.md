@@ -16,7 +16,7 @@
 4. **RAG 向量知识库 (`/rag`)**：
    - 基于 Chroma 与 LangChain，向量化存储就业政策、校招面经、行业图谱，支持语义检索。
 5. **多角色智能体与 SSE 流式推送 (`/agent`)**：
-   - 针对学生、企业、管理员提供求职辅导与咨询问答；
+   - 针对学生、企业、管理员提供求职辅导与咨询问答，角色标识统一为 `student`、`company`、`admin`；
    - 采用 Server-Sent Events (SSE) 协议，逐段输出思考过程与生成内容，以 `[DONE]` 结束。
 
 ---
@@ -108,6 +108,9 @@ curl -N http://127.0.0.1:8000/agent/stream-demo
 
 # 方式 2：自定义中文问题（使用 -G 与 --data-urlencode 防止 URL 编码异常）
 curl -N -s -G --data-urlencode "q=请推荐适合计算机专业应届生的就业方向" http://127.0.0.1:8000/agent/stream-demo
+
+# 方式 3：指定企业角色（role 取 student / company / admin）
+curl -N -G --data-urlencode "q=帮我优化岗位描述" --data-urlencode "role=company" http://127.0.0.1:8000/agent/stream-demo
 ```
 
 返回输出为符合 SSE 规范的流式文本，例如：

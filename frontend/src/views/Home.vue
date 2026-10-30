@@ -1,5 +1,19 @@
 <template>
   <div class="home-container">
+    <div class="top-bar">
+      <div class="brand" @click="router.push('/')">高校就业推荐平台</div>
+      <div class="top-actions">
+        <template v-if="userStore.isLoggedIn">
+          <span class="welcome">你好，{{ userStore.nickname }}</span>
+          <el-button type="primary" @click="goWorkspace">进入工作台</el-button>
+          <el-button @click="handleLogout">退出</el-button>
+        </template>
+        <template v-else>
+          <el-button @click="router.push('/login')">登录</el-button>
+          <el-button type="primary" @click="router.push('/register')">注册</el-button>
+        </template>
+      </div>
+    </div>
     <!-- 顶部主横幅 -->
     <header class="hero-section">
       <div class="hero-badge">毕业设计 · 2026届</div>
@@ -138,10 +152,28 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { getHealth } from '@/api/health'
 import EChart from '@/components/EChart.vue'
+import { useUserStore } from '@/stores/user'
+import { roleHome } from '@/utils/role'
 
 const router = useRouter()
+const userStore = useUserStore()
+
+const goWorkspace = () => {
+  const user = userStore.userInfo
+  if (user?.roleName === 'company' && Number(user.companyAuditStatus) !== 1) {
+    router.push('/company/profile')
+    return
+  }
+  router.push(roleHome(userStore.roleName))
+}
+
+const handleLogout = () => {
+  userStore.logout()
+  ElMessage.success('已退出登录')
+}
 
 const healthLoading = ref(false)
 const healthError = ref(false)
@@ -181,6 +213,10 @@ const checkBackendHealth = async () => {
 }
 
 const navigateTo = (path) => {
+  if (!userStore.isLoggedIn) {
+    router.push({ path: '/login', query: { redirect: path } })
+    return
+  }
   router.push(path)
 }
 
@@ -280,7 +316,32 @@ onMounted(() => {
 .home-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 40px 20px 60px;
+  padding: 24px 20px 60px;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.brand {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a202c;
+  cursor: pointer;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.welcome {
+  color: #4a5568;
+  font-size: 14px;
 }
 
 .hero-section {
