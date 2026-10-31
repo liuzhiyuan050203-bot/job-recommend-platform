@@ -2,7 +2,7 @@
 
 高校就业推荐平台的 MySQL 库（MariaDB 11.8，MySQL 协议）。业务库由 Spring Boot 读写，PySpark 把离线结果写回本库，RAG 原文放在 `rag_document`，向量放在 Chroma。
 
-字符集 `utf8mb4` / `utf8mb4_unicode_ci`，引擎 InnoDB。27 张表都有中文表注释和字段注释，并包含 `create_time`、`update_time`、`deleted`（0 否，1 是）。
+字符集 `utf8mb4` / `utf8mb4_unicode_ci`，引擎 InnoDB。28 张表都有中文表注释和字段注释，并包含 `create_time`、`update_time`、`deleted`（0 否，1 是）。
 
 ## 初始化
 
@@ -60,6 +60,7 @@ Spark 结果行是按这两条职位手工填的占位数据，正式环境由 P
 | spark_region_dist | 省级职位与薪资分布，供中国热力图 |
 | spark_salary_predict | 薪资回归预测结果 |
 | spark_recommend | User-CF、内容匹配、融合推荐及匹配分 |
+| spark_recommend_eval | 推荐离线评估：Precision/Recall/NDCG@K 与目录覆盖率 |
 | spark_task_log | Spark 任务批次、状态、行数和错误信息 |
 | rag_document | RAG 知识切片；向量在 Chroma，这里记 `chroma_id` |
 | ai_session | 学生、企业或管理员智能体的会话 |
@@ -69,7 +70,7 @@ Spark 结果行是按这两条职位手工填的占位数据，正式环境由 P
 
 ## ER 图
 
-实线表示业务关系。`user_behavior_log`、五张 Spark 结果表、`spark_task_log`、`rag_document.source_id` 在库里是逻辑关联（有索引、无 `FOREIGN KEY`），图中仍然画出，便于看数据从哪来。审核人 `auditor_id` 都指向 `sys_user`，图中不逐条展开。
+实线表示业务关系。`user_behavior_log`、六张 Spark 结果表、`spark_task_log`、`rag_document.source_id` 在库里是逻辑关联（有索引、无 `FOREIGN KEY`），图中仍然画出，便于看数据从哪来。审核人 `auditor_id` 都指向 `sys_user`，图中不逐条展开。
 
 ```mermaid
 erDiagram
@@ -112,6 +113,7 @@ erDiagram
   spark_task_log ||--o{ spark_region_dist : "批次"
   spark_task_log ||--o{ spark_salary_predict : "批次"
   spark_task_log ||--o{ spark_recommend : "批次"
+  spark_task_log ||--o{ spark_recommend_eval : "批次"
 
   sys_user {
     bigint id PK
@@ -250,6 +252,13 @@ erDiagram
     bigint position_id
     tinyint algo
     decimal match_score
+  }
+  spark_recommend_eval {
+    bigint id PK
+    varchar batch_no
+    varchar algo
+    int k
+    decimal ndcg_at_k
   }
   rag_document {
     bigint id PK

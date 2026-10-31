@@ -274,3 +274,20 @@ export function runSparkAnalysis(data) {
 export function getSparkTasks(params) {
   return request({ url: '/admin/spark/tasks', method: 'get', params })
 }
+
+export function runRecommend() {
+  return request({
+    url: '/admin/recommend/run',
+    method: 'post',
+    data: {},
+    timeout: 30000
+  })
+}
+
+export function getRecommendEval() {
+  return request({ url: '/admin/recommend/eval', method: 'get' })
+}
+
+export function getRecommendStats() {
+  return request({ url: '/admin/recommend/stats', method: 'get' })
+}

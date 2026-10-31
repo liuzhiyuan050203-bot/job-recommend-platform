@@ -17,6 +17,8 @@ ALLOWED_TABLES = {
     "spark_tech_trend",
     "spark_region_dist",
     "spark_salary_predict",
+    "spark_recommend",
+    "spark_recommend_eval",
 }
 KEEP_BATCHES = 5
 

@@ -21,6 +21,21 @@
     </el-card>
 
     <el-card shadow="never" class="latest">
+      <template #header>
+        <div class="card-header">
+          <span class="title">为你推荐</span>
+          <el-button link type="primary" @click="router.push('/student/recommend')">查看全部</el-button>
+        </div>
+      </template>
+      <el-empty v-if="!recommends.length" description="完成档案和技能后会生成推荐" />
+      <div v-for="job in recommends" :key="job.positionId" class="job" @click="router.push(`/student/jobs/${job.positionId}`)">
+        <span>{{ job.title }}</span>
+        <span>{{ job.companyName }} · {{ job.city }}</span>
+        <span class="salary">匹配 {{ formatScore(job.matchScore) }}</span>
+      </div>
+    </el-card>
+
+    <el-card shadow="never" class="latest">
       <template #header><span class="title">最新职位</span></template>
       <div v-for="job in jobs" :key="job.id" class="job" @click="router.push(`/student/jobs/${job.id}`)">
         <span>{{ job.title }}</span>
@@ -35,12 +50,18 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { searchJobs } from '@/api/public'
-import { getUpcomingInterviews } from '@/api/student'
+import { getRecommendations, getUpcomingInterviews } from '@/api/student'
 import { salaryText } from '@/utils/job'
 
 const router = useRouter()
 const upcoming = ref([])
 const jobs = ref([])
+const recommends = ref([])
+
+function formatScore(value) {
+  const num = Number(value)
+  return Number.isFinite(num) ? num.toFixed(1) : '-'
+}
 
 onMounted(async () => {
   try {
@@ -54,6 +75,12 @@ onMounted(async () => {
   } catch {
     jobs.value = []
   }
+  try {
+    const page = await getRecommendations({ current: 1, size: 4 })
+    recommends.value = page?.records || []
+  } catch {
+    recommends.value = []
+  }
 })
 </script>
 
@@ -63,6 +90,7 @@ onMounted(async () => {
 .line { display: flex; gap: 12px; flex-wrap: wrap; }
 .sub { color: var(--el-text-color-secondary); margin-top: 4px; }
 .links { display: flex; gap: 8px; margin-top: 16px; }
+.card-header { display: flex; justify-content: space-between; align-items: center; }
 .latest { margin-top: 16px; }
 .job { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--el-border-color-lighter); cursor: pointer; }
 .salary { color: #e67e22; }

@@ -12,6 +12,9 @@ DATA_DIR = AI_ROOT / "data"
 CLEAN_PARQUET = DATA_DIR / "clean" / "jobs_clean.parquet"
 MODEL_DIR = DATA_DIR / "models" / "salary_model"
 METRICS_PATH = DATA_DIR / "models" / "salary_metrics.json"
+RECOMMEND_DIR = DATA_DIR / "recommend"
+RECOMMEND_MODEL_PATH = RECOMMEND_DIR / "cf_model.pkl"
+RECOMMEND_EVAL_PATH = RECOMMEND_DIR / "eval_metrics.json"
 
 DEFAULT_JDBC_JAR = (
     Path.home() / ".m2/repository/com/mysql/mysql-connector-j/8.3.0/mysql-connector-j-8.3.0.jar"

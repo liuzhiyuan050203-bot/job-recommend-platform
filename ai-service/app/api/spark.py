@@ -15,7 +15,10 @@ router = APIRouter(prefix="/spark", tags=["Spark Analysis"])
 
 
 class RunBody(BaseModel):
-    tasks: Optional[List[str]] = Field(default=None, description="clean、aggregate、salary_regression")
+    tasks: Optional[List[str]] = Field(
+        default=None,
+        description="clean、aggregate、salary_regression、recommend；空则只跑前三项",
+    )
 
 
 def _status_payload() -> dict:

@@ -17,8 +17,8 @@
 | 认证与权限 | 已实现 | 注册登录、JWT、角色拦截、账号启用/禁用后旧令牌立即失效 |
 | 模块一 基础业务 | 已实现 | 学生档案与技能、企业资料与资质审核、轮播图与资讯、面经评论、分类与技能标签 |
 | 模块二 招聘流程 | 已实现 | 职位发布与审核上架、多条件检索、收藏、简历、投递状态机、面试通知 |
-| Spark 分析 | 已实现 | 离线清洗、薪资统计、技术趋势、地区分布与薪资回归。推荐与 RAG 仍为后续 |
-| 推荐 | 后续 | User-CF 与技能内容匹配，结果回写 `spark_recommend` |
+| Spark 分析 | 已实现 | 离线清洗、薪资统计、技术趋势、地区分布与薪资回归 |
+| 推荐 | 已实现 | 用户余弦协同过滤与技能内容匹配融合，结果回写 `spark_recommend`，离线指标写入 `spark_recommend_eval` |
 | RAG 智能问答 | 后续 | 政策与面经切片、Chroma 检索、多角色智能体 SSE |
 
 ## 技术栈
@@ -39,7 +39,7 @@
 ├── backend/          # Spring Boot，包名 com.bishe.job
 ├── frontend/         # Vue 3
 ├── ai-service/       # FastAPI
-├── db/               # schema.sql（27 张表）、seed.sql、README.md
+├── db/               # schema.sql（28 张表）、seed.sql、README.md
 ├── scripts/          # start-mysql.sh
 ├── tests/
 │   ├── run-all.sh    # 拉起依赖并跑完全部接口脚本
@@ -151,6 +151,30 @@ cd ai-service
 | `GET /api/public/stats/salary/predict` | 转发 FastAPI 实时预测（`city`、`techDirection`、`education` 1–4、`experienceYears`、`skills`），分析服务不可用时返回 503 |
 
 FastAPI 侧：`POST /spark/run`、`GET /spark/tasks`、`GET /spark/tasks/{batch_no}`、`GET /spark/salary/predict`。管理端页面 `/admin/analytics` 展示图表、触发按钮和任务列表。
+
+## 混合推荐
+
+默认的 `run_all` 仍只跑清洗、聚合和薪资回归。推荐单独触发，避免拖慢分析：
+
+```bash
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+cd ai-service
+../.venv/bin/python -m app.spark.run_all --tasks recommend
+```
+
+也可以由管理员在 `/admin/recommend` 点击运行，或调用 `POST /api/admin/recommend/run`（FastAPI `POST /recommend/run`）。运行中再次触发返回 409。
+
+算法（离线任务 `recommend`，写入 `spark_task_log`）：
+
+- **协同过滤**：浏览 1、收藏 3、投递 5，按全体行为最大时间做 45 天半衰期衰减，同一学生对同一职位汇总后 `log1p`。在留出集上比较用户-用户余弦（共同交互收缩、保留正相关邻居）和 MLlib 隐式 ALS（rank 8、6 轮），按 NDCG@10 择优。学生规模约 200，余弦矩阵放在 Driver 上，并保存为 `ai-service/data/recommend/cf_model.pkl` 供实时推荐复用。
+- **内容匹配**：技能熟练度与职位标签的余弦、期望方向、期望城市、学历是否达到要求、专业是否出现在职位名称或任职要求中。学历不够的职位再乘 0.35。
+- **融合**：线性 `alpha×CF+(1-alpha)×内容`，或门控（内容分高的职位才放大协同信号）。`alpha`、是否按活跃度缩放、线性或门控都在留出集上按 NDCG@10 选择。没有行为的学生用 0.75×内容 + 0.25×近期行为热度。
+- **过滤**：只推荐已上架、已审核、未删除且企业资质通过的职位，并排除该学生已投递的职位。每名有档案的学生写 Top20，算法 1/2/3 各一份（1 协同过滤，2 内容，3 融合），含匹配分、两项分子分、名次和中文理由。新批次 `is_latest=1`，只保留最近 5 批。
+- **评估**：按学生把收藏/投递按时间留出约 20%（测试对上的浏览一并从训练集去掉），在未见过的在架职位上计算 Precision/Recall/NDCG@5、10、20 和目录覆盖率，并与热门基线对比。结果在 `spark_recommend_eval` 和 `ai-service/data/recommend/eval_metrics.json`。
+
+学生端 `GET /api/student/recommend` 读最新融合结果；该学生还没有批次时调用 `GET /recommend/user/{id}` 实时计算；分析服务不可用时用技能、方向、城市和投递热度做 SQL 兜底。职位详情的相似职位走 `GET /api/public/jobs/{id}/similar`，按标签重合、同方向、同城市排序。页面：学生「为你推荐」、首页推荐条、职位详情「相似职位」、管理端「推荐评估」。
+
+本次演示数据上，用户余弦的留出 NDCG@10 高于隐式 ALS，融合（线性、alpha=0.45、不按活跃度缩放）的 NDCG@10 高于协同过滤、内容匹配和热门基线。整次任务约 12 秒。具体指标以 `spark_recommend_eval` 中 `is_latest=1` 的行为准。
 
 ## 运行测试
 

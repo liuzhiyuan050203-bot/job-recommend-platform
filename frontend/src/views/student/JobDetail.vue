@@ -33,6 +33,18 @@
       <p class="text">{{ job.address || '地址待定' }}</p>
     </el-card>
 
+    <el-card shadow="never" class="similar">
+      <template #header><span class="title">相似职位</span></template>
+      <el-empty v-if="!similar.length" description="暂无相似职位" />
+      <div v-for="item in similar" :key="item.id" class="similar-item" @click="openSimilar(item)">
+        <div>
+          <div class="job-title">{{ item.title }}</div>
+          <div class="sub">{{ item.companyName }} · {{ item.city }} · {{ item.techDirection }}</div>
+        </div>
+        <div class="salary">{{ salaryText(item.salaryMin, item.salaryMax, item.salaryMonths) }}</div>
+      </div>
+    </el-card>
+
     <el-dialog v-model="applyVisible" title="选择简历投递" width="420px">
       <el-select v-model="resumeId" placeholder="选择简历" style="width: 100%">
         <el-option v-for="item in resumes" :key="item.id" :label="item.isDefault === 1 ? `${item.title}（默认）` : item.title" :value="item.id" />
@@ -46,10 +58,10 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getJob } from '@/api/public'
+import { getJob, getSimilarJobs } from '@/api/public'
 import { addFavorite, applyJob, getResumes, removeFavorite } from '@/api/student'
 import { EDUCATION, EXPERIENCE, JOB_TYPE, labelOf, salaryText } from '@/utils/job'
 
@@ -58,6 +70,7 @@ const router = useRouter()
 const loading = ref(false)
 const saving = ref(false)
 const job = ref(null)
+const similar = ref([])
 const resumes = ref([])
 const resumeId = ref(null)
 const applyVisible = ref(false)
@@ -66,9 +79,19 @@ async function load() {
   loading.value = true
   try {
     job.value = await getJob(route.params.id)
+    try {
+      const list = await getSimilarJobs(route.params.id, 6)
+      similar.value = Array.isArray(list) ? list : []
+    } catch {
+      similar.value = []
+    }
   } finally {
     loading.value = false
   }
+}
+
+function openSimilar(item) {
+  router.push(`/student/jobs/${item.id}`)
 }
 
 async function toggleFavorite() {
@@ -112,6 +135,9 @@ async function submitApply() {
 }
 
 onMounted(load)
+watch(() => route.params.id, () => {
+  load()
+})
 </script>
 
 <style scoped>
@@ -122,4 +148,9 @@ onMounted(load)
 .stat { color: var(--el-text-color-secondary); }
 .actions { display: flex; gap: 8px; margin-bottom: 12px; }
 .text { white-space: pre-wrap; line-height: 1.7; }
+.similar { margin-top: 16px; }
+.title { font-weight: 600; }
+.similar-item { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--el-border-color-lighter); cursor: pointer; }
+.job-title { font-weight: 600; }
+.sub { color: var(--el-text-color-secondary); margin-top: 4px; }
 </style>

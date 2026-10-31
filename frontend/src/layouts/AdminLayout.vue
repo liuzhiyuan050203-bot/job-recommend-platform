@@ -19,6 +19,7 @@ const menus = [
   { title: '职位分类', path: '/admin/categories', icon: 'Grid' },
   { title: '技能标签', path: '/admin/skills', icon: 'PriceTag' },
   { title: '投递总览', path: '/admin/applications', icon: 'List' },
-  { title: '就业分析', path: '/admin/analytics', icon: 'DataAnalysis' }
+  { title: '就业分析', path: '/admin/analytics', icon: 'DataAnalysis' },
+  { title: '推荐评估', path: '/admin/recommend', icon: 'Histogram' }
 ]
 </script>

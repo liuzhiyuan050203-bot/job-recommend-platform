@@ -20,6 +20,7 @@ USE job_platform;
 DROP TABLE IF EXISTS ai_message;
 DROP TABLE IF EXISTS ai_session;
 DROP TABLE IF EXISTS rag_document;
+DROP TABLE IF EXISTS spark_recommend_eval;
 DROP TABLE IF EXISTS spark_recommend;
 DROP TABLE IF EXISTS spark_salary_predict;
 DROP TABLE IF EXISTS spark_region_dist;
@@ -540,7 +541,7 @@ CREATE TABLE user_behavior_log (
 CREATE TABLE spark_task_log (
   id           BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
   batch_no     VARCHAR(32)  NOT NULL COMMENT '批次号，同一轮离线任务共用，结果表通过该字段逻辑关联',
-  task_code    VARCHAR(32)  NOT NULL COMMENT '任务编码：clean清洗 aggregate聚合 salary_regression薪资回归 user_cf协同过滤 content_match内容匹配',
+  task_code    VARCHAR(32)  NOT NULL COMMENT '任务编码：clean清洗 aggregate聚合 salary_regression薪资回归 recommend混合推荐 user_cf协同过滤 content_match内容匹配',
   task_name    VARCHAR(64)  NOT NULL COMMENT '任务名称',
   status       TINYINT      NOT NULL COMMENT '执行状态：0运行中 1成功 2失败',
   start_time   DATETIME     NOT NULL COMMENT '开始时间',
@@ -675,6 +676,30 @@ CREATE TABLE spark_recommend (
   CONSTRAINT chk_spark_recommend_rank CHECK (rank_no >= 1),
   CONSTRAINT chk_spark_recommend_latest CHECK (is_latest IN (0, 1))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='职位推荐结果';
+
+-- 离线评估不建物理外键，随推荐批次切换 is_latest，只保留最近若干批
+CREATE TABLE spark_recommend_eval (
+  id             BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+  batch_no       VARCHAR(32)  NOT NULL COMMENT '批次号，逻辑关联 spark_task_log.batch_no',
+  algo           VARCHAR(16)  NOT NULL COMMENT '算法：cf协同过滤 content内容 hybrid融合 popular热门基线',
+  k              INT          NOT NULL COMMENT '截断名次 K',
+  precision_at_k DECIMAL(8,4) NOT NULL COMMENT 'Precision@K，0到1',
+  recall_at_k    DECIMAL(8,4) NOT NULL COMMENT 'Recall@K，0到1',
+  ndcg_at_k      DECIMAL(8,4) NOT NULL COMMENT 'NDCG@K，0到1',
+  coverage       DECIMAL(8,4) NOT NULL COMMENT '目录覆盖率，Top-K去重职位数/候选职位数，0到1',
+  user_count     INT          NOT NULL COMMENT '参与评估的学生数',
+  alpha          DECIMAL(6,4) NULL COMMENT '融合权重，仅 hybrid 有值，其余为空',
+  cf_method      VARCHAR(16)  NULL COMMENT '协同过滤实现：user_cosine用户余弦 als隐式ALS',
+  is_latest      TINYINT      NOT NULL DEFAULT 1 COMMENT '是否当前生效批次：0否 1是',
+  create_time    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_time    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  deleted        TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除：0否 1是',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_spark_recommend_eval (batch_no, algo, k),
+  KEY idx_spark_recommend_eval_latest (is_latest, deleted, algo, k),
+  CONSTRAINT chk_spark_recommend_eval_k CHECK (k >= 1),
+  CONSTRAINT chk_spark_recommend_eval_latest CHECK (is_latest IN (0, 1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='职位推荐离线评估';
 
 -- 知识文档保存原文切片。向量存放在 Chroma，本表只保留 chroma_id 以便回查
 CREATE TABLE rag_document (

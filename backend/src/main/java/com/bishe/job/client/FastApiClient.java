@@ -85,6 +85,17 @@ public class FastApiClient {
         return get(builder);
     }
 
+    public JsonNode runRecommend() {
+        return post("/recommend/run", new LinkedHashMap<>());
+    }
+
+    public JsonNode recommendUser(long userId, int topK) {
+        UriComponentsBuilder builder = UriComponentsBuilder
+                .fromHttpUrl(trimBase() + "/recommend/user/" + userId)
+                .queryParam("top_k", topK);
+        return get(builder);
+    }
+
     public JsonNode predictSalary(String city, String techDirection, Integer education,
                                   BigDecimal experienceYears, String skills) {
         UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(trimBase() + "/spark/salary/predict")

@@ -142,3 +142,7 @@ export function getApplication(id) {
 export function getUpcomingInterviews() {
   return request({ url: '/student/interviews/upcoming', method: 'get' })
 }
+
+export function getRecommendations(params) {
+  return request({ url: '/student/recommend', method: 'get', params })
+}

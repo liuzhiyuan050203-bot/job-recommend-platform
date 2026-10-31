@@ -1,4 +1,4 @@
-"""一次批次内串行执行清洗、聚合和薪资回归。进程内只允许一轮在跑。"""
+"""一次批次内串行执行清洗、聚合、薪资回归或混合推荐。进程内只允许一轮在跑。"""
 
 from __future__ import annotations
 
@@ -11,16 +11,20 @@ from datetime import datetime
 from app.spark.aggregate import run_aggregate
 from app.spark.clean import run_clean
 from app.spark.datasource import clear_source_cache
+from app.spark.recommend import run_recommend
 from app.spark.salary_model import run_salary_regression
 from app.spark.session import stop_spark
 
 logger = logging.getLogger(__name__)
 
+# 默认批次保持第三阶段的三项。recommend 需显式指定，避免拖慢分析触发。
 CANONICAL = ("clean", "aggregate", "salary_regression")
+TASK_ORDER = ("clean", "aggregate", "salary_regression", "recommend")
 TASKS = {
     "clean": ("招聘数据清洗", run_clean),
     "aggregate": ("薪资与趋势聚合", run_aggregate),
     "salary_regression": ("薪资回归", run_salary_regression),
+    "recommend": ("混合职位推荐", run_recommend),
 }
 
 _state = threading.Lock()
@@ -59,7 +63,7 @@ def normalize_tasks(tasks: list[str] | None) -> list[str]:
     if unknown:
         raise ValueError("不支持的任务: " + "、".join(unknown))
     wanted = set(tasks)
-    return [name for name in CANONICAL if name in wanted]
+    return [name for name in TASK_ORDER if name in wanted]
 
 
 def new_batch_no() -> str:

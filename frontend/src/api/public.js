@@ -67,6 +67,14 @@ export function getJob(id) {
   })
 }
 
+export function getSimilarJobs(id, size = 6) {
+  return request({
+    url: `/public/jobs/${id}/similar`,
+    method: 'get',
+    params: { size }
+  })
+}
+
 export function getStatsOverview() {
   return request({ url: '/public/stats/overview', method: 'get' })
 }

@@ -34,6 +34,7 @@ import { getUpcomingInterviews } from '@/api/student'
 const menus = [
   { title: '首页', path: '/student/home', icon: 'HomeFilled' },
   { title: '职位搜索', path: '/student/jobs', icon: 'Search' },
+  { title: '为你推荐', path: '/student/recommend', icon: 'MagicStick' },
   { title: '我的收藏', path: '/student/favorites', icon: 'Star' },
   { title: '我的投递', path: '/student/applications', icon: 'Tickets' },
   { title: '在线简历', path: '/student/resume', icon: 'Document' },

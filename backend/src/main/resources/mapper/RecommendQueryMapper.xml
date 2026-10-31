@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bishe.job.mapper.RecommendQueryMapper">
+
+    <sql id="visibleJob">
+        p.deleted = 0
+        AND p.audit_status = 1
+        AND p.shelf_status = 1
+        AND c.deleted = 0
+        AND c.audit_status = 1
+    </sql>
+
+    <select id="countLatest" resultType="int">
+        SELECT COUNT(*)
+        FROM spark_recommend
+        WHERE user_id = #{userId}
+          AND algo = 3
+          AND is_latest = 1
+          AND deleted = 0
+    </select>
+
+    <select id="pageLatest" resultType="com.bishe.job.vo.RecommendJobVO">
+        SELECT
+            r.position_id AS positionId,
+            p.title,
+            IF(c.short_name IS NOT NULL AND c.short_name &lt;&gt; '', c.short_name, c.company_name) AS companyName,
+            p.city,
+            p.province,
+            p.tech_direction AS techDirection,
+            p.salary_min AS salaryMin,
+            p.salary_max AS salaryMax,
+            p.salary_months AS salaryMonths,
+            p.education,
+            r.match_score AS matchScore,
+            r.cf_score AS cfScore,
+            r.content_score AS contentScore,
+            r.rank_no AS rankNo,
+            r.reason
+        FROM spark_recommend r
+        INNER JOIN job_position p ON p.id = r.position_id
+        INNER JOIN ent_company c ON c.id = p.company_id
+        WHERE r.user_id = #{userId}
+          AND r.algo = 3
+          AND r.is_latest = 1
+          AND r.deleted = 0
+          AND <include refid="visibleJob"/>
+          AND NOT EXISTS (
+              SELECT 1 FROM job_application a
+              WHERE a.user_id = #{userId}
+                AND a.position_id = r.position_id
+                AND a.deleted = 0
+          )
+        ORDER BY r.rank_no ASC, r.id ASC
+    </select>
+
+    <select id="fallback" resultType="com.bishe.job.vo.RecommendJobVO">
+        SELECT
+            p.id AS positionId,
+            p.title,
+            IF(c.short_name IS NOT NULL AND c.short_name &lt;&gt; '', c.short_name, c.company_name) AS companyName,
+            p.city,
+            p.province,
+            p.tech_direction AS techDirection,
+            p.salary_min AS salaryMin,
+            p.salary_max AS salaryMax,
+            p.salary_months AS salaryMonths,
+            p.education,
+            p.apply_count AS applyCount,
+            IFNULL(sp.expect_city, '') AS expectCity,
+            IFNULL(sp.expect_direction, '') AS expectDirection,
+            IFNULL(sk.skill_names, '') AS skillNames,
+            IF(sp.expect_direction IS NOT NULL AND sp.expect_direction &lt;&gt; '' AND p.tech_direction = sp.expect_direction, 1, 0) AS directionHit,
+            IF(sp.expect_city IS NOT NULL AND sp.expect_city &lt;&gt; '' AND p.city = sp.expect_city, 1, 0) AS cityHit,
+            (
+                IFNULL(sk.skill_weight, 0) * 8
+                + IF(sp.expect_direction IS NOT NULL AND sp.expect_direction &lt;&gt; '' AND p.tech_direction = sp.expect_direction, 40, 0)
+                + IF(sp.expect_city IS NOT NULL AND sp.expect_city &lt;&gt; '' AND p.city = sp.expect_city, 30, 0)
+                + IF(sp.education IS NULL OR p.education = 0 OR p.education &lt;= sp.education, 10, 0)
+                + LEAST(IFNULL(p.apply_count, 0), 30)
+            ) AS rawScore
+        FROM job_position p
+        INNER JOIN ent_company c ON c.id = p.company_id
+        LEFT JOIN stu_profile sp ON sp.user_id = #{userId} AND sp.deleted = 0
+        LEFT JOIN (
+            SELECT t.position_id,
+                   SUM(ss.proficiency) AS skill_weight,
+                   GROUP_CONCAT(st.name ORDER BY ss.proficiency DESC, st.id SEPARATOR '/') AS skill_names
+            FROM job_position_tag t
+            INNER JOIN stu_skill ss ON ss.tag_id = t.tag_id AND ss.user_id = #{userId} AND ss.deleted = 0
+            INNER JOIN skill_tag st ON st.id = ss.tag_id AND st.deleted = 0
+            WHERE t.deleted = 0
+            GROUP BY t.position_id
+        ) sk ON sk.position_id = p.id
+        WHERE <include refid="visibleJob"/>
+          AND NOT EXISTS (
+              SELECT 1 FROM job_application a
+              WHERE a.user_id = #{userId}
+                AND a.position_id = p.id
+                AND a.deleted = 0
+          )
+        ORDER BY rawScore DESC, p.apply_count DESC, p.id DESC
+        LIMIT #{limitSize}
+    </select>
+
+    <select id="similar" resultType="com.bishe.job.vo.SimilarJobVO">
+        SELECT
+            p.id,
+            p.title,
+            IF(c.short_name IS NOT NULL AND c.short_name &lt;&gt; '', c.short_name, c.company_name) AS companyName,
+            p.city,
+            p.province,
+            p.tech_direction AS techDirection,
+            p.salary_min AS salaryMin,
+            p.salary_max AS salaryMax,
+            p.salary_months AS salaryMonths,
+            p.education,
+            (
+                IFNULL(ov.cnt, 0) * 3
+                + IF(p.tech_direction = base.tech_direction, 2, 0)
+                + IF(p.city = base.city, 1, 0)
+            ) AS rawScore
+        FROM job_position p
+        INNER JOIN ent_company c ON c.id = p.company_id
+        INNER JOIN job_position base ON base.id = #{jobId}
+        LEFT JOIN (
+            SELECT t2.position_id, COUNT(*) AS cnt
+            FROM job_position_tag t1
+            INNER JOIN job_position_tag t2
+                ON t2.tag_id = t1.tag_id
+               AND t2.deleted = 0
+               AND t2.position_id &lt;&gt; t1.position_id
+            WHERE t1.position_id = #{jobId}
+              AND t1.deleted = 0
+            GROUP BY t2.position_id
+        ) ov ON ov.position_id = p.id
+        WHERE <include refid="visibleJob"/>
+          AND p.id &lt;&gt; #{jobId}
+        ORDER BY rawScore DESC, p.apply_count DESC, p.id DESC
+        LIMIT #{limitSize}
+    </select>
+
+    <select id="latestEval" resultType="com.bishe.job.vo.RecommendMetricVO">
+        SELECT batch_no AS batchNo,
+               algo,
+               k,
+               precision_at_k AS precisionAtK,
+               recall_at_k AS recallAtK,
+               ndcg_at_k AS ndcgAtK,
+               coverage,
+               user_count AS userCount,
+               alpha,
+               cf_method AS cfMethod
+        FROM spark_recommend_eval
+        WHERE deleted = 0 AND is_latest = 1
+        ORDER BY FIELD(algo, 'cf', 'content', 'hybrid', 'popular'), k
+    </select>
+
+    <select id="latestStats" resultType="com.bishe.job.vo.RecommendStatsVO">
+        SELECT MAX(batch_no) AS batchNo,
+               COUNT(*) AS recommendCount,
+               COUNT(DISTINCT user_id) AS userCount,
+               COUNT(DISTINCT position_id) AS positionCount
+        FROM spark_recommend
+        WHERE algo = 3 AND is_latest = 1 AND deleted = 0
+    </select>
+
+    <select id="countVisibleJobs" resultType="int">
+        SELECT COUNT(*)
+        FROM job_position p
+        INNER JOIN ent_company c ON c.id = p.company_id
+        WHERE <include refid="visibleJob"/>
+    </select>
+</mapper>

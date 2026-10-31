@@ -4,7 +4,9 @@ import com.bishe.job.common.PageResult;
 import com.bishe.job.common.Result;
 import com.bishe.job.dto.PublicJobQuery;
 import com.bishe.job.service.PublicJobService;
+import com.bishe.job.service.RecommendService;
 import com.bishe.job.vo.PublicJobVO;
+import com.bishe.job.vo.SimilarJobVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +22,7 @@ import java.util.List;
 public class PublicJobController {
 
     private final PublicJobService publicJobService;
+    private final RecommendService recommendService;
 
     @GetMapping
     public Result<PageResult<PublicJobVO>> search(
@@ -52,5 +55,12 @@ public class PublicJobController {
     @GetMapping("/{id}")
     public Result<PublicJobVO> detail(@PathVariable("id") Long id) {
         return Result.success(publicJobService.detail(id));
+    }
+
+    @GetMapping("/{id}/similar")
+    public Result<List<SimilarJobVO>> similar(
+            @PathVariable("id") Long id,
+            @RequestParam(value = "size", defaultValue = "6") long size) {
+        return Result.success(recommendService.similarJobs(id, size));
     }
 }

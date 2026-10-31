@@ -18,6 +18,7 @@ UPDATE sys_user SET auditor_id = NULL;
 DELETE FROM ai_message;
 DELETE FROM ai_session;
 DELETE FROM rag_document;
+DELETE FROM spark_recommend_eval;
 DELETE FROM spark_recommend;
 DELETE FROM spark_salary_predict;
 DELETE FROM spark_region_dist;

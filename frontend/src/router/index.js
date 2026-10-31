@@ -69,6 +69,12 @@ const routes = [
         meta: { title: '职位搜索' }
       },
       {
+        path: 'recommend',
+        name: 'StudentRecommend',
+        component: () => import('@/views/student/Recommend.vue'),
+        meta: { title: '为你推荐' }
+      },
+      {
         path: 'jobs/:id',
         name: 'StudentJobDetail',
         component: () => import('@/views/student/JobDetail.vue'),
@@ -209,6 +215,12 @@ const routes = [
         name: 'AdminAnalytics',
         component: () => import('@/views/admin/Analytics.vue'),
         meta: { title: '就业分析' }
+      },
+      {
+        path: 'recommend',
+        name: 'AdminRecommend',
+        component: () => import('@/views/admin/Recommend.vue'),
+        meta: { title: '推荐评估' }
       }
     ]
   },
