@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import agent_router, health_router, rag_router, recommend_router, spark_router
 from app.core.config import settings
 from app.core.response import register_exception_handlers, success
+from app.core.security import InternalTokenMiddleware
 from app.spark.session import stop_spark
 
 # 日志基本配置
@@ -43,7 +44,8 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# 跨域中间件配置
+# 先注册令牌中间件，再注册 CORS，使跨域头能包住 401/403。
+app.add_middleware(InternalTokenMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [settings.CORS_ORIGINS],

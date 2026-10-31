@@ -26,8 +26,14 @@ class AgentService:
             "module": "agent",
             "status": "READY",
             "supported_roles": self.roles,
+            "agents": {
+                "student": "学生就业助手",
+                "company": "企业招聘助手",
+                "admin": "管理员数据助手",
+            },
             "stream_protocol": "Server-Sent Events (SSE)",
-            "description": "基于 LangChain 的多角色就业咨询与求职辅导智能体",
+            "chat": "/agent/chat/stream",
+            "description": "学生、企业、管理员三类助手，结合知识库检索与受控工具回答",
         }
 
     async def generate_stream_chunks(

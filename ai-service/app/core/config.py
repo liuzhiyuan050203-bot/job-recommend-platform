@@ -51,6 +51,14 @@ class Settings(BaseSettings):
     # 内部通信安全令牌 (与 Spring Boot 后端交互共享密钥)
     AI_INTERNAL_TOKEN: str = "change-me-internal-token"
 
+    # RAG 检索与切片
+    RAG_COLLECTION: str = "job_knowledge"
+    RAG_SCORE_THRESHOLD: float = 0.50
+    RAG_TOP_K: int = 4
+    RAG_CHUNK_SIZE: int = 400
+    RAG_CHUNK_OVERLAP: int = 60
+    RAG_PROMPT_CHUNK_CHARS: int = 300
+
     # 跨域允许源 (支持 Spring Boot 8080 与 Vue 5173)
     CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:5173",

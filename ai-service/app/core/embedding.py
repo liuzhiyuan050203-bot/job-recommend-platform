@@ -74,10 +74,12 @@ def embed_query(text: str) -> List[float]:
     Returns:
         归一化向量 (512 维)
     """
-    if not text:
+    if not text or not str(text).strip():
         return [0.0] * EMBEDDING_DIMENSION
-    results = embed_documents([text])
-    return results[0] if results else [0.0] * EMBEDDING_DIMENSION
+    embedder = _get_embedder()
+    # BGE 查询侧使用 query_embed（带检索前缀），与文档侧 embed 不对称
+    raw = next(iter(embedder.query_embed(str(text))))
+    return _normalize_vector(raw)
 
 
 class FastEmbedEmbeddings(Embeddings):

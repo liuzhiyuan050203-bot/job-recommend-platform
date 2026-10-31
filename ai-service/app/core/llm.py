@@ -133,17 +133,18 @@ class LLMProvider:
         self._health_cache_time: float = 0.0
         self._lock = threading.Lock()
 
-    def get_llm(self, streaming: bool = True) -> ChatOpenAI:
+    def get_llm(self, streaming: bool = True, max_tokens: Optional[int] = None) -> ChatOpenAI:
         """获取配置好的 LangChain ChatOpenAI 实例.
 
         支持 OpenAI 协议兼容端点 (本地 Ollama、DeepSeek、DashScope、智谱等).
+        max_tokens 缺省时使用配置项，智能体回答会单独收紧到约 500.
         """
         return ChatOpenAI(
             model=settings.LLM_MODEL,
             base_url=settings.LLM_BASE_URL,
             api_key=settings.LLM_API_KEY,
             temperature=settings.LLM_TEMPERATURE,
-            max_tokens=settings.LLM_MAX_TOKENS,
+            max_tokens=max_tokens if max_tokens is not None else settings.LLM_MAX_TOKENS,
             timeout=settings.LLM_TIMEOUT,
             streaming=streaming,
         )
@@ -270,9 +271,9 @@ class LLMProvider:
 llm_provider = LLMProvider()
 
 
-def get_llm(streaming: bool = True) -> ChatOpenAI:
+def get_llm(streaming: bool = True, max_tokens: Optional[int] = None) -> ChatOpenAI:
     """获取 ChatOpenAI 实例."""
-    return llm_provider.get_llm(streaming=streaming)
+    return llm_provider.get_llm(streaming=streaming, max_tokens=max_tokens)
 
 
 async def astream_chat(

@@ -13,7 +13,7 @@ mariadb -h127.0.0.1 -ujob -pjob123 < schema.sql
 mariadb -h127.0.0.1 -ujob -pjob123 < seed.sql
 ```
 
-`schema.sql` 会按依赖逆序 `DROP TABLE IF EXISTS` 再重建，可重复执行。`seed.sql` 在事务里先清空再插入，也可单独重复执行。
+`schema.sql` 会按依赖逆序 `DROP TABLE IF EXISTS` 再重建，可重复执行。`seed.sql` 在事务里先清空再插入，也可单独重复执行。已有库只扩展 RAG 字段时执行 `db/migrations/phase5_rag.sql`（可重复执行，不删业务数据）。
 
 空库需要由管理员先建库（应用账号不必执行）：
 
@@ -334,7 +334,7 @@ erDiagram
 
 智能体 `agent_type`：1 学生，2 企业，3 管理员。消息 `msg_role` 为 `user`、`assistant`、`system`。
 
-RAG：`doc_type` 1 就业政策、2 平台使用指南、3 面经精选、4 企业招聘须知；`embed_status` 0 待处理、1 已入库、2 失败。
+RAG：`doc_type` 1 就业政策、2 平台使用指南、3 面经精选、4 企业招聘须知、5 求职指导、6 手续 FAQ、7 职位信息。`source_type` 1 手工录入、2 公告同步、3 政策同步、4 知识库文件、5 职位同步、6 管理员上传。同一文档的切片共用 `doc_key`。`embed_status` 0 待处理、1 已入库、2 失败。`content_hash` 为标题、章节与正文的 SHA-256。重索引按 `doc_key` 物理删除旧切片。
 
 Spark 任务 `task_code`：`clean`、`aggregate`、`salary_regression`、`user_cf`、`content_match`。状态 0 运行中，1 成功，2 失败。
 

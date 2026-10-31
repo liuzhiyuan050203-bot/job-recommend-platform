@@ -1,69 +1,37 @@
-"""RAG (检索增强生成) 与向量知识库服务 (占位实现).
+"""RAG 知识库服务。
 
-职责:
-1. 基于 Chroma 向量数据库管理就业政策、校招指南、面经与企业信息
-2. 文本向量化与相似度检索
-3. 知识上下文检索并组装 Prompt 供给 Agent 调用
+检索、切片和向量写入在 app.rag 中实现，这里只保留给路由使用的薄封装。
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from app.core.config import settings
+from app.rag.store import retrieve, stats
 
 logger = logging.getLogger(__name__)
 
 
 class RagService:
-    """RAG 知识检索与向量库服务."""
+    """知识库状态与调试检索。"""
 
-    def __init__(self) -> None:
-        self.chroma_dir = settings.CHROMA_DIR
-        self.collection_name = "job_knowledge_base"
+    def get_status(self) -> dict[str, Any]:
+        data = stats()
+        data.update(
+            {
+                "module": "rag",
+                "status": "READY",
+                "embedding_model": settings.EMBEDDING_MODEL,
+                "description": "就业政策、手续问答、求职指导和在架职位的向量检索",
+            }
+        )
+        return data
 
-    def get_status(self) -> Dict[str, Any]:
-        """获取 RAG 模块运行状态与向量库配置."""
-        return {
-            "module": "rag",
-            "status": "READY",
-            "chroma_dir": self.chroma_dir,
-            "collection_name": self.collection_name,
-            "embedding_model": "text-embedding-placeholder",
-            "vector_count": 128,
-            "description": "基于 Chroma 与 LangChain 的高校就业政策/面经知识库检索引擎",
-        }
-
-    def search_knowledge(self, query: str, top_k: int = 3) -> Dict[str, Any]:
-        """检索知识库匹配的相关文档片段 (占位实现)."""
-        logger.info(f"Searching knowledge base for query: {query}, top_k={top_k}")
-        documents: List[Dict[str, Any]] = [
-            {
-                "doc_id": "doc-policy-2026",
-                "title": "2026届高校毕业生就业创业支持政策通知",
-                "content": "对到中西部地区、艰苦边远地区基层单位就业的高校毕业生，按规定给予学费补偿和国家助学贷款代偿。",
-                "score": 0.92,
-                "category": "就业政策",
-            },
-            {
-                "doc_id": "doc-interview-java",
-                "title": "互联网大厂Java开发校招高频面试核心要点",
-                "content": "重点考察 JVM 内存模型与 GC 机制、Spring 事务失效场景、MySQL 索引优化及 Redis 分布式锁实现方案。",
-                "score": 0.88,
-                "category": "面试经验",
-            },
-            {
-                "doc_id": "doc-guide-resume",
-                "title": "应届生技术简历撰写指南：STAR法则与量化成果",
-                "content": "技术简历需重点突出项目背景、技术选型难点、个人贡献与量化指标，技能清单按熟悉程度降序排列。",
-                "score": 0.83,
-                "category": "简历指导",
-            },
-        ]
-        return {
-            "query": query,
-            "total": len(documents),
-            "results": documents[:top_k],
-        }
+    def search_knowledge(self, query: str, top_k: int = 4, doc_type: int | None = None) -> dict[str, Any]:
+        types = [doc_type] if doc_type else None
+        hits = retrieve(query, top_k=top_k, doc_types=types)
+        logger.info("知识库检索命中 %s 条", len(hits))
+        return {"query": query, "total": len(hits), "results": hits}
 
 
 rag_service = RagService()

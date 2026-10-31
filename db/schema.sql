@@ -701,16 +701,20 @@ CREATE TABLE spark_recommend_eval (
   CONSTRAINT chk_spark_recommend_eval_latest CHECK (is_latest IN (0, 1))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='职位推荐离线评估';
 
--- 知识文档保存原文切片。向量存放在 Chroma，本表只保留 chroma_id 以便回查
+-- 知识文档保存原文切片。向量存放在 Chroma，本表只保留 chroma_id 以便回查。
+-- 同一逻辑文档的切片共用 doc_key（如 kb:就业政策.md、cms:12、job:345）。
+-- 重索引时按 doc_key 物理删除旧切片，不保留逻辑删除行。
 CREATE TABLE rag_document (
   id                BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
-  doc_type          TINYINT      NOT NULL COMMENT '文档类型：1就业政策 2平台使用指南 3面经精选 4企业招聘须知',
+  doc_type          TINYINT      NOT NULL COMMENT '文档类型：1就业政策 2平台使用指南 3面经精选 4企业招聘须知 5求职指导 6手续FAQ 7职位信息',
   title             VARCHAR(128) NOT NULL COMMENT '文档标题',
-  source_type       TINYINT      NOT NULL DEFAULT 1 COMMENT '来源：1手工录入 2公告同步 3政策同步',
-  source_id         BIGINT       NULL COMMENT '来源业务编号，政策或公告时逻辑关联 cms_article.id',
+  doc_key           VARCHAR(128) NULL COMMENT '逻辑文档键，同一文档的切片共用，如 kb:就业政策.md、cms:12、job:345',
+  source_type       TINYINT      NOT NULL DEFAULT 1 COMMENT '来源：1手工录入 2公告同步 3政策同步 4知识库文件 5职位同步 6管理员上传',
+  source_id         BIGINT       NULL COMMENT '来源业务编号。公告或政策逻辑关联 cms_article.id，职位逻辑关联 job_position.id',
   chunk_no          INT          NOT NULL DEFAULT 0 COMMENT '切片序号，从 0 开始',
+  section           VARCHAR(128) NULL COMMENT '所在章节标题，无章节时为空',
   content           MEDIUMTEXT   NOT NULL COMMENT '切片正文，作为检索回显文本',
-  content_hash      CHAR(64)     NULL COMMENT '正文 SHA-256，十六进制，用于去重',
+  content_hash      CHAR(64)     NULL COMMENT '标题、章节与正文的 SHA-256，十六进制，用于判断切片是否变化',
   chroma_collection VARCHAR(64)  NULL COMMENT 'Chroma 集合名',
   chroma_id         VARCHAR(64)  NULL COMMENT 'Chroma 向量编号，未入库时为空',
   embed_status      TINYINT      NOT NULL DEFAULT 0 COMMENT '向量化状态：0待处理 1已入库 2失败',
@@ -722,8 +726,9 @@ CREATE TABLE rag_document (
   KEY idx_rag_doc_source (source_type, source_id),
   KEY idx_rag_doc_hash (content_hash),
   KEY idx_rag_doc_chroma (chroma_collection, chroma_id),
-  CONSTRAINT chk_rag_doc_type CHECK (doc_type IN (1, 2, 3, 4)),
-  CONSTRAINT chk_rag_doc_source CHECK (source_type IN (1, 2, 3)),
+  KEY idx_rag_doc_key (doc_key, deleted),
+  CONSTRAINT chk_rag_doc_type CHECK (doc_type IN (1, 2, 3, 4, 5, 6, 7)),
+  CONSTRAINT chk_rag_doc_source CHECK (source_type IN (1, 2, 3, 4, 5, 6)),
   CONSTRAINT chk_rag_doc_embed CHECK (embed_status IN (0, 1, 2)),
   CONSTRAINT chk_rag_doc_chunk CHECK (chunk_no >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='RAG知识文档';

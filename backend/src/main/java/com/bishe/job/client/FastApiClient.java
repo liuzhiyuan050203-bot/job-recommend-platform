@@ -32,13 +32,16 @@ public class FastApiClient {
     private final RestTemplate sparkRestTemplate;
     private final ObjectMapper objectMapper;
     private final String baseUrl;
+    private final String internalToken;
 
     public FastApiClient(RestTemplate restTemplate,
                          ObjectMapper objectMapper,
-                         @Value("${fastapi.base-url:http://localhost:8000}") String baseUrl) {
+                         @Value("${fastapi.base-url:http://localhost:8000}") String baseUrl,
+                         @Value("${fastapi.internal-token:change-me-internal-token}") String internalToken) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
         this.baseUrl = baseUrl;
+        this.internalToken = internalToken;
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(3));
         factory.setReadTimeout(Duration.ofSeconds(180));
@@ -52,7 +55,8 @@ public class FastApiClient {
     public String checkHealth() {
         try {
             String url = trimBase() + "/health";
-            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(tokenHeaders()), String.class);
             if (response.getStatusCode().is2xxSuccessful()) {
                 return "UP";
             }
@@ -111,7 +115,7 @@ public class FastApiClient {
 
     private JsonNode post(String path, Object body) {
         try {
-            HttpHeaders headers = new HttpHeaders();
+            HttpHeaders headers = tokenHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             ResponseEntity<JsonNode> response = sparkRestTemplate.exchange(
                     trimBase() + path, HttpMethod.POST, new HttpEntity<>(body, headers), JsonNode.class);
@@ -127,7 +131,7 @@ public class FastApiClient {
     private JsonNode get(UriComponentsBuilder builder) {
         try {
             ResponseEntity<JsonNode> response = sparkRestTemplate.exchange(
-                    builder.build().encode().toUri(), HttpMethod.GET, HttpEntity.EMPTY, JsonNode.class);
+                    builder.build().encode().toUri(), HttpMethod.GET, new HttpEntity<>(tokenHeaders()), JsonNode.class);
             return unwrap(response.getBody());
         } catch (HttpStatusCodeException e) {
             throw translate(e);
@@ -163,6 +167,14 @@ public class FastApiClient {
             log.warn("解析分析服务错误响应失败: {}", parseError.getMessage());
             return new BusinessException(503, "分析服务不可用");
         }
+    }
+
+    private HttpHeaders tokenHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        if (StringUtils.hasText(internalToken)) {
+            headers.set("X-Internal-Token", internalToken);
+        }
+        return headers;
     }
 
     private String trimBase() {

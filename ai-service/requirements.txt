@@ -28,6 +28,9 @@ openai==3.42.0
 fastembed==0.9.1
 chromadb==1.5.9
 
+# 上传 Markdown / 文本知识
+python-multipart==0.0.32
+
 # 网络请求与工具库
 requests==2.34.2
 httpx==0.28.1
