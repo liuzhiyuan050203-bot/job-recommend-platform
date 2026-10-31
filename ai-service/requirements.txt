@@ -23,6 +23,9 @@ pyarrow==26.0.0
 langchain==1.4.7
 langchain-core==1.7.3
 langchain-community==0.4.2
+langchain-openai==1.7.3
+openai==3.42.0
+fastembed==0.9.1
 chromadb==1.5.9
 
 # 网络请求与工具库

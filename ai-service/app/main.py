@@ -73,6 +73,7 @@ async def root():
             "docs": "/docs",
             "endpoints": {
                 "health": "/health",
+                "llm_health": "/ai/llm/health",
                 "spark": "/spark",
                 "recommend": "/recommend",
                 "rag": "/rag",
