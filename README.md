@@ -332,6 +332,24 @@ mariadb -h127.0.0.1 -ujob -pjob123 job_platform < db/migrations/phase5_ai_sessio
 
 ai-service 侧：没有资料切片时提示词禁止 `[1]`、`[2]`，流式输出会把 `[资料n]`、`【资料n】` 收成 `[n]`，并丢掉编号大于资料条数的标记，`done.answer` 与已经推送的文字一致。管理员问城市岗位数量走 `city_distribution`（在架职位按城市计数），问省份仍走 `region_distribution`。对不上统计意图时，用平台概况加知识库资料回答。
 
+
+## 真实校招数据
+
+除 `demo_` 前缀的可复现演示数据外，可用公开校园招聘接口同步真实大厂校招职位（不登录、不抓 BOSS/智联）：
+
+```bash
+/workspace/bishe/.venv/bin/python data/crawl_campus_jobs.py --max-total 2200
+/workspace/bishe/.venv/bin/python data/import_real_jobs.py \
+  --input data/raw/campus_YYYYMMDD --inject-behaviors --append-csv
+```
+
+- 工具：`@ha7ch/job-pro`（封装于 `data/job_pro_client.py`），限速 ≥1s，落盘 `data/raw/campus_YYYYMMDD/`
+- 入库：企业账号 `real_<company>` / `Real@123`，职位已审核上架；官网投递链接写在描述与 provenance JSON
+- 说明文档：`data/REAL_DATA.md`（来源、数量、真实 vs 合成、样例链接）
+- 导入后请重跑 Spark 与推荐，并视需要执行 `python -m app.rag.ingest --source jobs --rebuild`（在 `ai-service/` 目录）
+
+本批示例（2026-11-01）：16 家企业、1758 条（字节/腾讯/阿里/小米等）；美团接口失败已跳过，华为校园通道为空。
+
 ## 运行测试
 
 ```bash

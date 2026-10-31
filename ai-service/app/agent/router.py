@@ -200,6 +200,49 @@ def _policy_types(question: str) -> list[int]:
     return types
 
 
+
+_COMPANY_ALIASES = [
+    ("字节跳动", ["字节跳动", "字节", "Bytedance", "ByteDance"]),
+    ("腾讯", ["腾讯", "Tencent"]),
+    ("阿里巴巴", ["阿里巴巴", "阿里", "Alibaba"]),
+    ("蚂蚁集团", ["蚂蚁集团", "蚂蚁", "Ant"]),
+    ("美团", ["美团", "Meituan"]),
+    ("小红书", ["小红书", "红书"]),
+    ("京东", ["京东", "JD"]),
+    ("快手", ["快手", "Kuaishou"]),
+    ("百度", ["百度", "Baidu"]),
+    ("网易", ["网易", "NetEase"]),
+    ("滴滴出行", ["滴滴出行", "滴滴", "DiDi", "Didi"]),
+    ("哔哩哔哩", ["哔哩哔哩", "B站", "bilibili", "Bilibili"]),
+    ("拼多多", ["拼多多", "PDD"]),
+    ("华为", ["华为", "Huawei"]),
+    ("小米", ["小米", "Xiaomi"]),
+    ("OPPO", ["OPPO", "oppo"]),
+    ("vivo", ["vivo", "VIVO"]),
+    ("米哈游", ["米哈游", "miHoYo"]),
+    ("携程", ["携程", "Ctrip"]),
+    ("蔚来", ["蔚来", "NIO"]),
+]
+
+
+def _find_company(text: str) -> str:
+    """从问题中识别常见校招企业名，返回用于职位检索的关键词。"""
+    if not text:
+        return ""
+    candidates: list[tuple[int, str]] = []
+    lowered = text.lower()
+    for canonical, aliases in _COMPANY_ALIASES:
+        for alias in aliases:
+            if not alias:
+                continue
+            if alias.lower() in lowered:
+                candidates.append((len(alias), canonical))
+    if not candidates:
+        return ""
+    candidates.sort(reverse=True)
+    return candidates[0][1]
+
+
 def route(question: str, role: str) -> Route:
     """根据角色和问题选择工具与知识库过滤类型。"""
     text = (question or "").strip()
@@ -217,6 +260,10 @@ def route(question: str, role: str) -> Route:
         "keyword": _find_skill(text, skills, ""),
         "title": _title_for_jd(text),
     }
+    # 公司名优先作为关键词（支持真实校招企业检索）
+    company_kw = _find_company(text)
+    if company_kw:
+        slots["keyword"] = company_kw
     if slots["keyword"] and slots["keyword"] == slots["direction"]:
         slots["keyword"] = ""
     result = Route(slots=slots)

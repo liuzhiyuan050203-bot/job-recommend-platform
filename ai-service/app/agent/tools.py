@@ -193,13 +193,21 @@ def search_jobs(
                         %s = ''
                         OR p.title LIKE %s
                         OR p.tech_direction LIKE %s
+                        OR c.company_name LIKE %s
+                        OR IFNULL(c.short_name,'') LIKE %s
                         OR EXISTS (
                             SELECT 1 FROM job_position_tag pt
                             INNER JOIN skill_tag t ON t.id = pt.tag_id AND t.deleted = 0
                             WHERE pt.position_id = p.id AND pt.deleted = 0 AND t.name LIKE %s
                         )
                   )
-                ORDER BY (CASE WHEN %s <> '' AND p.title LIKE %s THEN 0 ELSE 1 END), p.publish_time DESC
+                ORDER BY (
+                  CASE
+                    WHEN %s <> '' AND (c.company_name LIKE %s OR IFNULL(c.short_name,'') LIKE %s) THEN 0
+                    WHEN %s <> '' AND p.title LIKE %s THEN 1
+                    ELSE 2
+                  END
+                ), p.publish_time DESC
                 LIMIT %s
                 """,
                 (
@@ -207,7 +215,8 @@ def search_jobs(
                     direction, direction,
                     edu, edu,
                     salary, salary,
-                    keyword, like, like, like,
+                    keyword, like, like, like, like, like,
+                    keyword, like, like,
                     keyword, like,
                     limit,
                 ),
