@@ -943,7 +943,7 @@ def render(name: str, result: dict[str, Any]) -> tuple[str, str]:
         lines = [f"推荐来源 {result.get('source')}："]
         for item in result["items"]:
             lines.append(
-                f"- {item['title']}｜{item['company']}｜{item['city']}｜匹配 {item['score']}｜{item['reason']}"
+                f"- {item['title']}｜{item['company']}｜{item['city']}｜{item['salary']}｜匹配 {item['score']}｜{item['reason']}"
             )
         return "\n".join(lines), f"返回 {len(result['items'])} 条推荐"
     if name == "predict_salary":

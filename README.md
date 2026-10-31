@@ -40,10 +40,10 @@
 ├── frontend/         # Vue 3
 ├── ai-service/       # FastAPI
 ├── db/               # schema.sql（28 张表）、seed.sql、README.md
-├── scripts/          # start-mysql.sh
+├── scripts/          # start-mysql.sh、start-ollama.sh、start-all.sh、stop-all.sh
 ├── tests/
 │   ├── run-all.sh    # 拉起依赖并跑完全部接口脚本
-│   └── api/          # 01 认证、02 模块一、03 招聘
+│   └── api/          # 01 认证 … 06 RAG 与三类助手
 └── README.md
 ```
 
@@ -189,9 +189,97 @@ cd ai-service
 
 `tests/api/05-recommend.sh` 覆盖：未登录 401、企业/管理员访问学生推荐 403、学生访问推荐评估 403、附带 `userId` 参数仍只返回自己的推荐、推荐职位均在架且已审核、不含已投递职位、企业下架后立即从推荐和相似职位中消失、新注册学生（无行为）冷启动有推荐且有理由、投递后从推荐中移除、相似职位不含自身、评估中融合 NDCG@10 高于热门与内容匹配。
 
-## 智能问答
+## Phase 5 智能问答
 
-页面：学生「就业助手」`/student/assistant`，企业「招聘助手」`/company/assistant`，管理员「数据助手」`/admin/assistant`，知识库管理 `/admin/knowledge`。对话走 SSE：前端 `fetch` 带 `Authorization: Bearer`，后端按行转发 ai-service 的事件，并在最前面补一条 `data: {"type":"session","session_id":...,"title":"..."}`。
+页面：学生「就业助手」`/student/assistant`，企业「招聘助手」`/company/assistant`，管理员「数据助手」`/admin/assistant`，知识库管理 `/admin/knowledge`。
+
+调用链：
+
+```
+Vue fetch（Authorization: Bearer JWT）
+  → Spring Boot SSE 代理（校验角色，/api/{role}/ai/chat/stream）
+    → ai-service（请求头 X-Internal-Token、X-User-Id、X-User-Role）
+      → RAG（Chroma 集合 job_knowledge，嵌入 BAAI/bge-small-zh-v1.5）或角色工具
+        → LLM（Ollama 或任意 OpenAI 兼容接口）
+```
+
+前端不直连 8000。后端在转发前补一条 `data: {"type":"session","session_id":...,"title":"..."}`，随后原样转发 `meta`、`status`、`tool`、`sources`、`delta`、`error`、`done`，最后是 `data: [DONE]`。`meta.mode` 为 `online` 或 `offline`。
+
+### 启动与停止
+
+```bash
+bash scripts/start-all.sh              # MariaDB、本机 Ollama、ai-service、后端、前端
+bash scripts/start-all.sh --no-frontend
+bash scripts/stop-all.sh               # 停掉本次拉起的进程，默认保留 MariaDB
+bash scripts/stop-all.sh --with-mysql
+```
+
+已经健康的端口不会重复启动。日志在 `logs/`（已 gitignore），PID 在 `.run/`。脚本会读取 `ai-service/.env` 里尚未导出的变量；调用前导出的 `AI_INTERNAL_TOKEN`、`LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL`、`LLM_TOOL_CALLING` 会原样传给 ai-service 和后端。`rag_document` 为空时会执行 `python -m app.rag.ingest --all`。
+
+也可以按下面的方式分开启动。
+
+### Ollama 与 qwen2.5:3b
+
+```bash
+bash scripts/start-ollama.sh
+```
+
+脚本若发现 `11434` 上没有服务，会 `nohup ollama serve`（日志 `/tmp/ollama-serve.log`）。模型默认 `qwen2.5:3b`：先 `ollama pull`，失败再从 Hugging Face 下载 `qwen2.5-3b-instruct-q4_k_m.gguf` 并用 Modelfile `ollama create`。可用 `OLLAMA_MODEL`、`HF_ENDPOINT` 覆盖。ai-service 默认 `LLM_BASE_URL=http://127.0.0.1:11434/v1`、`LLM_MODEL=qwen2.5:3b`、`LLM_API_KEY=ollama`。这台机器是 CPU，一条回答大约 2–40 秒。
+
+`LLM_BASE_URL` 不是本机地址时，`start-all.sh` 不会启动 Ollama。
+
+### 换成 DeepSeek 等在线模型
+
+在 `ai-service/.env` 或启动环境里设置（不要把真实密钥写进仓库）：
+
+```bash
+LLM_PROVIDER=openai_compatible
+LLM_BASE_URL=https://api.deepseek.com/v1
+LLM_API_KEY=sk-...
+LLM_MODEL=deepseek-chat
+LLM_TOOL_CALLING=auto
+```
+
+`LLM_TOOL_CALLING`：
+
+| 值 | 行为 |
+| :--- | :--- |
+| `true` / `1` / `yes` / `on` | 先让模型用 LangChain 选工具，没有合法调用再走关键词路由 |
+| `false` / `0` / `no` / `off` | 只用关键词和槽位路由 |
+| `auto`（默认） | 基址在本机，或模型名里的参数量不超过 8B 时，只用关键词路由；否则同 `true` |
+
+后端和 ai-service 都要能读到同一个 `AI_INTERNAL_TOKEN`。改完后重启两边。
+
+### 离线模式
+
+`LLM_PROVIDER=offline`，或探测 `LLM_BASE_URL/models` 失败（连不上、超时、非 2xx）时，`meta.mode` 为 `offline`。回答以「【离线模式】」开头，附上工具结果表格和知识库摘录（`OfflineGenerator` 按字二元组抽句），HTTP 仍是 200 的 SSE，而不是 500。显式检索和统计不依赖大模型。
+
+### 重建知识库
+
+```bash
+cd ai-service
+../.venv/bin/python -m app.rag.ingest --all
+```
+
+`--all` 清空 Chroma 与 `rag_document` 后，写入 `data/knowledge/*.md`、公告、在架职位和管理员上传。只更新一类来源用 `--source knowledge|cms|jobs|uploads`。管理端也可 `POST /api/admin/ai/knowledge/reindex`。
+
+### 内部令牌
+
+`AI_INTERNAL_TOKEN` 必须与后端 `fastapi.internal-token`（`application.yml` 的 `${AI_INTERNAL_TOKEN:change-me-internal-token}`）完全一致。比较使用常量时间。日志和接口响应里不会出现令牌。生产环境一定要改掉示例值，并只放在两边的环境变量或本机 `.env` 中。
+
+### 角色助手示例问题
+
+| 角色 | 示例 |
+| :--- | :--- |
+| 学生 | 三方协议怎么签？ / 推荐适合我的岗位 / 北京后端应届薪资大概多少 / 我投 Java 后端还缺什么技能 |
+| 企业 | 帮我写一个 Java 后端校招 JD / 帮我筛选我发布职位的候选人 / 列出我发布的职位 |
+| 管理员 | 哪个城市岗位最多 / 本月热门技能有哪些 / 平台概况 / 推荐算法评估指标 |
+
+「有哪些 / 排行 / top / 前几」类技能问题会列出技术趋势前 5 名（名称、需求量、环比）。「增长最快」仍只给第一名。推荐和检索职位按工具结果逐条写出城市和薪资。引用写成 `[资料2]` 或 `【资料2】` 时会收成 `[2]`，编号超过资料条数的标记会被丢掉。
+
+### 接口
+
+对话走 SSE：前端 `fetch` 带 `Authorization: Bearer`，后端按行转发 ai-service 的事件。
 
 已有库增加助手消息的 `extra` 列（JSON 文本，含 `sources`、`tools`、`latency_ms`、`first_token_ms`）：
 
@@ -215,7 +303,7 @@ mariadb -h127.0.0.1 -ujob -pjob123 job_platform < db/migrations/phase5_ai_sessio
 
 未登录 401，角色不符 403。AI 服务不可达时，流式接口仍保存用户消息，并返回 `{"type":"error","msg":"AI 服务暂不可用"}`；知识库接口返回明确错误，不回传堆栈。用户编号只从 JWT 读取，内部令牌不出现在日志和响应里。
 
-ai-service 侧：没有资料切片时提示词禁止 `[1]`、`[2]`，流式输出会丢掉编号大于资料条数的标记，`done.answer` 与已经推送的文字一致。管理员问城市岗位数量走 `city_distribution`（在架职位按城市计数），问省份仍走 `region_distribution`。对不上统计意图时，用平台概况加知识库资料回答。
+ai-service 侧：没有资料切片时提示词禁止 `[1]`、`[2]`，流式输出会把 `[资料n]`、`【资料n】` 收成 `[n]`，并丢掉编号大于资料条数的标记，`done.answer` 与已经推送的文字一致。管理员问城市岗位数量走 `city_distribution`（在架职位按城市计数），问省份仍走 `region_distribution`。对不上统计意图时，用平台概况加知识库资料回答。
 
 ## 运行测试
 
@@ -223,9 +311,9 @@ ai-service 侧：没有资料切片时提示词禁止 `[1]`、`[2]`，流式输�
 bash tests/run-all.sh
 ```
 
-脚本在 MariaDB 未运行时调用 `scripts/start-mysql.sh`；8080 没有健康检查时会打包并后台启动后端（日志 `/tmp/job-backend-test.log`），结束时关掉自己启动的进程。任一断言失败则退出码非 0。
+脚本在 MariaDB 未运行时调用 `scripts/start-mysql.sh`；8080 没有健康检查时会打包并后台启动后端（日志 `/tmp/job-backend-test.log`），结束时关掉自己启动的进程。`tests/api/06-rag.sh` 在 ai-service 的 `/health` 不可达时打印 SKIP、记 0 失败并以 0 退出，其余脚本照常汇总。ai-service 在、但大模型不可达时，06 仍应通过（离线模式）。流式断言的 `curl --max-time` 为 180 秒。任一断言失败则退出码非 0。
 
-当前结果（`bash tests/run-all.sh`，2026-10-31，ai-service 已启动；未启动时 04/05 中依赖 FastAPI 的断言记为 SKIP，05 的冷启动走数据库兜底）：
+当前结果（`bash tests/run-all.sh`，2026-10-31，ai-service 已启动；未启动时 04/05 中依赖 FastAPI 的断言记为 SKIP，05 的冷启动走数据库兜底，06 整段 SKIP）：
 
 | 脚本 | PASS | FAIL |
 | :--- | ---: | ---: |
@@ -234,6 +322,7 @@ bash tests/run-all.sh
 | 03-recruitment.sh | 89 | 0 |
 | 04-spark.sh | 55 | 0 |
 | 05-recommend.sh | 56 | 0 |
-| 合计 | 400 | 0 |
+| 06-rag.sh | 92 | 0 |
+| 合计 | 492 | 0 |
 
-同一轮还通过了 `cd backend && mvn -q -DskipTests package` 和 `cd frontend && pnpm build`。
+同一轮还通过了 `cd backend && mvn -q -DskipTests package` 和 `cd frontend && pnpm build`。ai-service 停掉后再跑一遍：06 打印 SKIP，记 PASS=0 FAIL=0；01–03 仍是 35 / 165 / 89；04 为 49（跳过分析触发、实时预测和 FastAPI 任务列表）；05 为 54（冷启动走数据库兜底，跳过推荐任务触发与 FastAPI 相似职位）。合计 392，失败 0。

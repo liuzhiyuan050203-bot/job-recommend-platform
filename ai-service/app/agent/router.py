@@ -32,6 +32,21 @@ class Route:
     refusal: str | None = None
     instruction: str = ""
     slots: dict = field(default_factory=dict)
+    # job_list：逐条保留城市和薪资；skill_list：列出前几名技能，不要收成第一名
+    answer_shape: str = ""
+
+
+_JOB_LIST_INSTRUCTION = (
+    "只用一句话说明条数，不要逐条展开，不要把不同职位概括成同一城市或同一薪资。"
+    "城市和薪资必须与各条工具结果一致，禁止编造。"
+)
+
+
+def wants_skill_list(text: str) -> bool:
+    """「有哪些 / 排行 / top / 前几」列出前几名；带「增长最快」时仍只给第一名。"""
+    if re.search(r"增长最快|增速最快|涨得最快|环比最高", text or ""):
+        return False
+    return bool(re.search(r"有哪些|排行|排名|\btop\b|top\s*\d+|前几|前\s*\d+|哪些", text or "", re.I))
 
 
 def _lexicon_get() -> tuple[list[tuple[str, str]], list[str]]:
@@ -235,7 +250,8 @@ def _route_student(text: str, slots: dict, result: Route) -> Route:
         if re.search(r"我的推荐|适合我|给我推荐", text) and not slots["city"] and not slots["keyword"]:
             result.tools.append(ToolRequest("get_my_recommendations", {"limit": 5}))
             result.doc_types = []
-            result.instruction = "只介绍工具返回的推荐职位，保留匹配分和理由。"
+            result.answer_shape = "job_list"
+            result.instruction = _JOB_LIST_INSTRUCTION
             return result
         result.tools.append(
             ToolRequest(
@@ -251,12 +267,14 @@ def _route_student(text: str, slots: dict, result: Route) -> Route:
             )
         )
         result.doc_types = [7]
-        result.instruction = "岗位列表以工具结果为准，不要补充工具里没有的公司或薪资。"
+        result.answer_shape = "job_list"
+        result.instruction = _JOB_LIST_INSTRUCTION
         return result
     if re.search(r"我的推荐|适合我的|给我推荐", text):
         result.tools.append(ToolRequest("get_my_recommendations", {"limit": 5}))
         result.doc_types = []
-        result.instruction = "只介绍工具返回的推荐职位。"
+        result.answer_shape = "job_list"
+        result.instruction = _JOB_LIST_INSTRUCTION
         return result
     if re.search(r"薪资预测|能拿多少|工资多少|月薪多少|薪资大概|预测薪资", text) or (
         re.search(r"薪资|工资|月薪", text) and (slots["city"] or slots["direction"])
@@ -328,10 +346,18 @@ def _route_admin(text: str, slots: dict, result: Route) -> Route:
         result.doc_types = []
         result.instruction = "只转述评估表中的指标，不要改写数值。"
         return result
-    if re.search(r"需求增长|技术趋势|热门技术|热门技能|什么技术|什么技能|技能热度|技术热度|热门技|最火的技|技能需求|技术需求", text):
-        result.tools.append(ToolRequest("tech_trend", {"skill": slots["keyword"], "top_n": 5}))
+    if re.search(r"需求增长|技术趋势|热门技术|热门技能|什么技术|什么技能|技能热度|技术热度|热门技|最火的技|技能需求|技术需求|增长最快的技|技[术能]增长最快|哪个技[术能]|哪种技[术能]|增速最快的技", text):
+        list_style = wants_skill_list(text)
+        # 排行问题不要用问句里偶然命中的技能名把结果滤成一条
+        result.tools.append(
+            ToolRequest("tech_trend", {"skill": "" if list_style else slots["keyword"], "top_n": 5})
+        )
         result.doc_types = []
-        result.instruction = "只采用工具结果第一行结论里的技术名称和环比，不要改成列表中的其他技术。"
+        if list_style:
+            result.answer_shape = "skill_list"
+            result.instruction = "按工具结果逐条列出技能名称、需求量和环比，不要只写增长最快的一项，不要改数字。"
+        else:
+            result.instruction = "只采用工具结果第一行结论里的技术名称和环比，不要改成列表中的其他技术。"
         return result
     if _is_city_question(text):
         result.tools.append(ToolRequest("city_distribution", {"top_n": 8}))

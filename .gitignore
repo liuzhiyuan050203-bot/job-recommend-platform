@@ -29,6 +29,9 @@ ai-service/data/
 logs/
 *.log
 
+# start-all / stop-all 的 PID
+.run/
+
 # Spark & Hive Metastore / Derby
 spark-warehouse/
 metastore_db/

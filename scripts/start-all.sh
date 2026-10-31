@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+# 按依赖顺序启动 MariaDB、本地 Ollama（若 LLM 指向本机）、ai-service、后端和前端。
+# 已经健康的服务不会重复启动。PID 写在 .run/，日志写在 logs/。
+set -euo pipefail
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+RUN_DIR="$ROOT/.run"
+LOG_DIR="$ROOT/logs"
+NO_FRONTEND=0
+
+usage() {
+  cat <<'EOF'
+用法: bash scripts/start-all.sh [--no-frontend]
+
+启动 MariaDB、Ollama（仅当 LLM_BASE_URL 指向本机且 ollama 存在）、ai-service（8000）、
+Spring Boot（8080）和 Vite（5173）。已在监听的服务会跳过。
+环境变量 AI_INTERNAL_TOKEN、LLM_* 若已设置则原样传给子进程；否则从 ai-service/.env 补齐。
+EOF
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --no-frontend) NO_FRONTEND=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "未知参数: $arg" >&2; usage >&2; exit 1 ;;
+  esac
+done
+
+mkdir -p "$RUN_DIR" "$LOG_DIR"
+export PATH="${HOME}/.local/bin:${PATH}"
+export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}"
+export PATH="${JAVA_HOME}/bin:${PATH}"
+
+# 只填尚未设置的变量，避免把已导出的密钥打进日志。
+load_dotenv() {
+  local file=$1 line key val
+  [ -f "$file" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    case "$line" in
+      ''|\#*) continue ;;
+      [A-Za-z_]*=*) ;;
+      *) continue ;;
+    esac
+    key=${line%%=*}
+    val=${line#*=}
+    if [ "${val#\"}" != "$val" ] && [ "${val%\"}" != "$val" ]; then
+      val=${val#\"}
+      val=${val%\"}
+    elif [ "${val#\'}" != "$val" ] && [ "${val%\'}" != "$val" ]; then
+      val=${val#\'}
+      val=${val%\'}
+    fi
+    if [ -z "${!key+x}" ]; then
+      export "$key=$val"
+    fi
+  done < "$file"
+}
+
+if [ -f "$ROOT/ai-service/.env" ]; then
+  load_dotenv "$ROOT/ai-service/.env"
+  echo "==> 已读取 ai-service/.env（不覆盖当前环境变量）"
+fi
+
+pid_alive() {
+  local file="$RUN_DIR/$1.pid" pid
+  [ -f "$file" ] || return 1
+  pid=$(tr -d '[:space:]' < "$file" || true)
+  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
+wait_http() {
+  local url=$1 seconds=$2 name=$3
+  local i
+  for i in $(seq 1 "$seconds"); do
+    if curl -sf -m 2 -o /dev/null "$url"; then
+      echo "==> ${name} 就绪: ${url}"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "错误: 等待 ${name} 超时 (${url})" >&2
+  return 1
+}
+
+mysql_ok() {
+  mariadb-admin --protocol=tcp -h127.0.0.1 -P3306 -ujob -pjob123 ping --silent 2>/dev/null
+}
+
+if mysql_ok; then
+  echo "==> MariaDB 已在运行"
+else
+  echo "==> 启动 MariaDB"
+  bash "$ROOT/scripts/start-mysql.sh"
+  mysql_ok
+fi
+
+llm_base=${LLM_BASE_URL:-http://127.0.0.1:11434/v1}
+llm_local=0
+case "$llm_base" in
+  *127.0.0.1*|*localhost*|*0.0.0.0*) llm_local=1 ;;
+esac
+
+if [ "$llm_local" != 1 ]; then
+  echo "==> LLM_BASE_URL 不是本机，跳过 Ollama"
+elif curl -sf -m 2 -o /dev/null "http://127.0.0.1:11434/api/tags"; then
+  echo "==> Ollama 已在运行"
+elif ! command -v ollama >/dev/null 2>&1; then
+  echo "==> 未找到 ollama，跳过本地模型（大模型不可达时助手走离线模式）"
+elif pid_alive ollama; then
+  echo "==> Ollama 正在启动，继续等待"
+  wait_http "http://127.0.0.1:11434/api/tags" 40 "Ollama"
+else
+  echo "==> 启动 Ollama"
+  nohup ollama serve > "$LOG_DIR/ollama.log" 2>&1 &
+  echo $! > "$RUN_DIR/ollama.pid"
+  wait_http "http://127.0.0.1:11434/api/tags" 40 "Ollama"
+  bash "$ROOT/scripts/start-ollama.sh"
+fi
+
+kb_count=$(mariadb -N --protocol=tcp -h127.0.0.1 -P3306 -ujob -pjob123 job_platform \
+  -e "SELECT COUNT(*) FROM rag_document WHERE deleted=0" 2>/dev/null || true)
+if [ "${kb_count:-}" = "0" ]; then
+  echo "==> rag_document 为空，重建知识库"
+  (cd "$ROOT/ai-service" && "$ROOT/.venv/bin/python" -m app.rag.ingest --all)
+fi
+
+if curl -sf -m 2 -o /dev/null "http://127.0.0.1:8000/health"; then
+  echo "==> ai-service 已在运行"
+elif pid_alive ai-service; then
+  echo "==> ai-service 正在启动，继续等待"
+  wait_http "http://127.0.0.1:8000/health" 90 "ai-service" \
+    || { echo "最近日志:" >&2; tail -n 40 "$LOG_DIR/ai-service.log" >&2 || true; exit 1; }
+else
+  echo "==> 启动 ai-service"
+  (
+    cd "$ROOT/ai-service"
+    nohup "$ROOT/.venv/bin/uvicorn" app.main:app --host 127.0.0.1 --port 8000 \
+      > "$LOG_DIR/ai-service.log" 2>&1 &
+    echo $! > "$RUN_DIR/ai-service.pid"
+  )
+  wait_http "http://127.0.0.1:8000/health" 90 "ai-service" \
+    || { echo "最近日志:" >&2; tail -n 40 "$LOG_DIR/ai-service.log" >&2 || true; exit 1; }
+fi
+
+JAR="$ROOT/backend/target/job-backend-1.0.0.jar"
+if curl -sf -m 2 -o /dev/null "http://127.0.0.1:8080/api/health"; then
+  echo "==> 后端已在运行"
+elif pid_alive backend; then
+  echo "==> 后端正在启动，继续等待"
+  wait_http "http://127.0.0.1:8080/api/health" 90 "后端" \
+    || { echo "最近日志:" >&2; tail -n 40 "$LOG_DIR/backend.log" >&2 || true; exit 1; }
+else
+  if [ ! -f "$JAR" ]; then
+    echo "==> 打包后端"
+    (cd "$ROOT/backend" && mvn -q -DskipTests package)
+  fi
+  [ -f "$JAR" ] || { echo "错误: 找不到 $JAR" >&2; exit 1; }
+  echo "==> 启动后端"
+  nohup java -jar "$JAR" > "$LOG_DIR/backend.log" 2>&1 &
+  echo $! > "$RUN_DIR/backend.pid"
+  wait_http "http://127.0.0.1:8080/api/health" 90 "后端" \
+    || { echo "最近日志:" >&2; tail -n 40 "$LOG_DIR/backend.log" >&2 || true; exit 1; }
+fi
+
+if [ "$NO_FRONTEND" = 1 ]; then
+  echo "==> 已跳过前端 (--no-frontend)"
+elif curl -sf -m 2 -o /dev/null "http://127.0.0.1:5173/"; then
+  echo "==> 前端已在运行"
+elif pid_alive frontend; then
+  echo "==> 前端正在启动，继续等待"
+  wait_http "http://127.0.0.1:5173/" 40 "前端" \
+    || { echo "最近日志:" >&2; tail -n 40 "$LOG_DIR/frontend.log" >&2 || true; exit 1; }
+else
+  if [ ! -d "$ROOT/frontend/node_modules" ]; then
+    echo "==> 安装前端依赖"
+    (cd "$ROOT/frontend" && pnpm install)
+  fi
+  echo "==> 启动前端"
+  (
+    cd "$ROOT/frontend"
+    nohup pnpm dev --host 127.0.0.1 --port 5173 > "$LOG_DIR/frontend.log" 2>&1 &
+    echo $! > "$RUN_DIR/frontend.pid"
+  )
+  wait_http "http://127.0.0.1:5173/" 40 "前端" \
+    || { echo "最近日志:" >&2; tail -n 40 "$LOG_DIR/frontend.log" >&2 || true; exit 1; }
+fi
+
+echo
+echo "服务地址"
+echo "  前端     http://127.0.0.1:5173"
+echo "  后端     http://127.0.0.1:8080/api/health"
+echo "  AI 服务  http://127.0.0.1:8000/health"
+echo "  Ollama   http://127.0.0.1:11434"
+echo "  MariaDB  127.0.0.1:3306  库 job_platform"
+echo
+echo "演示账号"
+echo "  admin / admin123"
+echo "  student / student123"
+echo "  company / company123"
+echo
+echo "日志在 logs/ ，PID 在 .run/ 。停止请执行 bash scripts/stop-all.sh"

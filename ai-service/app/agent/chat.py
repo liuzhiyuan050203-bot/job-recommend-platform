@@ -14,11 +14,12 @@ import time
 from collections.abc import AsyncIterator
 from typing import Any
 
-from app.agent.router import Route, ToolRequest, allowed_tool_names, route
+from app.agent.router import Route, ToolRequest, allowed_tool_names, route, wants_skill_list
 from app.agent.tools import Caller, execute, render
 from app.core.config import settings
 from app.core.llm import OfflineGenerator, get_llm, is_available
 from app.rag.retrieve import fetch_chunks
+from app.spark.dicts import CITY_PROVINCE
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +119,7 @@ def _fit_prompt(question: str, history: list[dict], chunks: list[dict], tool_tex
 
 def _system_prompt(agent: str, has_sources: bool) -> str:
     if has_sources:
-        cite = "引用资料时在句末标注[序号]，序号只能使用【资料】里出现的编号。"
+        cite = "引用资料时在句末只写[1]、[2]这种序号，不要写成[资料1]。序号只能使用【资料】里出现的编号。"
     else:
         cite = "当前没有可引用的资料切片，回答中不要出现[1]、[2]这类方括号序号。"
     return (
@@ -129,8 +130,38 @@ def _system_prompt(agent: str, has_sources: bool) -> str:
     )
 
 
+# 未写完的「[资料2」或「【资料2」先留在缓冲区，避免把半个引用拆进两个 delta。
+_INCOMPLETE_CITE = re.compile(
+    r"(?:\[\s*资料\s*\d*\s*|\[\s*资|\[\s*|\[\d*|【\s*资料\s*\d*\s*|【\s*资|【\s*)$"
+)
+
+
+def _normalize_citations(text: str) -> str:
+    """把模型写成的 [资料2]、【资料2】收成 [2]。"""
+    text = re.sub(r"\[\s*资料\s*(\d+)\s*\]", r"[\1]", text or "")
+    text = re.sub(r"【\s*资料\s*(\d+)\s*】", r"[\1]", text or "")
+    return text
+
+
+def _split_incomplete_citation(text: str) -> tuple[str, str]:
+    """返回 (可以输出的部分, 末尾可能还没写完的引用)。"""
+    positions = [text.rfind(mark) for mark in ("[", "【")]
+    positions = [index for index in positions if index >= 0]
+    if not positions:
+        return text, ""
+    start = max(positions)
+    suffix = text[start:]
+    if re.fullmatch(r"\[\s*资料\s*\d+\s*\]", suffix) or re.fullmatch(r"【\s*资料\s*\d+\s*】", suffix):
+        return text, ""
+    if re.fullmatch(r"\[\d+\]", suffix):
+        return text, ""
+    if _INCOMPLETE_CITE.fullmatch(suffix):
+        return text[:start], suffix
+    return text, ""
+
+
 class _CitationGate:
-    """流式去掉超出资料条数的 [n]，并暂存末尾未写完的「[」片段。
+    """流式把 [资料n] 收成 [n]，去掉超出资料条数的 [n]，并暂存末尾未写完的引用。
 
     推给前端的 delta 与最终 done.answer 使用同一套清洗结果。
     """
@@ -144,15 +175,11 @@ class _CitationGate:
 
     def push(self, text: str) -> str:
         merged = self.pending + (text or "")
-        self.pending = ""
-        matched = re.search(r"\[(\d*)$", merged)
-        if matched:
-            self.pending = matched.group(0)
-            merged = merged[: matched.start()]
-        return _strip_over_citations(merged, self.limit)
+        ready, self.pending = _split_incomplete_citation(merged)
+        return _strip_over_citations(_normalize_citations(ready), self.limit)
 
     def flush(self) -> str:
-        tail = _strip_over_citations(self.pending, self.limit)
+        tail = _strip_over_citations(_normalize_citations(self.pending), self.limit)
         self.pending = ""
         return tail
 
@@ -169,8 +196,13 @@ def _strip_over_citations(text: str, limit: int) -> str:
     return re.sub(r"\[(\d+)\]", repl, text or "")
 
 
-def _keep_conclusion(answer: str, tool_text: str) -> str:
-    """统计结论以工具第一行为准。模型若改写了对象，把原结论补在末尾。"""
+def _keep_conclusion(answer: str, tool_text: str, *, keep_single: bool = True) -> str:
+    """统计结论以工具第一行为准。模型若改写了对象，把原结论补在末尾。
+
+    排行类问题要保留前几名，不能再补一句「增长最快的是某某」。
+    """
+    if not keep_single:
+        return answer
     matched = re.search(r"结论：(.+)", tool_text or "")
     if not matched:
         return answer
@@ -180,6 +212,79 @@ def _keep_conclusion(answer: str, tool_text: str) -> str:
     if subject and subject not in (answer or ""):
         return (answer or "").rstrip() + f"\n\n统计结论：{line}"
     return answer
+
+
+def _bullet_items(tool_text: str) -> list[str]:
+    return [line[2:].strip() for line in (tool_text or "").splitlines() if line.startswith("- ") and line[2:].strip()]
+
+
+def _compose_skill_answer(tool_text: str) -> str:
+    """热门技能排行直接用工具里的需求量和环比，避免模型只复述第一名。"""
+    bullets = _bullet_items(tool_text)
+    if not bullets:
+        return ""
+    lines = ["按需求环比，靠前的技能如下："]
+    for index, item in enumerate(bullets, 1):
+        lines.append(f"{index}. {item}")
+    return "\n".join(lines)
+
+
+def _first_sentence(text: str) -> str:
+    compact = re.sub(r"\s+", " ", (text or "")).strip()
+    if not compact:
+        return ""
+    sentence = re.split(r"(?<=[。！？])", compact, maxsplit=1)[0].strip()
+    return sentence[:120]
+
+
+def _job_lead_ok(lead: str, cities: list[str]) -> bool:
+    """导语不能把多个城市或不同薪资说成一样，也不能写出工具里没有的城市。"""
+    if not lead:
+        return False
+    unique = list(dict.fromkeys(city for city in cities if city))
+    if re.search(r"(薪资|月薪|工资|待遇).{0,10}(都|均|全部|一样|相同|均为)", lead):
+        return False
+    if re.search(r"(都|均|全部|全都|一律|清一色).{0,12}(在|位于|地处)", lead) and len(unique) != 1:
+        return False
+    mentioned = [name for name in sorted(CITY_PROVINCE, key=len, reverse=True) if name and name in lead]
+    if any(name not in unique for name in mentioned):
+        return False
+    if len(unique) > 1 and len(mentioned) == 1:
+        return False
+    return True
+
+
+def _compose_job_answer(model_text: str, tool_text: str) -> str:
+    """推荐和检索：一句导语加上工具原文列表，城市和薪资按条保留。"""
+    bullets = _bullet_items(tool_text)
+    if not bullets:
+        return model_text or ""
+    cities = []
+    for item in bullets:
+        parts = [part.strip() for part in item.split("｜")]
+        if len(parts) >= 3:
+            cities.append(parts[2])
+    lead = _first_sentence(model_text)
+    if not _job_lead_ok(lead, cities):
+        lead = "以下为查询到的职位，城市和薪资以每条为准。"
+    lines = [lead, "", "职位列表（城市与薪资以每条为准）："]
+    for index, item in enumerate(bullets, 1):
+        lines.append(f"{index}. {item}")
+    return "\n".join(lines)
+
+
+def _apply_answer_shape(decided: Route, question: str) -> None:
+    """模型选工具时补上和关键词路由相同的回答形态。"""
+    if decided.answer_shape:
+        return
+    names = {item.name for item in decided.tools}
+    if "search_jobs" in names or "get_my_recommendations" in names:
+        decided.answer_shape = "job_list"
+        if not decided.instruction:
+            decided.instruction = "只用一句话说明条数，不要把不同职位概括成同一城市或同一薪资。"
+    elif "tech_trend" in names and wants_skill_list(question):
+        decided.answer_shape = "skill_list"
+        decided.instruction = "按工具结果逐条列出技能名称、需求量和环比，不要只写增长最快的一项，不要改数字。"
 
 
 def _ensure_citations(answer: str, chunks: list[dict]) -> str:
@@ -448,9 +553,15 @@ async def iter_events(
             tool_text_parts.append(prompt_text)
 
         tool_text = "\n".join(tool_text_parts)
+        _apply_answer_shape(decided, question)
 
         if not online:
-            text = _offline_text(question, chunk_list, tool_text)
+            if decided.answer_shape == "skill_list" and (listed := _compose_skill_answer(tool_text)):
+                text = "【离线模式】大模型不可用，以下为统计结果：\n" + listed
+            elif decided.answer_shape == "job_list" and _bullet_items(tool_text):
+                text = "【离线模式】大模型不可用，以下为查询结果：\n" + _compose_job_answer("", tool_text)
+            else:
+                text = _offline_text(question, chunk_list, tool_text)
             text = _ensure_citations(text, chunk_list)
             async for piece in emit_text(text):
                 yield piece
@@ -468,38 +579,60 @@ async def iter_events(
                     yield piece
                 return
 
-        instruction = decided.instruction or ""
-        if not chunk_list:
-            instruction = (instruction + " 不要使用[1]、[2]这类引用标记。").strip()
-        prompt = _fit_prompt(question, _history(history), chunk_list, tool_text, instruction)
-        messages = [
-            {"role": "system", "content": _system_prompt(agent, bool(chunk_list))},
-            {"role": "user", "content": prompt},
-        ]
-        yield _sse({"type": "status", "text": "正在生成回答…"})
-        try:
-            async for delta in _stream_tokens(messages):
-                if delta == "__hb__":
-                    yield ": ping\n\n"
-                    continue
-                cleaned = gate.push(delta)
-                if not cleaned:
-                    continue
-                if first_token_ms is None:
-                    first_token_ms = elapsed()
-                answer_parts.append(cleaned)
-                yield _sse({"type": "delta", "text": cleaned})
-        except Exception:
-            logger.exception("流式生成失败，改为离线摘录")
-            fallback = _offline_text(question, chunk_list, tool_text)
-            async for piece in emit_text("\n" + fallback):
+        # 排行题的数字以工具为准，不再让小模型收成「只有第一名」
+        skill_ready = _compose_skill_answer(tool_text) if decided.answer_shape == "skill_list" else ""
+        if skill_ready:
+            yield _sse({"type": "status", "text": "正在整理统计结果…"})
+            async for piece in emit_text(skill_ready):
                 yield piece
+        else:
+            instruction = decided.instruction or ""
+            if decided.answer_shape == "job_list":
+                instruction = (
+                    instruction + " 职位明细由系统按工具结果逐条附上，你只写一句导语，不要概括城市和薪资。"
+                ).strip()
+            if not chunk_list:
+                instruction = (instruction + " 不要使用[1]、[2]这类引用标记。").strip()
+            prompt = _fit_prompt(question, _history(history), chunk_list, tool_text, instruction)
+            messages = [
+                {"role": "system", "content": _system_prompt(agent, bool(chunk_list))},
+                {"role": "user", "content": prompt},
+            ]
+            yield _sse({"type": "status", "text": "正在生成回答…"})
+            held: list[str] = []
+            hold_jobs = decided.answer_shape == "job_list"
+            try:
+                token_limit = 120 if hold_jobs else ANSWER_TOKENS
+                async for delta in _stream_tokens(messages, token_limit):
+                    if delta == "__hb__":
+                        yield ": ping\n\n"
+                        continue
+                    if hold_jobs:
+                        held.append(delta)
+                        continue
+                    cleaned = gate.push(delta)
+                    if not cleaned:
+                        continue
+                    if first_token_ms is None:
+                        first_token_ms = elapsed()
+                    answer_parts.append(cleaned)
+                    yield _sse({"type": "delta", "text": cleaned})
+            except Exception:
+                logger.exception("流式生成失败，改为离线摘录")
+                hold_jobs = False
+                held.clear()
+                fallback = _offline_text(question, chunk_list, tool_text)
+                async for piece in emit_text("\n" + fallback):
+                    yield piece
+            if hold_jobs:
+                async for piece in emit_text(_compose_job_answer("".join(held), tool_text)):
+                    yield piece
 
         async for piece in flush_gate():
             yield piece
-        final = _keep_conclusion("".join(answer_parts), tool_text)
-        final = _ensure_citations(final, chunk_list)
         current = "".join(answer_parts)
+        final = _keep_conclusion(current, tool_text, keep_single=decided.answer_shape != "skill_list")
+        final = _ensure_citations(final, chunk_list)
         if final.startswith(current) and len(final) > len(current):
             async for piece in emit_text(final[len(current) :]):
                 yield piece
@@ -549,9 +682,9 @@ async def _to_thread_stream(func, *args):
     yield task.result()
 
 
-async def _stream_tokens(messages: list[dict]) -> AsyncIterator[str]:
+async def _stream_tokens(messages: list[dict], max_tokens: int | None = None) -> AsyncIterator[str]:
     queue: asyncio.Queue = asyncio.Queue()
-    llm = get_llm(streaming=True, max_tokens=ANSWER_TOKENS)
+    llm = get_llm(streaming=True, max_tokens=max_tokens or ANSWER_TOKENS)
 
     async def pump() -> None:
         try:
