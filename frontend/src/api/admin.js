@@ -291,3 +291,7 @@ export function getRecommendEval() {
 export function getRecommendStats() {
   return request({ url: '/admin/recommend/stats', method: 'get' })
 }
+
+export function getAdminDashboard() {
+  return request({ url: '/admin/dashboard/overview', method: 'get' })
+}

@@ -33,6 +33,7 @@ import { getUpcomingInterviews } from '@/api/student'
 
 const menus = [
   { title: '首页', path: '/student/home', icon: 'HomeFilled' },
+  { title: '求职看板', path: '/student/dashboard', icon: 'DataAnalysis' },
   { title: '职位搜索', path: '/student/jobs', icon: 'Search' },
   { title: '为你推荐', path: '/student/recommend', icon: 'MagicStick' },
   { title: '就业助手', path: '/student/assistant', icon: 'ChatLineRound' },

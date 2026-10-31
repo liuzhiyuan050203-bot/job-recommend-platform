@@ -14,6 +14,8 @@ import com.bishe.job.mapper.SparkTaskLogMapper;
 import com.bishe.job.mapper.SparkTechTrendMapper;
 import com.bishe.job.mapper.StatsQueryMapper;
 import com.bishe.job.service.PublicStatsService;
+import com.bishe.job.vo.DashboardAggVO;
+import com.bishe.job.vo.HiringDemandVO;
 import com.bishe.job.vo.RegionPointVO;
 import com.bishe.job.vo.SalaryPredictVO;
 import com.bishe.job.vo.SalaryStatsVO;
@@ -27,6 +29,8 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -53,6 +57,7 @@ public class PublicStatsServiceImpl implements PublicStatsService {
         vo.setJobCount(statsQueryMapper.countApprovedJobs());
         vo.setCompanyCount(statsQueryMapper.countApprovedCompanies());
         vo.setStudentCount(statsQueryMapper.countActiveStudents());
+        vo.setApplicationCount(statsQueryMapper.countApplications());
         List<SparkSalaryStat> salaryRows = latestSalary(null, null);
         if (salaryRows.isEmpty()) {
             vo.setAvgSalary(scale(statsQueryMapper.avgApprovedSalary()));
@@ -162,6 +167,25 @@ public class PublicStatsServiceImpl implements PublicStatsService {
             points.add(vo);
         }
         return points;
+    }
+
+    @Override
+    public HiringDemandVO hiringDemand(Integer months) {
+        int monthN = months == null || months < 1 ? 12 : Math.min(months, 36);
+        YearMonth end = YearMonth.now();
+        YearMonth start = end.minusMonths(monthN - 1L);
+        LocalDateTime startTime = start.atDay(1).atStartOfDay();
+        LocalDateTime endTime = end.plusMonths(1).atDay(1).atStartOfDay();
+        Map<String, Long> jobs = toMonthMap(statsQueryMapper.monthlyApprovedJobs(startTime, endTime));
+        Map<String, Long> applies = toMonthMap(statsQueryMapper.monthlyApplications(startTime, endTime));
+        HiringDemandVO vo = new HiringDemandVO();
+        for (YearMonth cursor = start; !cursor.isAfter(end); cursor = cursor.plusMonths(1)) {
+            String key = cursor.toString();
+            vo.getMonths().add(key);
+            vo.getJobCounts().add(jobs.getOrDefault(key, 0L));
+            vo.getApplyCounts().add(applies.getOrDefault(key, 0L));
+        }
+        return vo;
     }
 
     @Override
@@ -302,6 +326,20 @@ public class PublicStatsServiceImpl implements PublicStatsService {
             return null;
         }
         return sum.divide(BigDecimal.valueOf(weight), 2, RoundingMode.HALF_UP);
+    }
+
+    private Map<String, Long> toMonthMap(List<DashboardAggVO> rows) {
+        Map<String, Long> map = new LinkedHashMap<>();
+        if (rows == null) {
+            return map;
+        }
+        for (DashboardAggVO row : rows) {
+            if (row == null || !StringUtils.hasText(row.getLabel())) {
+                continue;
+            }
+            map.put(row.getLabel().trim(), row.getTotal() == null ? 0L : row.getTotal());
+        }
+        return map;
     }
 
     private BigDecimal scale(BigDecimal value) {

@@ -19,6 +19,7 @@ const userStore = useUserStore()
 
 const baseMenus = [
   { title: '企业资料与资质', path: '/company/profile', icon: 'OfficeBuilding' },
+  { title: '招聘看板', path: '/company/dashboard', icon: 'DataAnalysis' },
   { title: '职位管理', path: '/company/jobs', icon: 'Briefcase' },
   { title: '候选人管理', path: '/company/candidates', icon: 'User' },
   { title: '面试安排', path: '/company/interviews', icon: 'Calendar' },

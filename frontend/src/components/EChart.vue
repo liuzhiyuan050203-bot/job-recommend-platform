@@ -8,7 +8,6 @@
 
 <script setup>
 import { ref, shallowRef, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-import * as echarts from 'echarts'
 
 const props = defineProps({
   option: {
@@ -36,6 +35,24 @@ const props = defineProps({
 const chartRef = ref(null)
 const chartInstance = shallowRef(null)
 let resizeObserver = null
+let disposed = false
+
+let echartsLoader = null
+
+function loadEcharts() {
+  if (!echartsLoader) {
+    echartsLoader = import('echarts').then((mod) => {
+      if (mod && typeof mod.init === 'function') {
+        return mod
+      }
+      if (mod?.default && typeof mod.default.init === 'function') {
+        return mod.default
+      }
+      return mod
+    })
+  }
+  return echartsLoader
+}
 
 const resize = () => {
   if (chartInstance.value) {
@@ -43,21 +60,28 @@ const resize = () => {
   }
 }
 
-const initChart = () => {
-  if (!chartRef.value) return
+const render = () => {
+  if (!chartInstance.value) return
+  if (props.loading) {
+    chartInstance.value.showLoading()
+    return
+  }
+  chartInstance.value.hideLoading()
+  if (props.option) {
+    chartInstance.value.setOption(props.option, true)
+  }
+}
+
+const initChart = async () => {
+  const echarts = await loadEcharts()
+  if (disposed || !chartRef.value) return
   if (chartInstance.value) {
     chartInstance.value.dispose()
   }
 
   chartInstance.value = echarts.init(chartRef.value, props.theme)
+  render()
 
-  if (props.loading) {
-    chartInstance.value.showLoading()
-  } else if (props.option) {
-    chartInstance.value.setOption(props.option)
-  }
-
-  // 使用 ResizeObserver 监听容器尺寸变化（兼容侧边栏折叠等场景）
   if (window.ResizeObserver) {
     resizeObserver = new ResizeObserver(() => {
       resize()
@@ -70,23 +94,16 @@ const initChart = () => {
 
 watch(
   () => props.option,
-  (newOpt) => {
-    if (chartInstance.value && newOpt) {
-      chartInstance.value.setOption(newOpt, true)
-    }
+  () => {
+    render()
   },
   { deep: true }
 )
 
 watch(
   () => props.loading,
-  (loading) => {
-    if (!chartInstance.value) return
-    if (loading) {
-      chartInstance.value.showLoading()
-    } else {
-      chartInstance.value.hideLoading()
-    }
+  () => {
+    render()
   }
 )
 
@@ -97,6 +114,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  disposed = true
   if (resizeObserver) {
     resizeObserver.disconnect()
     resizeObserver = null

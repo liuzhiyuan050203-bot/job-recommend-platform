@@ -90,3 +90,11 @@ export function getTechTrend(params) {
 export function getRegionStats() {
   return request({ url: '/public/stats/region', method: 'get' })
 }
+
+export function getHiringDemand(params) {
+  return request({ url: '/public/stats/hiring-demand', method: 'get', params })
+}
+
+export function predictSalary(params) {
+  return request({ url: '/public/stats/salary/predict', method: 'get', params })
+}

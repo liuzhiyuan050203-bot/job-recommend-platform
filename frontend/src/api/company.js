@@ -70,3 +70,7 @@ export function getCompanyInterviews(params) {
 export function saveInterviewResult(id, data) {
   return request({ url: `/company/interviews/${id}/result`, method: 'put', data })
 }
+
+export function getCompanyDashboard() {
+  return request({ url: '/company/dashboard', method: 'get' })
+}

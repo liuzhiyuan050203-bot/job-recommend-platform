@@ -63,6 +63,12 @@ const routes = [
         meta: { title: '首页' }
       },
       {
+        path: 'dashboard',
+        name: 'StudentDashboard',
+        component: () => import('@/views/student/Dashboard.vue'),
+        meta: { title: '求职看板' }
+      },
+      {
         path: 'jobs',
         name: 'StudentJobs',
         component: () => import('@/views/student/JobList.vue'),
@@ -135,6 +141,12 @@ const routes = [
         name: 'CompanyProfile',
         component: () => import('@/views/company/Profile.vue'),
         meta: { title: '企业资料与资质' }
+      },
+      {
+        path: 'dashboard',
+        name: 'CompanyDashboard',
+        component: () => import('@/views/company/Dashboard.vue'),
+        meta: { title: '招聘看板' }
       },
       {
         path: 'jobs',

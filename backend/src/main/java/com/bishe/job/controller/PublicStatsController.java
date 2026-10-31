@@ -2,6 +2,7 @@ package com.bishe.job.controller;
 
 import com.bishe.job.common.Result;
 import com.bishe.job.service.PublicStatsService;
+import com.bishe.job.vo.HiringDemandVO;
 import com.bishe.job.vo.RegionPointVO;
 import com.bishe.job.vo.SalaryPredictVO;
 import com.bishe.job.vo.SalaryStatsVO;
@@ -46,6 +47,11 @@ public class PublicStatsController {
     @GetMapping("/region")
     public Result<List<RegionPointVO>> region() {
         return Result.success(publicStatsService.region());
+    }
+
+    @GetMapping("/hiring-demand")
+    public Result<HiringDemandVO> hiringDemand(@RequestParam(value = "months", required = false) Integer months) {
+        return Result.success(publicStatsService.hiringDemand(months));
     }
 
     @GetMapping("/salary/predict")

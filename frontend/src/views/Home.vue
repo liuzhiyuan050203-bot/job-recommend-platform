@@ -244,20 +244,61 @@
       </el-row>
     </section>
 
-    <!-- 演示 ECharts 图表展示 -->
     <section class="chart-section">
-      <el-card shadow="never" class="chart-card">
-        <template #header>
-          <div class="chart-header">
-            <div>
-              <span class="chart-title">2026届热门技术岗位起薪与中位数 (Spark 离线聚合样例)</span>
-              <span class="chart-desc">基于 EChart.vue 响应式通用组件封装</span>
-            </div>
-            <el-tag type="success" effect="plain">静态演示数据</el-tag>
-          </div>
+      <div class="section-header">
+        <h2 class="section-title">就业市场数据看板</h2>
+      </div>
+      <el-skeleton :loading="statsLoading" animated>
+        <template #template>
+          <el-skeleton-item variant="rect" style="height: 88px; margin-bottom: 16px" />
+          <el-skeleton-item variant="rect" style="height: 320px" />
         </template>
-        <EChart :option="salaryBarChartOption" height="380px" />
-      </el-card>
+        <el-row :gutter="16" class="overview-row">
+          <el-col v-for="item in overviewCards" :key="item.label" :xs="12" :sm="6">
+            <el-card shadow="hover" class="overview-card">
+              <div class="overview-label">{{ item.label }}</div>
+              <div class="overview-value">{{ item.value }}</div>
+            </el-card>
+          </el-col>
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :xs="24" :lg="12">
+            <el-card shadow="never" class="chart-card">
+              <template #header><span class="chart-title">技术方向薪资（P25 / 中位数 / P75）</span></template>
+              <el-empty v-if="!directionRows.length" description="暂无薪资统计" />
+              <EChart v-else :option="directionOption" height="360px" />
+            </el-card>
+          </el-col>
+          <el-col :xs="24" :lg="12">
+            <el-card shadow="never" class="chart-card">
+              <template #header><span class="chart-title">城市平均月薪</span></template>
+              <el-empty v-if="!cityRows.length" description="暂无城市薪资" />
+              <EChart v-else :option="cityOption" height="360px" />
+            </el-card>
+          </el-col>
+        </el-row>
+        <el-row :gutter="16" class="chart-gap">
+          <el-col :xs="24" :lg="12">
+            <el-card shadow="never" class="chart-card">
+              <template #header><span class="chart-title">技术需求趋势</span></template>
+              <el-empty v-if="!(trend.months || []).length" description="暂无技术趋势" />
+              <EChart v-else :option="trendOption" height="360px" />
+            </el-card>
+          </el-col>
+          <el-col :xs="24" :lg="12">
+            <el-card shadow="never" class="chart-card">
+              <template #header><span class="chart-title">地区职位分布</span></template>
+              <el-empty v-if="!region.length" description="暂无地区统计" />
+              <EChart v-else :option="regionOption" height="360px" />
+            </el-card>
+          </el-col>
+        </el-row>
+        <el-card shadow="never" class="chart-card chart-gap">
+          <template #header><span class="chart-title">近 12 个月招聘需求</span></template>
+          <el-empty v-if="!(hiring.months || []).length" description="暂无招聘需求" />
+          <EChart v-else :option="hiringOption" height="360px" />
+        </el-card>
+      </el-skeleton>
     </section>
   </div>
 </template>
@@ -267,7 +308,16 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getHealth } from '@/api/health'
-import { getBanners, getArticles, getPosts } from '@/api/public'
+import {
+  getBanners,
+  getArticles,
+  getPosts,
+  getStatsOverview,
+  getSalaryStats,
+  getTechTrend,
+  getRegionStats,
+  getHiringDemand
+} from '@/api/public'
 import EChart from '@/components/EChart.vue'
 import { useUserStore } from '@/stores/user'
 import { roleHome } from '@/utils/role'
@@ -280,6 +330,12 @@ const fairsList = ref([])
 const policyList = ref([])
 const newsList = ref([])
 const latestPosts = ref([])
+const statsLoading = ref(true)
+const overview = ref({})
+const salary = ref({ byDirection: [], byCity: [] })
+const trend = ref({ months: [], series: [] })
+const region = ref([])
+const hiring = ref({ months: [], jobCounts: [], applyCounts: [] })
 
 const goWorkspace = () => {
   const user = userStore.userInfo
@@ -375,96 +431,130 @@ const navigateTo = (path) => {
   router.push(path)
 }
 
-// 热门技术岗位薪资演示柱状图
-const salaryBarChartOption = computed(() => {
-  const categories = [
-    '大数据开发 (Spark)',
-    'AI / RAG 算法',
-    'Java 后端开发',
-    'Go 云原生开发',
-    'Vue / 前端工程',
-    '数据分析师',
-    '测试开发'
-  ]
-  const avgSalaries = [18.5, 23.2, 16.8, 17.5, 14.2, 13.8, 12.5]
-  const medianSalaries = [17.0, 21.0, 15.5, 16.0, 13.5, 12.8, 11.8]
+const directionRows = computed(() => (salary.value.byDirection || []).slice(0, 8))
+const cityRows = computed(() => [...(salary.value.byCity || [])].slice(0, 10).reverse())
 
+const overviewCards = computed(() => {
+  const data = overview.value || {}
+  return [
+    { label: '在招职位', value: displayCount(data.jobCount) },
+    { label: '入驻企业', value: displayCount(data.companyCount) },
+    { label: '在校学生', value: displayCount(data.studentCount) },
+    { label: '平台投递', value: displayCount(data.applicationCount) }
+  ]
+})
+
+function displayCount(value) {
+  return value === 0 || value ? value : '-'
+}
+
+function toK(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return 0
+  return Math.round((number / 1000) * 10) / 10
+}
+
+const directionOption = computed(() => {
+  const rows = directionRows.value
   return {
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow'
-      },
-      formatter: (params) => {
-        let text = `<strong>${params[0].name}</strong><br/>`
-        params.forEach((item) => {
-          text += `${item.marker} ${item.seriesName}: <b>${item.value} k/月</b><br/>`
-        })
-        return text
-      }
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value) => `${value} k/月` },
+    legend: { top: 0 },
+    grid: { left: 12, right: 16, top: 36, bottom: 8, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: rows.map((item) => item.techDirection),
+      axisLabel: { interval: 0, rotate: 20 }
     },
-    legend: {
-      data: ['平均薪资 (k/月)', '薪资中位数 (k/月)'],
-      top: 'top'
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      containLabel: true
-    },
-    xAxis: [
-      {
-        type: 'category',
-        data: categories,
-        axisTick: {
-          alignWithLabel: true
-        },
-        axisLabel: {
-          interval: 0,
-          rotate: 15
-        }
-      }
-    ],
-    yAxis: [
-      {
-        type: 'value',
-        name: '薪资 (k/月)',
-        min: 0,
-        max: 28,
-        axisLabel: {
-          formatter: '{value} k'
-        }
-      }
-    ],
+    yAxis: { type: 'value', name: '千元/月' },
+    series: [
+      { name: 'P25', type: 'bar', data: rows.map((item) => toK(item.p25Salary)) },
+      { name: '中位数', type: 'bar', data: rows.map((item) => toK(item.medianSalary || item.avgSalary)) },
+      { name: 'P75', type: 'bar', data: rows.map((item) => toK(item.p75Salary)) }
+    ]
+  }
+})
+
+const cityOption = computed(() => ({
+  tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value) => `${value} k/月` },
+  grid: { left: 12, right: 24, top: 16, bottom: 8, containLabel: true },
+  xAxis: { type: 'value', name: '千元/月' },
+  yAxis: { type: 'category', data: cityRows.value.map((item) => item.city) },
+  series: [
+    {
+      name: '平均月薪',
+      type: 'bar',
+      data: cityRows.value.map((item) => toK(item.avgSalary)),
+      itemStyle: { color: '#409eff', borderRadius: [0, 4, 4, 0] }
+    }
+  ]
+}))
+
+const trendOption = computed(() => ({
+  tooltip: { trigger: 'axis' },
+  legend: { type: 'scroll', top: 0 },
+  grid: { left: 12, right: 16, top: 36, bottom: 8, containLabel: true },
+  xAxis: { type: 'category', boundaryGap: false, data: trend.value.months || [] },
+  yAxis: { type: 'value', name: '职位数' },
+  series: (trend.value.series || []).map((item) => ({
+    name: item.name,
+    type: 'line',
+    smooth: true,
+    data: item.data || []
+  }))
+}))
+
+const regionOption = computed(() => {
+  const rows = [...region.value].slice(0, 12).reverse()
+  return {
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: 12, right: 24, top: 16, bottom: 8, containLabel: true },
+    xAxis: { type: 'value', name: '职位数' },
+    yAxis: { type: 'category', data: rows.map((item) => item.name) },
     series: [
       {
-        name: '平均薪资 (k/月)',
+        name: '职位数',
         type: 'bar',
-        barWidth: '28%',
-        itemStyle: {
-          color: '#409eff',
-          borderRadius: [4, 4, 0, 0]
-        },
-        data: avgSalaries
-      },
-      {
-        name: '薪资中位数 (k/月)',
-        type: 'bar',
-        barWidth: '28%',
-        itemStyle: {
-          color: '#67c23a',
-          borderRadius: [4, 4, 0, 0]
-        },
-        data: medianSalaries
+        data: rows.map((item) => item.value || 0),
+        itemStyle: { color: '#67c23a', borderRadius: [0, 4, 4, 0] }
       }
     ]
   }
 })
 
+const hiringOption = computed(() => ({
+  tooltip: { trigger: 'axis' },
+  legend: { top: 0 },
+  grid: { left: 12, right: 16, top: 36, bottom: 8, containLabel: true },
+  xAxis: { type: 'category', data: hiring.value.months || [] },
+  yAxis: { type: 'value', name: '数量', minInterval: 1 },
+  series: [
+    { name: '发布职位', type: 'bar', data: hiring.value.jobCounts || [] },
+    { name: '投递', type: 'line', smooth: true, data: hiring.value.applyCounts || [] }
+  ]
+}))
+
+async function loadMarketStats() {
+  statsLoading.value = true
+  const tasks = await Promise.allSettled([
+    getStatsOverview(),
+    getSalaryStats(),
+    getTechTrend({ top: 6, months: 12 }),
+    getRegionStats(),
+    getHiringDemand({ months: 12 })
+  ])
+  const pick = (index, fallback) => (tasks[index].status === 'fulfilled' ? tasks[index].value : fallback)
+  overview.value = pick(0, {}) || {}
+  salary.value = pick(1, { byDirection: [], byCity: [] }) || { byDirection: [], byCity: [] }
+  trend.value = pick(2, { months: [], series: [] }) || { months: [], series: [] }
+  region.value = pick(3, []) || []
+  hiring.value = pick(4, { months: [], jobCounts: [], applyCounts: [] }) || { months: [], jobCounts: [], applyCounts: [] }
+  statsLoading.value = false
+}
+
 onMounted(() => {
   checkBackendHealth()
   fetchPublicHomeData()
+  loadMarketStats()
 })
 </script>
 
@@ -825,6 +915,30 @@ onMounted(() => {
 
 .chart-section {
   margin-bottom: 20px;
+}
+
+.overview-row {
+  margin-bottom: 16px;
+}
+
+.overview-card {
+  margin-bottom: 12px;
+}
+
+.overview-label {
+  color: #909399;
+  font-size: 13px;
+}
+
+.overview-value {
+  margin-top: 6px;
+  font-size: 24px;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.chart-gap {
+  margin-top: 16px;
 }
 
 .chart-card {

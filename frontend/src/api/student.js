@@ -146,3 +146,7 @@ export function getUpcomingInterviews() {
 export function getRecommendations(params) {
   return request({ url: '/student/recommend', method: 'get', params })
 }
+
+export function getStudentDashboard() {
+  return request({ url: '/student/dashboard', method: 'get' })
+}

@@ -9,6 +9,21 @@
       </el-col>
     </el-row>
 
+    <el-row :gutter="16">
+      <el-col v-for="item in insightCards" :key="item.label" :xs="12" :sm="8" :md="4">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-label">{{ item.label }}</div>
+          <div class="stat-value">{{ item.value }}</div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-card shadow="never">
+      <template #header><span class="title">推荐评估（K=10）</span></template>
+      <el-empty v-if="!ndcgRows.length" description="还没有推荐评估结果" />
+      <EChart v-else :option="ndcgOption" height="300px" />
+    </el-card>
+
     <el-card shadow="never">
       <template #header>
         <div class="card-header">
@@ -66,7 +81,8 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import EChart from '@/components/EChart.vue'
 import { getRegionStats, getSalaryStats, getStatsOverview, getTechTrend } from '@/api/public'
-import { getSparkTasks, runSparkAnalysis } from '@/api/admin'
+import { getAdminDashboard, getRecommendEval, getRecommendStats, getSparkTasks, runSparkAnalysis } from '@/api/admin'
+import { knowledgeStats } from '@/api/ai'
 
 const overview = ref({})
 const salary = ref({ records: [], byDirection: [], byCity: [] })
@@ -74,6 +90,12 @@ const trend = ref({ months: [], series: [], ranking: [] })
 const region = ref([])
 const tasks = ref([])
 const running = ref(false)
+const recommendStats = ref({})
+const recommendEval = ref({ metrics: [] })
+const adminBoard = ref({ ai: {}, recommend: {} })
+const knowledge = ref({})
+
+const ALGO_LABEL = { cf: '协同过滤', content: '内容匹配', hybrid: '融合', popular: '热门' }
 
 const cards = computed(() => {
   const data = overview.value || {}
@@ -81,11 +103,48 @@ const cards = computed(() => {
     { label: '职位', value: display(data.jobCount) },
     { label: '企业', value: display(data.companyCount) },
     { label: '学生', value: display(data.studentCount) },
+    { label: '投递', value: display(data.applicationCount) },
     { label: '城市', value: display(data.cityCount) },
     { label: '平均月薪', value: formatSalary(data.avgSalary) },
     { label: '最近批次', value: data.lastBatchNo || '-' }
   ]
 })
+
+const insightCards = computed(() => {
+  const stats = recommendStats.value || {}
+  const brief = adminBoard.value?.recommend || {}
+  const ai = adminBoard.value?.ai || {}
+  const ndcg = brief.ndcgAt10
+  return [
+    { label: '推荐 NDCG@10', value: percent(ndcg) },
+    { label: '推荐覆盖率', value: percent(stats.coverage ?? brief.coverage) },
+    { label: '推荐学生', value: display(stats.userCount ?? brief.userCount) },
+    { label: 'AI 会话', value: display(ai.sessionCount) },
+    { label: 'AI 消息', value: display(ai.messageCount) },
+    { label: '知识文档', value: display(knowledge.value?.documents) }
+  ]
+})
+
+const ndcgRows = computed(() => {
+  const rows = (recommendEval.value.metrics || []).filter((item) => Number(item.k) === 10)
+  const order = ['cf', 'content', 'hybrid', 'popular']
+  return order.map((algo) => rows.find((item) => item.algo === algo)).filter(Boolean)
+})
+
+const ndcgOption = computed(() => ({
+  tooltip: { trigger: 'axis', valueFormatter: (value) => `${value}%` },
+  grid: { left: 12, right: 16, top: 16, bottom: 8, containLabel: true },
+  xAxis: { type: 'category', data: ndcgRows.value.map((item) => ALGO_LABEL[item.algo] || item.algo) },
+  yAxis: { type: 'value', name: '%', min: 0 },
+  series: [
+    {
+      name: 'NDCG@10',
+      type: 'bar',
+      data: ndcgRows.value.map((item) => percentNumber(item.ndcgAtK)),
+      itemStyle: { color: '#e6a23c', borderRadius: [4, 4, 0, 0] }
+    }
+  ]
+}))
 
 const salaryOption = computed(() => {
   const rows = [...(salary.value.byCity || [])].slice(0, 10).reverse()
@@ -141,6 +200,19 @@ function display(value) {
   return value === 0 || value ? value : '-'
 }
 
+function percentNumber(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return 0
+  return Math.round(number * 1000) / 10
+}
+
+function percent(value) {
+  if (value === null || value === undefined || value === '') return '-'
+  const number = Number(value)
+  if (!Number.isFinite(number)) return '-'
+  return `${percentNumber(number)}%`
+}
+
 function formatSalary(value) {
   if (value === null || value === undefined || value === '') return '-'
   const number = Number(value)
@@ -179,6 +251,20 @@ async function loadTasks() {
   tasks.value = page?.records || []
 }
 
+async function loadInsights() {
+  const tasks = await Promise.allSettled([
+    getRecommendStats(),
+    getRecommendEval(),
+    getAdminDashboard(),
+    knowledgeStats()
+  ])
+  const pick = (index) => (tasks[index].status === 'fulfilled' ? tasks[index].value : null)
+  recommendStats.value = pick(0) || {}
+  recommendEval.value = pick(1) || { metrics: [] }
+  adminBoard.value = pick(2) || { ai: {}, recommend: {} }
+  knowledge.value = pick(3) || {}
+}
+
 async function runAnalysis() {
   running.value = true
   try {
@@ -194,7 +280,7 @@ async function runAnalysis() {
 
 onMounted(async () => {
   try {
-    await Promise.all([loadBoard(), loadTasks()])
+    await Promise.all([loadBoard(), loadTasks(), loadInsights()])
   } catch {
     // 拦截器已提示
   }

@@ -1,5 +1,6 @@
 package com.bishe.job.service;
 
+import com.bishe.job.vo.HiringDemandVO;
 import com.bishe.job.vo.RegionPointVO;
 import com.bishe.job.vo.SalaryPredictVO;
 import com.bishe.job.vo.SalaryStatsVO;
@@ -18,6 +19,8 @@ public interface PublicStatsService {
     TechTrendVO techTrend(Integer top, Integer months);
 
     List<RegionPointVO> region();
+
+    HiringDemandVO hiringDemand(Integer months);
 
     SalaryPredictVO predict(String city, String techDirection, Integer education, BigDecimal experienceYears, String skills);
 }
