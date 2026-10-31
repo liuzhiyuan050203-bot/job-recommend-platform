@@ -261,3 +261,16 @@ export function getAdminOverview() {
 export function getAdminApplications(params) {
   return request({ url: '/admin/applications', method: 'get', params })
 }
+
+export function runSparkAnalysis(data) {
+  return request({
+    url: '/admin/spark/run',
+    method: 'post',
+    data: data || {},
+    timeout: 30000
+  })
+}
+
+export function getSparkTasks(params) {
+  return request({ url: '/admin/spark/tasks', method: 'get', params })
+}

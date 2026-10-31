@@ -203,6 +203,12 @@ const routes = [
         name: 'AdminApplications',
         component: () => import('@/views/admin/ApplicationOverview.vue'),
         meta: { title: '投递总览' }
+      },
+      {
+        path: 'analytics',
+        name: 'AdminAnalytics',
+        component: () => import('@/views/admin/Analytics.vue'),
+        meta: { title: '就业分析' }
       }
     ]
   },

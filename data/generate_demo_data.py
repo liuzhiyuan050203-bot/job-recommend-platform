@@ -155,6 +155,12 @@ for _name, _direction in ALL_TAGS:
         raise RuntimeError(f"技能标签重名: {_name}")
     TAG_DIR[_name] = _direction
     TAGS_BY_DIR[_direction].append(_name)
+# 不进入 TAGS_BY_DIR，避免改变原有标签抽样消耗的随机数。只在后期月份替换进人工智能/算法岗位。
+EXTRA_TAGS = [("大模型", "人工智能")]
+for _name, _direction in EXTRA_TAGS:
+    if _name in TAG_DIR:
+        raise RuntimeError(f"技能标签重名: {_name}")
+    TAG_DIR[_name] = _direction
 CROSS_TAGS = ["Docker", "Linux", "Git", "MySQL", "Python"]
 RELATED = {
     "后端开发": ["云原生开发", "数据开发"],
@@ -452,6 +458,8 @@ def build_jobs(rng: random.Random, companies: list[dict]) -> list[dict]:
     rng.shuffle(directions)
     company_index = [i % N_COMPANIES for i in range(N_JOBS)]
     rng.shuffle(company_index)
+    # 这里仍按均匀月份消耗随机数，保证薪资、城市、方向抽样与改动前一致。
+    # 真正的发布时间在行为生成之后由 reshape_calendar 改成春招/秋招波动。
     months_ago = expand_quota(N_JOBS, {month: 1 for month in range(12)})
     rng.shuffle(months_ago)
     city_names = list(CITY_WEIGHTS)
@@ -820,12 +828,146 @@ def build_csv_rows(companies: list[dict], jobs: list[dict], seed: int) -> list[d
     return rows + duplicates
 
 
+# 2025-11 到 2026-10。权重体现温和增长，以及 3 月春招、9–10 月秋招。
+PUBLISH_MONTHS = [
+    (2025, 11), (2025, 12), (2026, 1), (2026, 2), (2026, 3), (2026, 4),
+    (2026, 5), (2026, 6), (2026, 7), (2026, 8), (2026, 9), (2026, 10),
+]
+SEASON_WEIGHT = [0.82, 0.74, 0.88, 0.96, 1.48, 1.06, 0.98, 0.92, 0.90, 1.02, 1.52, 1.58]
+RISING_DIRECTIONS = {"人工智能", "算法工程"}
+FALLING_DIRECTIONS = {"测试开发"}
+AI_SWAP_TAGS = ["机器学习", "TensorFlow", "Pandas", "LangChain", "深度学习", "特征工程", "推荐系统", "XGBoost"]
+
+
+def month_weights_for(direction: str) -> dict[int, float]:
+    weights = {}
+    last = len(SEASON_WEIGHT) - 1
+    for index, base in enumerate(SEASON_WEIGHT):
+        progress = index / last
+        if direction in RISING_DIRECTIONS:
+            bias = 0.42 + 1.40 * progress
+        elif direction in FALLING_DIRECTIONS:
+            bias = 1.50 - 0.90 * progress
+        else:
+            bias = 0.90 + 0.20 * progress
+        weights[index] = base * bias
+    return weights
+
+
+def shift_publish(job: dict, companies: list[dict], year: int, month: int) -> None:
+    old = job["publish_time"]
+    gap = old - job["create_time"]
+    new_pub = old.replace(year=year, month=month)
+    job["publish_time"] = new_pub
+    job["create_time"] = new_pub - gap
+    company_created = companies[job["company_index"]]["create_time"]
+    if job["create_time"] < company_created:
+        job["create_time"] = min(company_created + timedelta(hours=2), new_pub)
+    if job["create_time"] > job["publish_time"]:
+        job["create_time"] = job["publish_time"]
+
+
+def reshape_calendar(companies, jobs, behaviors, favorites, applications, seed: int):
+    """只改发布月份和行为时间。职位属性与行为条数沿用原随机序列。"""
+    rng = random.Random(seed + 7919)
+    by_dir: dict[str, list] = defaultdict(list)
+    for job in jobs:
+        by_dir[job["direction"]].append(job)
+    for direction, group in by_dir.items():
+        slots = expand_quota(len(group), month_weights_for(direction))
+        rng.shuffle(slots)
+        for job, slot in zip(group, slots):
+            year, month = PUBLISH_MONTHS[slot]
+            shift_publish(job, companies, year, month)
+    side = random.Random(seed + 404)
+    new_behaviors = []
+    fav_time = {}
+    apply_time = {}
+    for student_index, behavior_type, job_index, weight, _when in behaviors:
+        when = behavior_time(side, jobs[job_index]["publish_time"])
+        new_behaviors.append((student_index, behavior_type, job_index, weight, when))
+        if behavior_type == 2:
+            fav_time[(student_index, job_index)] = when
+        elif behavior_type == 3:
+            apply_time[(student_index, job_index)] = when
+    new_behaviors.sort(key=lambda item: (item[4], item[0], item[1], item[2]))
+    new_favorites = [(student, job_index, fav_time[(student, job_index)]) for student, job_index, _when in favorites]
+    new_applications = [(student, job_index, apply_time[(student, job_index)]) for student, job_index, _when in applications]
+    new_favorites.sort(key=lambda item: (item[2], item[0], item[1]))
+    new_applications.sort(key=lambda item: (item[2], item[0], item[1]))
+    return new_behaviors, new_favorites, new_applications
+
+
+def _swap_tag(tags: list[str], direction: str, unwanted: str, replacements: list[str]) -> list[str]:
+    if unwanted not in tags:
+        return tags
+    for name in replacements:
+        if name in tags or name not in TAG_DIR or TAG_DIR[name] != direction:
+            continue
+        return [name if current == unwanted else current for current in tags]
+    return tags
+
+
+def _place_tag(tags: list[str], direction: str, tag: str) -> list[str] | None:
+    """用替换保持每个职位的标签数量不变，并满足本方向标签占多数。"""
+    if tag in tags:
+        return tags
+    if tag not in TAG_DIR:
+        return None
+    candidates = []
+    for index, name in enumerate(tags):
+        if name in ("PyTorch", "大模型"):
+            continue
+        trial = tags[:index] + [tag] + tags[index + 1:]
+        if len(set(trial)) != len(trial):
+            continue
+        same = sum(1 for current in trial if TAG_DIR[current] == direction)
+        if same * 2 < len(trial):
+            continue
+        prefer_cross = 1 if TAG_DIR[name] != direction else 0
+        candidates.append((prefer_cross, index, trial))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (-item[0], item[1]))
+    return candidates[0][2]
+
+
+def apply_hot_skill_trend(jobs: list[dict], seed: int) -> None:
+    """人工智能/算法岗位上，大模型和 PyTorch 的出现比例随月份上升。"""
+    rng = random.Random(seed + 202603)
+    for job in jobs:
+        direction = job["direction"]
+        if direction not in RISING_DIRECTIONS:
+            continue
+        month_index = PUBLISH_MONTHS.index((job["publish_time"].year, job["publish_time"].month))
+        progress = month_index / (len(PUBLISH_MONTHS) - 1)
+        tags = list(job["tag_names"])
+        if progress < 0.4:
+            if rng.random() < 0.9:
+                tags = _swap_tag(tags, direction, "PyTorch", AI_SWAP_TAGS)
+            if rng.random() < 0.95:
+                tags = _swap_tag(tags, direction, "大模型", AI_SWAP_TAGS)
+        if rng.random() < 0.05 + 0.93 * progress:
+            placed = _place_tag(tags, direction, "PyTorch")
+            if placed is not None:
+                tags = placed
+        if rng.random() < 0.02 + 0.96 * progress:
+            placed = _place_tag(tags, direction, "大模型")
+            if placed is not None:
+                tags = placed
+        job["tag_names"] = tags
+
+
 def generate(seed: int) -> dict:
     rng = random.Random(seed)
     companies = build_companies()
     jobs = build_jobs(rng, companies)
     students = build_students(rng)
     behaviors, favorites, applications = build_behaviors(rng, students, jobs)
+    behaviors, favorites, applications = reshape_calendar(
+        companies, jobs, behaviors, favorites, applications, seed,
+    )
+    apply_hot_skill_trend(jobs, seed)
     csv_rows = build_csv_rows(companies, jobs, seed)
     return {
         "companies": companies,
@@ -929,6 +1071,36 @@ def validate(payload: dict) -> None:
         raise RuntimeError(f"二线后端薪资 {tier2_avg:.0f} 相对一线 {cohort_avg:.0f} 不合理")
     if len(payload["csv_rows"]) < N_JOBS:
         raise RuntimeError("CSV 行数不足")
+    month_counts = Counter(job["publish_time"].strftime("%Y-%m") for job in jobs)
+    if max(month_counts.values()) < min(month_counts.values()) * 1.25:
+        raise RuntimeError(f"月度职位过于均匀: {dict(sorted(month_counts.items()))}")
+    if not (month_counts["2026-03"] > month_counts["2026-02"] and month_counts["2026-03"] > month_counts["2026-04"]):
+        raise RuntimeError(f"春招高峰不明显: {dict(sorted(month_counts.items()))}")
+    if not (month_counts["2026-09"] > month_counts["2026-08"] and month_counts["2026-10"] > month_counts["2026-08"]):
+        raise RuntimeError(f"秋招高峰不明显: {dict(sorted(month_counts.items()))}")
+
+    def share(months: set[str], directions: set[str]) -> float:
+        rows = [job for job in jobs if job["publish_time"].strftime("%Y-%m") in months]
+        if not rows:
+            return 0.0
+        return sum(1 for job in rows if job["direction"] in directions) / len(rows)
+
+    def tag_share(months: set[str], tag: str) -> float:
+        rows = [job for job in jobs if job["publish_time"].strftime("%Y-%m") in months]
+        if not rows:
+            return 0.0
+        return sum(1 for job in rows if tag in job["tag_names"]) / len(rows)
+
+    early = {"2025-11", "2025-12", "2026-01"}
+    late = {"2026-08", "2026-09", "2026-10"}
+    if share(late, RISING_DIRECTIONS) <= share(early, RISING_DIRECTIONS) * 1.3:
+        raise RuntimeError("人工智能/算法工程占比上升不够明显")
+    if share(late, FALLING_DIRECTIONS) >= share(early, FALLING_DIRECTIONS):
+        raise RuntimeError("测试开发占比未下降")
+    if tag_share(late, "大模型") <= tag_share(early, "大模型"):
+        raise RuntimeError("大模型标签占比未上升")
+    if tag_share(late, "PyTorch") <= tag_share(early, "PyTorch"):
+        raise RuntimeError("PyTorch标签占比未上升")
 
 
 def next_id(cur, table: str) -> int:
@@ -1091,7 +1263,7 @@ def ensure_taxonomy(cur) -> tuple[dict, dict, int, int]:
         inserted_categories += int(created)
     tags = {}
     inserted_tags = 0
-    for index, (name, direction) in enumerate(ALL_TAGS):
+    for index, (name, direction) in enumerate(list(ALL_TAGS) + list(EXTRA_TAGS)):
         tag_id, created = ensure_tag(cur, name, direction, 30 + index)
         tags[name] = tag_id
         inserted_tags += int(created)

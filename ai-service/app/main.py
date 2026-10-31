@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import agent_router, health_router, rag_router, recommend_router, spark_router
 from app.core.config import settings
 from app.core.response import register_exception_handlers, success
+from app.spark.session import stop_spark
 
 # 日志基本配置
 logging.basicConfig(
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Chroma storage dir: {settings.CHROMA_DIR}")
     logger.info(f"Configured CORS origins: {settings.CORS_ORIGINS}")
     yield
+    stop_spark()
     logger.info(f"Shutting down {settings.APP_NAME}...")
 
 

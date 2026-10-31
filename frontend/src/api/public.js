@@ -66,3 +66,19 @@ export function getJob(id) {
     method: 'get'
   })
 }
+
+export function getStatsOverview() {
+  return request({ url: '/public/stats/overview', method: 'get' })
+}
+
+export function getSalaryStats(params) {
+  return request({ url: '/public/stats/salary', method: 'get', params })
+}
+
+export function getTechTrend(params) {
+  return request({ url: '/public/stats/tech-trend', method: 'get', params })
+}
+
+export function getRegionStats() {
+  return request({ url: '/public/stats/region', method: 'get' })
+}

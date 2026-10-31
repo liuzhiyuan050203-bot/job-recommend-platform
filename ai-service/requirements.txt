@@ -17,6 +17,7 @@ SQLAlchemy==2.1.6
 pyspark==4.2.1
 pandas==2.3.3
 numpy==2.5.4
+pyarrow==26.0.0
 
 # 大模型应用与 RAG 向量检索
 langchain==1.4.7
