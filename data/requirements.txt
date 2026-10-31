@@ -1,0 +1,5 @@
+# 演示数据生成器依赖。在仓库虚拟环境中安装：
+#   /workspace/bishe/.venv/bin/pip install -r data/requirements.txt
+# PyMySQL 与 ai-service 共用；bcrypt 只用于把 Demo@123 编成固定盐的 BCrypt。
+PyMySQL>=1.1.0
+bcrypt==5.0.0

@@ -1,0 +1,71 @@
+# 演示数据生成器
+
+`generate_demo_data.py` 用固定随机种子生成校园招聘演示数据，写入 MariaDB 的 `job_platform`，并另存一份带噪声的爬虫原始 CSV。不实现推荐或 RAG。统计时间锚点固定为 **2026-10-31**，同一 `--seed` 重复运行得到同一批数据。
+
+## 运行
+
+数据库需已执行 `db/schema.sql` 和 `db/seed.sql`。MariaDB 未启动时先执行 `bash scripts/start-mysql.sh`。
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+/workspace/bishe/.venv/bin/pip install -r data/requirements.txt
+/workspace/bishe/.venv/bin/python data/generate_demo_data.py
+/workspace/bishe/.venv/bin/python data/generate_demo_data.py --seed 20261031
+/workspace/bishe/.venv/bin/python data/generate_demo_data.py --clean
+```
+
+`--seed` 默认 `20261031`。`--clean` 只删除本生成器写入的演示数据，并删除 `data/raw/jobs_raw.csv`。
+
+连接参数可用环境变量覆盖：
+
+| 变量 | 默认 |
+| --- | --- |
+| `MYSQL_HOST` | `127.0.0.1` |
+| `MYSQL_PORT` | `3306` |
+| `MYSQL_USER` | `job` |
+| `MYSQL_PASSWORD` | `job123` |
+| `MYSQL_DATABASE` | `job_platform` |
+
+企业账号 `demo_corp_01`–`demo_corp_30`、学生账号 `demo_stu_001`–`demo_stu_200` 的密码都是 `Demo@123`（库内为固定盐的 BCrypt，兼容 Spring Security `BCryptPasswordEncoder`）。
+
+## 幂等与清理范围
+
+识别规则：
+
+- 用户名匹配 `^demo_(corp|stu)_[0-9]+$`
+- 企业统一社会信用代码匹配 `^DEMO[0-9]{14}$`
+- 职位、收藏、投递、行为日志通过上述企业或学生归属删除
+
+再次运行时先按外键依赖删除这些行，再插入。`admin` / `student` / `company`、测试脚本注册的账号、以及它们的职位和投递都不会删除。职位分类和技能标签按**名称不存在才插入**，清理时也不删除，因此重复运行不会重复补齐。
+
+地址和福利字段里不写演示标记。
+
+## 默认种子下的规模
+
+以下为 `--seed 20261031` 的写入量（分类和技能标签的“本次写入”取决于库里是否已有同名行；下面按名称集合说明）：
+
+| 数据 | 规模 |
+| --- | --- |
+| 企业 `ent_company` | 30，资质已通过，行业、规模、城市不同 |
+| 学生 | 200 份档案、200 份默认简历、约 942 条技能（每人 3–8 项） |
+| 职位 | 3200，其中约 129 条下架，其余 `audit_status=1` 且 `shelf_status=1` |
+| 职位技能 | 约 12913 条，每个职位 3–6 个标签，以本方向为主 |
+| 行为日志 | 24233 条（浏览 21351、收藏 2163、投递 719），权重 1/3/5，时间在 2026-05 至 2026-10 |
+| 收藏 / 投递 | 与收藏、投递行为一一对应；投递状态为待初筛，并有一条状态日志 |
+| 发布月份 | 2025-11 至 2026-10，每月 266 或 267 条 |
+
+学生行为以「期望方向 + 期望城市」为主，同组学生会集中浏览同一批职位，并带少量跨方向探索，便于后续 User-CF。职位上的浏览、收藏、投递次数与上述行为条数一致。
+
+补齐的叶子分类（父类「技术研发」或新建的「产品设计」）包括：云原生开发、算法工程、测试开发、运维开发、移动开发、嵌入式开发、产品经理、UI设计。`job_position.tech_direction` 与 `skill_tag.direction` 使用叶子分类名。技能标签共 56 个（含种子里已有的 Java、Spring Boot、Spark 等），名称已存在则不覆盖原方向。
+
+默认种子下各方向月薪中点均值（含各城市、学历和经验，单位元）大约为：算法工程 22072、人工智能 19455、数据开发 17757、云原生开发 16587、后端开发 16242、移动开发 15538、前端开发 14770、嵌入式开发 14581、产品经理 14106、运维开发 11961、测试开发 11226、UI设计 10848。一线城市、应届、本科、校招的后端岗位中点均值约 2.0 万；二线同口径大约低 20%–35%。
+
+20 个城市均有职位，一线多于二线。省份使用地图口径（如广东、北京）。
+
+## 原始 CSV
+
+`data/raw/jobs_raw.csv` 为 UTF-8、带表头，**不入库**。默认种子下 3360 行，其中 3200 行与职位对应，另有 160 行（约 5%）是完全重复行。
+
+字段：`title, company, city, salary_text, education_text, experience_text, tags, publish_date, direction`。
+
+城市、薪资、学历、经验和日期故意不统一，例如 `上海市`、`深圳 南山区`、`15-25K·14薪`、`8000-12000元/月`、`面议`、`200-300元/天`、`30-50万/年`，以及少量空字段和非法值，供后续 Spark 清洗演示。
