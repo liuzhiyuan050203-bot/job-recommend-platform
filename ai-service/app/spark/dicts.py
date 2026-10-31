@@ -142,3 +142,8 @@ def exp_years_from_req(experience_req: int | None) -> float:
     if experience_req is None:
         return EXP_REQ_YEARS[0]
     return EXP_REQ_YEARS.get(int(experience_req), EXP_REQ_YEARS[0])
+
+
+def job_type_for_experience(experience_years: float) -> float:
+    """预测时的职位类型：两年及以上经验按社招(1)，否则按校招(3)。校招样本几乎没有多年经验。"""
+    return 1.0 if float(experience_years) >= 2.0 else 3.0

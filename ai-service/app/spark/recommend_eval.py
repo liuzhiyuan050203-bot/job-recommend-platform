@@ -210,7 +210,7 @@ def fuse_scores(
     mode: str,
     adaptive: bool,
 ) -> np.ndarray:
-    """线性融合或门控融合。没有行为的学生改用内容分与热门分，不使用协同过滤。"""
+    """线性融合或门控融合。没有行为或协同过滤无信号的学生改用内容分与热门分。"""
     pop = popularity
     if pop.ndim == 1:
         pop = np.broadcast_to(pop, content.shape).copy()
@@ -223,7 +223,9 @@ def fuse_scores(
         mixed = content * ((1.0 - alpha_col) + alpha_col * (cf_mm / 100.0))
     else:
         mixed = alpha_col * cf_mm + (1.0 - alpha_col) * content
-    cold = activity <= 0
+    # 没有行为、或行为全落在无人共同交互的职位上（协同过滤分整行为 0）时，按冷启动处理
+    no_cf = np.max(cf_mm, axis=1) <= 0 if cf_mm.shape[1] > 0 else np.ones(cf_mm.shape[0], dtype=bool)
+    cold = (activity <= 0) | no_cf
     if np.any(cold):
         mixed[cold] = 0.75 * content[cold] + 0.25 * pop[cold]
     return np.clip(mixed, 0.0, 100.0)

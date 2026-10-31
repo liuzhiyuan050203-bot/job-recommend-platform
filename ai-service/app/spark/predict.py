@@ -7,7 +7,7 @@ import math
 
 from app.core.response import AppException
 from app.spark.db import find_salary_predict, latest_regression_metrics
-from app.spark.dicts import CITY_PROVINCE, EDU_YEARS, city_tier
+from app.spark.dicts import CITY_PROVINCE, EDU_YEARS, city_tier, job_type_for_experience
 from app.spark.features import build_feature_frame
 from app.spark.paths import METRICS_PATH, MODEL_DIR
 
@@ -105,7 +105,7 @@ def _from_model(city: str, tech_direction: str, education: int, experience_years
                 "edu_years": EDU_YEARS[education],
                 "exp_years": float(experience_years),
                 "city_tier": city_tier(city),
-                "job_type_num": 3.0,
+                "job_type_num": job_type_for_experience(experience_years),
                 "skills": chosen,
             }
         ],

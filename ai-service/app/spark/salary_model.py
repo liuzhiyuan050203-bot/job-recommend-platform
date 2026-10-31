@@ -13,7 +13,7 @@ from pyspark.sql import functions as F
 
 from app.spark.datasource import load_sources
 from app.spark.db import publish
-from app.spark.dicts import EDU_YEARS, EXP_REQ_YEARS, city_tier
+from app.spark.dicts import EDU_YEARS, EXP_REQ_YEARS, city_tier, job_type_for_experience
 from app.spark.features import build_feature_frame
 from app.spark.paths import METRICS_PATH, MODEL_DIR
 from app.spark.session import get_spark
@@ -145,7 +145,7 @@ def run_salary_regression(batch_no: str) -> dict:
                         "edu_years": EDU_YEARS[education],
                         "exp_years": years,
                         "city_tier": city_tier(row["city"]),
-                        "job_type_num": 3.0,
+                        "job_type_num": job_type_for_experience(years),
                         "skills": direction_skills.get(row["tech_direction"], []),
                     }
                 )

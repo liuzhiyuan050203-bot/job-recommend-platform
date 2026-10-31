@@ -169,7 +169,7 @@ def recommend_for_user(user_id: int, top_k: int = 10) -> dict:
     hybrid[banned[0]] = -1.0
     order = np.argsort(-hybrid)
     items = []
-    cold = activity <= 0
+    cold = activity <= 0 or cf_mm.size == 0 or float(np.max(cf_mm)) <= 0
     for position_index in order:
         if hybrid[position_index] < 0:
             continue
