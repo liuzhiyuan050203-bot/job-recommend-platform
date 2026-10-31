@@ -1,5 +1,10 @@
 <template>
   <div class="page-container">
+    <el-skeleton :loading="loading" animated>
+      <template #template>
+        <el-skeleton-item variant="rect" style="height: 88px; margin-bottom: 16px" />
+        <el-skeleton-item variant="rect" style="height: 320px" />
+      </template>
     <el-row :gutter="16">
       <el-col v-for="item in cards" :key="item.label" :xs="12" :sm="8" :md="4">
         <el-card shadow="never" class="stat-card">
@@ -48,19 +53,23 @@
       <el-col :xs="24" :lg="12">
         <el-card shadow="never">
           <template #header><span class="title">城市平均月薪</span></template>
-          <EChart :option="salaryOption" height="360px" />
+          <el-empty v-if="!(salary.byCity || []).length" description="暂无城市薪资" />
+          <EChart v-else :option="salaryOption" height="360px" />
         </el-card>
       </el-col>
       <el-col :xs="24" :lg="12">
         <el-card shadow="never">
           <template #header><span class="title">技术需求趋势</span></template>
-          <EChart :option="trendOption" height="360px" />
+          <el-empty v-if="!(trend.months || []).length" description="暂无技术趋势" />
+          <EChart v-else :option="trendOption" height="360px" />
         </el-card>
       </el-col>
     </el-row>
 
     <el-card shadow="never">
       <template #header><span class="title">地区职位分布</span></template>
+      <el-empty v-if="!region.length" description="暂无地区统计" />
+      <template v-else>
       <EChart :option="regionOption" height="320px" />
       <el-table :data="region" size="small" empty-text="暂无地区统计" class="region-table">
         <el-table-column prop="name" label="省份" />
@@ -72,7 +81,9 @@
         </el-table-column>
         <el-table-column prop="applyCount" label="投递数" />
       </el-table>
+      </template>
     </el-card>
+    </el-skeleton>
   </div>
 </template>
 
@@ -84,6 +95,7 @@ import { getRegionStats, getSalaryStats, getStatsOverview, getTechTrend } from '
 import { getAdminDashboard, getRecommendEval, getRecommendStats, getSparkTasks, runSparkAnalysis } from '@/api/admin'
 import { knowledgeStats } from '@/api/ai'
 
+const loading = ref(true)
 const overview = ref({})
 const salary = ref({ records: [], byDirection: [], byCity: [] })
 const trend = ref({ months: [], series: [], ranking: [] })
@@ -283,6 +295,8 @@ onMounted(async () => {
     await Promise.all([loadBoard(), loadTasks(), loadInsights()])
   } catch {
     // 拦截器已提示
+  } finally {
+    loading.value = false
   }
 })
 </script>

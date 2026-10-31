@@ -29,7 +29,7 @@
               请先在个人档案中填写期望城市、技术方向和学历。
               <el-button link type="primary" @click="router.push('/student/profile')">去完善</el-button>
             </p>
-            <div v-else-if="predictLoading" class="hint">正在根据档案估算月薪…</div>
+            <el-skeleton v-else-if="predictLoading" animated :rows="2" />
             <div v-else-if="predict" class="predict">
               <div class="predict-salary">{{ formatYuan(predict.predictedSalary) }}</div>
               <div class="hint">

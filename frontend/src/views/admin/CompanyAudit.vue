@@ -61,6 +61,9 @@
             <el-button type="danger" link size="small" @click="openAuditDialog(row, 2)">驳回</el-button>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty v-if="!loading" description="没有符合条件的企业" />
+        </template>
       </el-table>
 
       <div class="pagination-wrapper">

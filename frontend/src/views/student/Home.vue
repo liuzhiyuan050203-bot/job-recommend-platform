@@ -1,9 +1,9 @@
 <template>
-  <div class="page-container">
+  <div v-loading="loading" class="page-container">
     <el-card shadow="never">
       <template #header><span class="title">学生首页</span></template>
       <h3>未来 7 天的笔试 / 面试</h3>
-      <el-empty v-if="!upcoming.length" description="近期没有待进行的安排" />
+      <el-empty v-if="!loading && !upcoming.length" description="近期没有待进行的安排" />
       <el-card v-for="item in upcoming" :key="item.id" class="item" shadow="never">
         <div class="line">
           <b>{{ item.interviewTime }}</b>
@@ -27,7 +27,7 @@
           <el-button link type="primary" @click="router.push('/student/recommend')">查看全部</el-button>
         </div>
       </template>
-      <el-empty v-if="!recommends.length" description="完成档案和技能后会生成推荐" />
+      <el-empty v-if="!loading && !recommends.length" description="完成档案和技能后会生成推荐" />
       <div v-for="job in recommends" :key="job.positionId" class="job" @click="router.push(`/student/jobs/${job.positionId}`)">
         <span>{{ job.title }}</span>
         <span>{{ job.companyName }} · {{ job.city }}</span>
@@ -37,6 +37,7 @@
 
     <el-card shadow="never" class="latest">
       <template #header><span class="title">最新职位</span></template>
+      <el-empty v-if="!loading && !jobs.length" description="暂时没有可浏览的职位" />
       <div v-for="job in jobs" :key="job.id" class="job" @click="router.push(`/student/jobs/${job.id}`)">
         <span>{{ job.title }}</span>
         <span>{{ job.companyName }} · {{ job.city }}</span>
@@ -54,6 +55,7 @@ import { getRecommendations, getUpcomingInterviews } from '@/api/student'
 import { salaryText } from '@/utils/job'
 
 const router = useRouter()
+const loading = ref(true)
 const upcoming = ref([])
 const jobs = ref([])
 const recommends = ref([])
@@ -65,21 +67,16 @@ function formatScore(value) {
 
 onMounted(async () => {
   try {
-    upcoming.value = await getUpcomingInterviews()
-  } catch {
-    upcoming.value = []
-  }
-  try {
-    const page = await searchJobs({ current: 1, size: 5, sort: 'newest' })
-    jobs.value = page.records || []
-  } catch {
-    jobs.value = []
-  }
-  try {
-    const page = await getRecommendations({ current: 1, size: 4 })
-    recommends.value = page?.records || []
-  } catch {
-    recommends.value = []
+    const [upcomingRes, jobsRes, recommendRes] = await Promise.allSettled([
+      getUpcomingInterviews(),
+      searchJobs({ current: 1, size: 5, sort: 'newest' }),
+      getRecommendations({ current: 1, size: 4 })
+    ])
+    upcoming.value = upcomingRes.status === 'fulfilled' ? (upcomingRes.value || []) : []
+    jobs.value = jobsRes.status === 'fulfilled' ? (jobsRes.value?.records || []) : []
+    recommends.value = recommendRes.status === 'fulfilled' ? (recommendRes.value?.records || []) : []
+  } finally {
+    loading.value = false
   }
 })
 </script>

@@ -6,6 +6,7 @@
       <div class="top-nav-links">
         <el-button link @click="router.push('/articles')">就业资讯与公告</el-button>
         <el-button link @click="router.push('/community')">求职面经社区</el-button>
+        <el-button link @click="router.push('/demo')">系统演示</el-button>
       </div>
       <div class="top-actions">
         <template v-if="userStore.isLoggedIn">

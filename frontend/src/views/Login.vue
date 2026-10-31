@@ -39,12 +39,15 @@
         <el-button link type="primary" native-type="button" @click="fill('student', 'student123')">填入学生</el-button>
         <el-button link type="primary" native-type="button" @click="fill('company', 'company123')">填入企业</el-button>
       </div>
+      <div class="demo-guide-link">
+        <router-link to="/demo">查看演示指南</router-link>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
@@ -65,10 +68,25 @@ const rules = {
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
 
+const DEMO_ACCOUNTS = {
+  admin: ['admin', 'admin123'],
+  student: ['student', 'student123'],
+  company: ['company', 'company123']
+}
+
 const fill = (username, password) => {
   form.username = username
   form.password = password
 }
+
+const applyDemoQuery = () => {
+  const account = DEMO_ACCOUNTS[String(route.query.demo || '')]
+  if (!account) return
+  fill(account[0], account[1])
+}
+
+onMounted(applyDemoQuery)
+watch(() => route.query.demo, applyDemoQuery)
 
 const resolveTarget = (user) => {
   const redirect = route.query.redirect
@@ -157,5 +175,14 @@ h2 {
   justify-content: center;
   gap: 4px;
   margin-top: 8px;
+}
+.demo-guide-link {
+  margin-top: 4px;
+  text-align: center;
+  font-size: 14px;
+}
+.demo-guide-link a {
+  color: #409eff;
+  text-decoration: none;
 }
 </style>

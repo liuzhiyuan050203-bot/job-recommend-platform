@@ -41,6 +41,9 @@
             <el-button link type="danger" @click="remove(row)">删除</el-button>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty v-if="!loading" description="还没有发布职位" />
+        </template>
       </el-table>
       <div class="pager">
         <el-pagination

@@ -90,6 +90,9 @@
             </el-button>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty v-if="!loading" description="没有符合条件的用户" />
+        </template>
       </el-table>
 
       <div class="pagination-wrapper">

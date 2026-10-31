@@ -2,6 +2,7 @@
   <div class="page-container">
     <el-card shadow="never">
       <template #header><span class="title">我的收藏</span></template>
+      <div v-loading="loading">
       <el-empty v-if="!rows.length && !loading" description="还没有收藏职位" />
       <el-card v-for="job in rows" :key="job.id" class="job-card" shadow="hover" @click="open(job)">
         <div class="job-top">
@@ -17,6 +18,7 @@
           <el-button link type="danger" @click.stop="cancel(job)">取消收藏</el-button>
         </div>
       </el-card>
+      </div>
       <div class="pager">
         <el-pagination
           v-model:current-page="page.current"

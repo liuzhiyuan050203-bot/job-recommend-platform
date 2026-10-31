@@ -18,6 +18,14 @@ service.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
+function displayMessage(text, fallback) {
+  const value = String(text || '').trim()
+  if (value && /[\u4e00-\u9fff]/.test(value)) {
+    return value
+  }
+  return fallback
+}
+
 async function clearSession() {
   try {
     const { useUserStore } = await import('@/stores/user')
@@ -39,7 +47,7 @@ service.interceptors.response.use(
       if (res.code === 200) {
         return res.data
       }
-      const msg = res.msg || '请求失败'
+      const msg = displayMessage(res.msg, '请求失败')
       ElMessage.error(msg)
       return Promise.reject(new Error(msg))
     }
@@ -48,10 +56,10 @@ service.interceptors.response.use(
   async (error) => {
     const status = error.response?.status
     const data = error.response?.data
-    const msg = data?.msg || data?.message || error.message || '网络连接异常'
+    const backendMsg = data && typeof data === 'object' ? (data.msg || data.message) : ''
 
     if (status === 401) {
-      ElMessage.error(msg || '未登录或登录已过期')
+      ElMessage.error('未登录或登录已过期')
       await clearSession()
       try {
         const { default: router } = await import('@/router')
@@ -69,11 +77,15 @@ service.interceptors.response.use(
     }
 
     if (status === 403) {
-      ElMessage.error(data?.msg || '无权限')
+      ElMessage.error(displayMessage(backendMsg, '无权限'))
       return Promise.reject(error)
     }
 
-    ElMessage.error(msg)
+    const timedOut = error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '')
+    const fallback = !error.response
+      ? (timedOut ? '请求超时，请稍后重试' : '网络连接异常')
+      : '请求失败'
+    ElMessage.error(displayMessage(backendMsg, fallback))
     return Promise.reject(error)
   }
 )

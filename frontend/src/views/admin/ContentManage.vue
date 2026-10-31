@@ -66,6 +66,9 @@
                 <el-button type="danger" link size="small" @click="handleDeletePost(row.id)">删除</el-button>
               </template>
             </el-table-column>
+            <template #empty>
+              <el-empty v-if="!postLoading" description="没有符合条件的帖子" />
+            </template>
           </el-table>
 
           <div class="pagination-wrapper">
@@ -124,6 +127,9 @@
                 <el-button type="danger" link size="small" @click="handleDeleteComment(row.id)">删除</el-button>
               </template>
             </el-table-column>
+            <template #empty>
+              <el-empty v-if="!commentLoading" description="没有符合条件的评论" />
+            </template>
           </el-table>
 
           <div class="pagination-wrapper">

@@ -42,6 +42,9 @@
             <el-button v-if="row.status === 0 || row.status === 1 || row.status === 2" link @click="openNotice(row, 2)">发面试</el-button>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty v-if="!loading" description="还没有候选人" />
+        </template>
       </el-table>
       <div class="pager">
         <el-pagination

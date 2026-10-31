@@ -16,6 +16,9 @@
             <el-button link type="primary" @click.stop="open(row)">详情</el-button>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty v-if="!loading" description="还没有投递记录" />
+        </template>
       </el-table>
       <div class="pager">
         <el-pagination

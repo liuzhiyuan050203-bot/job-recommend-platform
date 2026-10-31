@@ -42,6 +42,7 @@
           </el-breadcrumb>
         </div>
         <div class="header-right">
+          <el-button link type="primary" @click="router.push('/demo')">系统演示</el-button>
           <el-button link type="primary" @click="router.push('/')">
             <el-icon><House /></el-icon> 返回门户首页
           </el-button>

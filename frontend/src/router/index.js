@@ -39,6 +39,12 @@ const routes = [
     meta: { title: '面经详情', public: true }
   },
   {
+    path: '/demo',
+    name: 'DemoGuide',
+    component: () => import('@/views/DemoGuide.vue'),
+    meta: { title: '系统演示', public: true }
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/Login.vue'),
