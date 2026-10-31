@@ -20,6 +20,7 @@
 | Spark 分析 | 已实现 | 离线清洗、薪资统计、技术趋势、地区分布与薪资回归 |
 | 推荐 | 已实现 | 用户余弦协同过滤与技能内容匹配融合，结果回写 `spark_recommend`，离线指标写入 `spark_recommend_eval` |
 | RAG 智能问答 | 已实现 | 政策与面经切片、Chroma 检索、三类助手 SSE、会话与知识库管理 |
+| 仪表盘与演示 | 已实现 | 公开/学生/企业/管理端 ECharts 真实数据看板、系统演示页 `/demo`、一键启停 |
 
 ## 技术栈
 
@@ -43,7 +44,8 @@
 ├── scripts/          # start-mysql.sh、start-ollama.sh、start-all.sh、stop-all.sh
 ├── tests/
 │   ├── run-all.sh    # 拉起依赖并跑完全部接口脚本
-│   └── api/          # 01 认证 … 06 RAG 与三类助手
+│   └── api/          # 01 认证 … 07 仪表盘图表接口
+├── DEMO.md           # 答辩演示勾选清单
 └── README.md
 ```
 
@@ -79,6 +81,27 @@ mariadb -h127.0.0.1 -ujob -pjob123 job_platform < db/seed.sql
 | company | company123 | 企业（星澜科技，资质已通过） |
 
 管理员重置密码后的临时口令是 `123456`。
+
+
+## 5 分钟演示
+
+答辩或验收时按下面做即可，详细勾选清单见仓库根目录 [DEMO.md](DEMO.md)，浏览器内指南见 http://localhost:5173/demo 。
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+bash scripts/start-all.sh          # MariaDB、Ollama、ai-service、后端 8080、前端 5173
+# 浏览器打开 http://localhost:5173
+# 演示结束后：bash scripts/stop-all.sh   # 默认保留 MariaDB
+```
+
+| 角色 | 用户名 | 密码 | 建议点击 |
+| :--- | :--- | :--- | :--- |
+| 学生 | student | student123 | 求职看板 → 职位投递 → 为你推荐 → 就业助手 |
+| 企业 | company | company123 | 招聘看板 → 候选人推进状态 → 招聘助手 |
+| 管理员 | admin | admin123 | 数据分析（Spark/推荐/RAG）→ 审核 → 知识库 / 数据助手 |
+
+登录页可一键填入演示账号，也支持 `/login?demo=student`。公开首页图表与 `/student/dashboard`、`/company/dashboard`、`/admin/analytics` 均读取真实统计接口，不再使用静态占位数据。
 
 ## 启动
 
@@ -146,11 +169,15 @@ cd ai-service
 | :--- | :--- |
 | `POST /api/admin/spark/run` | 管理员触发分析（body 可选 `{"tasks":[...]}`），运行中再次触发返回 409「已有任务运行中」 |
 | `GET /api/admin/spark/tasks` | 任务日志分页，可按 `batchNo`/`status` 过滤 |
-| `GET /api/public/stats/overview` | 职位/企业/学生数、平均月薪、城市数、最近成功批次 |
+| `GET /api/public/stats/overview` | 职位/企业/学生/投递数、平均月薪、城市数、最近成功批次 |
 | `GET /api/public/stats/salary` | 薪资统计明细与按方向、按城市汇总，可按 `city`/`tech_direction` 过滤 |
 | `GET /api/public/stats/tech-trend?top=10&months=12` | ECharts 结构：`months` + `series` + 热门技能排行 |
 | `GET /api/public/stats/region` | 省份地图数据 `[{name,value,adcode,companyCount,avgSalary,applyCount}]` |
 | `GET /api/public/stats/salary/predict` | 转发 FastAPI 实时预测（`city`、`techDirection`、`education` 1–4、`experienceYears`、`skills`），分析服务不可用时返回 503 |
+| `GET /api/public/stats/hiring-demand?months=12` | 近 N 个月职位发布量与投递量（图表） |
+| `GET /api/student/dashboard` | 学生投递漏斗、技能雷达、档案摘要、推荐 Top |
+| `GET /api/company/dashboard` | 企业职位表现、投递状态、候选人技能词频 |
+| `GET /api/admin/dashboard/overview` | 平台概览 + 最近 Spark 批次 + 推荐 NDCG + AI 会话/消息数 |
 
 FastAPI 侧：`POST /spark/run`、`GET /spark/tasks`、`GET /spark/tasks/{batch_no}`、`GET /spark/salary/predict`。管理端页面 `/admin/analytics` 展示图表、触发按钮和任务列表。
 
@@ -323,6 +350,7 @@ bash tests/run-all.sh
 | 04-spark.sh | 55 | 0 |
 | 05-recommend.sh | 56 | 0 |
 | 06-rag.sh | 92 | 0 |
-| 合计 | 492 | 0 |
+| 07-dashboard.sh | 49 | 0 |
+| 合计 | 541 | 0 |
 
-同一轮还通过了 `cd backend && mvn -q -DskipTests package` 和 `cd frontend && pnpm build`。ai-service 停掉后再跑一遍：06 打印 SKIP，记 PASS=0 FAIL=0；01–03 仍是 35 / 165 / 89；04 为 49（跳过分析触发、实时预测和 FastAPI 任务列表）；05 为 54（冷启动走数据库兜底，跳过推荐任务触发与 FastAPI 相似职位）。合计 392，失败 0。
+同一轮还通过了 `cd backend && mvn -q -DskipTests package` 和 `cd frontend && pnpm build`。ai-service 停掉后再跑一遍：06 打印 SKIP，记 PASS=0 FAIL=0；01–03 仍是 35 / 165 / 89；04 为 49（跳过分析触发、实时预测和 FastAPI 任务列表）；05 为 54（冷启动走数据库兜底，跳过推荐任务触发与 FastAPI 相似职位）。合计约 441（含 07 仪表盘；06 整段 SKIP），失败 0。

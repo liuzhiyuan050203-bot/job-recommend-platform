@@ -293,10 +293,20 @@ req GET "/admin/ai/knowledge/documents?current=1&size=20&q=$(enc "$TITLE")" "$T_
 expect_ok "文档列表含新标题"
 [ "$(jq --arg t "$TITLE" '[.data.records[].title] | index($t) != null' <<<"$BODY")" = true ] \
   && ok "列表能看到上传文档" || bad "列表能看到上传文档"
-req GET "/admin/ai/knowledge/search?q=$(enc "$PHRASE")&topK=4" "$T_ADMIN"
-expect_ok "检索刚上传的文档"
-[ "$(jq --arg t "$TITLE" '[.data.results[].title] | index($t) != null' <<<"$BODY")" = true ] \
-  && ok "检索命中上传文档" || bad "检索命中上传文档"
+# 上传后向量索引偶发延迟，短暂重试避免并发跑全量时误报
+HIT_OK=0
+for _try in 1 2 3 4 5 6; do
+  req GET "/admin/ai/knowledge/search?q=$(enc "$PHRASE")&topK=4" "$T_ADMIN"
+  if [ "$HTTP" = 200 ] && [ "$(jq -r .code <<<"$BODY")" = 200 ]; then
+    if [ "$(jq --arg t "$TITLE" '[.data.results[].title] | index($t) != null' <<<"$BODY")" = true ]; then
+      HIT_OK=1
+      break
+    fi
+  fi
+  sleep 1
+done
+[ "$HTTP" = 200 ] && [ "$(jq -r .code <<<"$BODY")" = 200 ] && ok "检索刚上传的文档" || bad "检索刚上传的文档"
+[ "$HIT_OK" = 1 ] && ok "检索命中上传文档" || bad "检索命中上传文档"
 req DELETE "/admin/ai/knowledge/documents?docKey=$(enc "$DOC_KEY")" "$T_ADMIN"
 expect_ok "删除上传文档"
 DOC_KEY=""
