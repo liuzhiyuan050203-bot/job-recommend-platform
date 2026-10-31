@@ -93,7 +93,7 @@ mvn -DskipTests package
 java -jar target/job-backend-1.0.0.jar
 # 健康检查：curl http://localhost:8080/api/health
 
-# AI 服务（后续模块使用，当前业务接口不依赖它）
+# AI 服务（Spark 分析触发与实时薪资预测依赖它；公开统计接口只读数据库）
 cd ai-service
 cp -n .env.example .env
 ../.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
@@ -123,6 +123,35 @@ JWT 密钥读 `backend/src/main/resources/application.yml` 的 `jwt.secret`，�
 
 账号 `sys_user.status`：0 待审核，1 正常，2 禁用，3 已驳回。企业与职位、帖子、评论的 `audit_status`：0 待审核，1 通过，2 驳回。职位 `shelf_status`：0 下架，1 上架。投递 `job_application.status`：0 待初筛，1 笔试，2 面试中，3 已录用，4 未通过。
 
+## Spark 离线分析
+
+```bash
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+cd ai-service
+../.venv/bin/python -m app.spark.run_all                       # 全部：clean → aggregate → salary_regression
+../.venv/bin/python -m app.spark.run_all --tasks aggregate     # 只跑部分任务
+```
+
+- 运行模式 `local[*]`，通过 `spark.jars` 加载 MySQL JDBC 驱动（环境变量 `SPARK_JDBC_JAR`，默认 `~/.m2/repository/com/mysql/mysql-connector-j/8.3.0/mysql-connector-j-8.3.0.jar`）。
+- clean：解析 `data/raw/jobs_raw.csv` 中的薪资文本、去重、城市/学历/经验规范化、剔除异常值；统计写入 `spark_task_log`。
+- aggregate：从库中已审核职位聚合出 `spark_salary_stat`（省/城市/方向的均值、中位数、P25/P75）、`spark_tech_trend`（月份×技能需求与环比）、`spark_region_dist`（省份职位/企业/投递数与 6 位 adcode）。
+- salary_regression：MLlib 随机森林回归预测平均月薪，模型保存在 `ai-service/data/models/salary_model`，城市×方向×学历×经验网格预测写入 `spark_salary_predict`。
+- 每次运行一个 `batch_no`，新批次 `is_latest=1`，旧批次置 0，每表只保留最近 5 批。同一时间只允许一次运行。
+
+实测（2026-10-31，8 核）：整次运行约 20 秒；CSV 3360 行 → 有效 2409（重复 200、面议 476、异常 275）；薪资统计 239 行、技术趋势 683 行、地区 16 省；模型测试集 RMSE≈1707、MAE≈1036、R2≈0.964。
+
+| 接口 | 说明 |
+| :--- | :--- |
+| `POST /api/admin/spark/run` | 管理员触发分析（body 可选 `{"tasks":[...]}`），运行中再次触发返回 409「已有任务运行中」 |
+| `GET /api/admin/spark/tasks` | 任务日志分页，可按 `batchNo`/`status` 过滤 |
+| `GET /api/public/stats/overview` | 职位/企业/学生数、平均月薪、城市数、最近成功批次 |
+| `GET /api/public/stats/salary` | 薪资统计明细与按方向、按城市汇总，可按 `city`/`tech_direction` 过滤 |
+| `GET /api/public/stats/tech-trend?top=10&months=12` | ECharts 结构：`months` + `series` + 热门技能排行 |
+| `GET /api/public/stats/region` | 省份地图数据 `[{name,value,adcode,companyCount,avgSalary,applyCount}]` |
+| `GET /api/public/stats/salary/predict` | 转发 FastAPI 实时预测（`city`、`techDirection`、`education` 1–4、`experienceYears`、`skills`），分析服务不可用时返回 503 |
+
+FastAPI 侧：`POST /spark/run`、`GET /spark/tasks`、`GET /spark/tasks/{batch_no}`、`GET /spark/salary/predict`。管理端页面 `/admin/analytics` 展示图表、触发按钮和任务列表。
+
 ## 运行测试
 
 ```bash
@@ -131,13 +160,14 @@ bash tests/run-all.sh
 
 脚本在 MariaDB 未运行时调用 `scripts/start-mysql.sh`；8080 没有健康检查时会打包并后台启动后端（日志 `/tmp/job-backend-test.log`），结束时关掉自己启动的进程。任一断言失败则退出码非 0。
 
-当前结果（`bash tests/run-all.sh`，2026-10-30）：
+当前结果（`bash tests/run-all.sh`，2026-10-31，ai-service 已启动；未启动时 04 中依赖 FastAPI 的断言记为 SKIP）：
 
 | 脚本 | PASS | FAIL |
 | :--- | ---: | ---: |
 | 01-auth.sh | 35 | 0 |
 | 02-module1.sh | 165 | 0 |
 | 03-recruitment.sh | 89 | 0 |
-| 合计 | 289 | 0 |
+| 04-spark.sh | 55 | 0 |
+| 合计 | 344 | 0 |
 
 同一轮还通过了 `cd backend && mvn -q -DskipTests package` 和 `cd frontend && pnpm build`。
