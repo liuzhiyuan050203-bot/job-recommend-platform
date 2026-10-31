@@ -64,7 +64,7 @@ Spark 结果行是按这两条职位手工填的占位数据，正式环境由 P
 | spark_task_log | Spark 任务批次、状态、行数和错误信息 |
 | rag_document | RAG 知识切片；向量在 Chroma，这里记 `chroma_id` |
 | ai_session | 学生、企业或管理员智能体的会话 |
-| ai_message | 会话消息；助手消息保存 SSE 结束后的全文 |
+| ai_message | 会话消息；助手消息保存 SSE 结束后的全文，`extra` 为来源与工具的 JSON 文本 |
 
 图表取数：技能雷达读 `stu_skill`；企业漏斗按 `job_application.status` 聚合；学历分布用投递关联 `stu_profile.education`；热力图、技术趋势、薪资排行读对应 Spark 表中 `is_latest = 1 AND deleted = 0` 的行。词云可用 `spark_tech_trend` 的最新月，也可用在招职位的 `job_position_tag` 实时计数。
 

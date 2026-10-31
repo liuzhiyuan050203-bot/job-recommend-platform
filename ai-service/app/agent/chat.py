@@ -116,13 +116,57 @@ def _fit_prompt(question: str, history: list[dict], chunks: list[dict], tool_tex
     return text[:PROMPT_CHAR_BUDGET]
 
 
-def _system_prompt(agent: str) -> str:
+def _system_prompt(agent: str, has_sources: bool) -> str:
+    if has_sources:
+        cite = "引用资料时在句末标注[序号]，序号只能使用【资料】里出现的编号。"
+    else:
+        cite = "当前没有可引用的资料切片，回答中不要出现[1]、[2]这类方括号序号。"
     return (
         f"你是高校就业推荐平台的{agent}。"
         "只根据【资料】和【工具结果】回答，禁止编造政策、岗位、候选人和统计数字。"
-        "引用资料时在句末标注[序号]。资料和工具都是“无”时，直接说明知识库没有相关信息，"
+        f"{cite}资料和工具都是“无”时，直接说明知识库没有相关信息，"
         "并提醒以学校和当地最新政策为准。用简洁中文。"
     )
+
+
+class _CitationGate:
+    """流式去掉超出资料条数的 [n]，并暂存末尾未写完的「[」片段。
+
+    推给前端的 delta 与最终 done.answer 使用同一套清洗结果。
+    """
+
+    def __init__(self) -> None:
+        self.limit = 0
+        self.pending = ""
+
+    def set_limit(self, limit: int) -> None:
+        self.limit = max(0, int(limit))
+
+    def push(self, text: str) -> str:
+        merged = self.pending + (text or "")
+        self.pending = ""
+        matched = re.search(r"\[(\d*)$", merged)
+        if matched:
+            self.pending = matched.group(0)
+            merged = merged[: matched.start()]
+        return _strip_over_citations(merged, self.limit)
+
+    def flush(self) -> str:
+        tail = _strip_over_citations(self.pending, self.limit)
+        self.pending = ""
+        return tail
+
+
+def _strip_over_citations(text: str, limit: int) -> str:
+    """去掉编号小于 1 或大于资料条数的 [n]。没有资料时全部去掉。"""
+
+    def repl(match: re.Match[str]) -> str:
+        number = int(match.group(1))
+        if number < 1 or number > limit:
+            return ""
+        return match.group(0)
+
+    return re.sub(r"\[(\d+)\]", repl, text or "")
 
 
 def _keep_conclusion(answer: str, tool_text: str) -> str:
@@ -229,6 +273,7 @@ def _model_tool_requests(question: str, caller: Caller) -> list[ToolRequest] | N
         "salary_stats": ("查询城市或方向的平均月薪", SalaryArgs),
         "tech_trend": ("查询需求环比增长最快的技术", TrendArgs),
         "region_distribution": ("查询职位数最多的省份", TopArgs),
+        "city_distribution": ("查询在架职位数最多的城市", TopArgs),
         "recommend_eval": ("读取推荐离线评估指标", EmptyArgs),
         "platform_overview": ("读取用户、企业和职位数量", EmptyArgs),
     }
@@ -287,7 +332,10 @@ async def iter_events(
     answer_parts: list[str] = []
     tool_events: list[dict[str, Any]] = []
     chunks: list[dict] = []
+    source_items: list[dict] = []
+    gate = _CitationGate()
     online = False
+    handling_error = False
     try:
         online = await asyncio.to_thread(is_available)
     except Exception:
@@ -310,10 +358,29 @@ async def iter_events(
 
     async def emit_text(text: str) -> AsyncIterator[str]:
         nonlocal first_token_ms
-        if text and first_token_ms is None:
+        cleaned = gate.push(text)
+        if not cleaned:
+            return
+        if first_token_ms is None:
             first_token_ms = elapsed()
-        answer_parts.append(text)
-        yield _sse({"type": "delta", "text": text})
+        answer_parts.append(cleaned)
+        yield _sse({"type": "delta", "text": cleaned})
+
+    async def flush_gate() -> AsyncIterator[str]:
+        nonlocal first_token_ms
+        tail = gate.flush()
+        if not tail:
+            return
+        if first_token_ms is None:
+            first_token_ms = elapsed()
+        answer_parts.append(tail)
+        yield _sse({"type": "delta", "text": tail})
+
+    async def end_turn() -> AsyncIterator[str]:
+        async for piece in flush_gate():
+            yield piece
+        yield _finish(answer_parts, source_items, tool_events, elapsed(), first_token_ms)
+        yield "data: [DONE]\n\n"
 
     try:
         decided: Route | None = None
@@ -334,9 +401,16 @@ async def iter_events(
             async for piece in emit_text(decided.refusal):
                 yield piece
             yield _sse({"type": "sources", "items": []})
-            yield _finish(answer_parts, [], tool_events, elapsed(), first_token_ms)
-            yield "data: [DONE]\n\n"
+            async for piece in end_turn():
+                yield piece
             return
+
+        if caller.role == "admin" and not decided.tools:
+            decided.tools.append(ToolRequest("platform_overview", {}))
+            if not decided.doc_types:
+                decided.doc_types = [1, 2, 3, 4, 5, 6]
+            if not decided.instruction:
+                decided.instruction = "结合平台概况中的数字和资料回答。没有直接依据时说明知识库没有相关内容，不要编造统计数字。"
 
         doc_types = decided.doc_types if decided.doc_types is not None else []
         chunk_list: list[dict] = []
@@ -349,6 +423,7 @@ async def iter_events(
                     chunk_list = item
         chunks = chunk_list
         source_items = _source_items(chunk_list)
+        gate.set_limit(len(chunk_list))
         yield _sse({"type": "sources", "items": source_items})
 
         tool_text_parts: list[str] = []
@@ -367,27 +442,20 @@ async def iter_events(
             if result.get("denied"):
                 async for piece in emit_text(result.get("message") or "无权执行该操作。"):
                     yield piece
-                yield _finish(answer_parts, source_items, tool_events, elapsed(), first_token_ms)
-                yield "data: [DONE]\n\n"
+                async for piece in end_turn():
+                    yield piece
                 return
             tool_text_parts.append(prompt_text)
 
         tool_text = "\n".join(tool_text_parts)
-
-        if caller.role == "admin" and not decided.tools:
-            async for piece in emit_text(decided.instruction or "请说明要查询的统计指标。"):
-                yield piece
-            yield _finish(answer_parts, source_items, tool_events, elapsed(), first_token_ms)
-            yield "data: [DONE]\n\n"
-            return
 
         if not online:
             text = _offline_text(question, chunk_list, tool_text)
             text = _ensure_citations(text, chunk_list)
             async for piece in emit_text(text):
                 yield piece
-            yield _finish(answer_parts, source_items, tool_events, elapsed(), first_token_ms)
-            yield "data: [DONE]\n\n"
+            async for piece in end_turn():
+                yield piece
             return
 
         if not chunk_list and not tool_text_parts:
@@ -396,13 +464,16 @@ async def iter_events(
             if not decided.tools:
                 async for piece in emit_text(fixed):
                     yield piece
-                yield _finish(answer_parts, source_items, tool_events, elapsed(), first_token_ms)
-                yield "data: [DONE]\n\n"
+                async for piece in end_turn():
+                    yield piece
                 return
 
-        prompt = _fit_prompt(question, _history(history), chunk_list, tool_text, decided.instruction)
+        instruction = decided.instruction or ""
+        if not chunk_list:
+            instruction = (instruction + " 不要使用[1]、[2]这类引用标记。").strip()
+        prompt = _fit_prompt(question, _history(history), chunk_list, tool_text, instruction)
         messages = [
-            {"role": "system", "content": _system_prompt(agent)},
+            {"role": "system", "content": _system_prompt(agent, bool(chunk_list))},
             {"role": "user", "content": prompt},
         ]
         yield _sse({"type": "status", "text": "正在生成回答…"})
@@ -411,31 +482,39 @@ async def iter_events(
                 if delta == "__hb__":
                     yield ": ping\n\n"
                     continue
+                cleaned = gate.push(delta)
+                if not cleaned:
+                    continue
                 if first_token_ms is None:
                     first_token_ms = elapsed()
-                answer_parts.append(delta)
-                yield _sse({"type": "delta", "text": delta})
+                answer_parts.append(cleaned)
+                yield _sse({"type": "delta", "text": cleaned})
         except Exception:
             logger.exception("流式生成失败，改为离线摘录")
             fallback = _offline_text(question, chunk_list, tool_text)
             async for piece in emit_text("\n" + fallback):
                 yield piece
 
+        async for piece in flush_gate():
+            yield piece
         final = _keep_conclusion("".join(answer_parts), tool_text)
         final = _ensure_citations(final, chunk_list)
-        if final != "".join(answer_parts):
-            extra = final[len("".join(answer_parts)) :]
-            answer_parts.append(extra)
-            if first_token_ms is None:
-                first_token_ms = elapsed()
-            yield _sse({"type": "delta", "text": extra})
-        yield _finish(answer_parts, source_items, tool_events, elapsed(), first_token_ms)
-        yield "data: [DONE]\n\n"
-    except Exception as exc:
+        current = "".join(answer_parts)
+        if final.startswith(current) and len(final) > len(current):
+            async for piece in emit_text(final[len(current) :]):
+                yield piece
+        async for piece in end_turn():
+            yield piece
+    except Exception:
+        if handling_error:
+            return
+        handling_error = True
         logger.exception("对话失败")
         yield _sse({"type": "error", "msg": "对话处理失败"})
-        yield _finish(answer_parts, _source_items(chunks if isinstance(chunks, list) else []), tool_events, elapsed(), first_token_ms)
-        yield "data: [DONE]\n\n"
+        if not source_items and chunks:
+            source_items = _source_items(chunks)
+        async for piece in end_turn():
+            yield piece
 
 
 def _doc_types_for_tools(tools: list[ToolRequest]) -> list[int]:

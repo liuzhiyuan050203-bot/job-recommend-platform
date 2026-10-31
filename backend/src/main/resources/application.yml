@@ -8,6 +8,9 @@ server:
 spring:
   application:
     name: job-backend
+  mvc:
+    async:
+      request-timeout: 300000
   jackson:
     time-zone: Asia/Shanghai
   datasource:

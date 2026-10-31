@@ -45,7 +45,7 @@ MySQL `rag_document` 一行对应一个切片。`content_hash` 是标题、章�
 
 `retrieve(query, top_k=4, doc_types, score_threshold)` 的分数是 `1 - cosine distance`。默认阈值 `RAG_SCORE_THRESHOLD=0.50`：政策类相关问句大约 0.65 以上，无关问句（午饭、天气、量子计算）大约 0.30–0.45，因此无关问题返回空列表。职位问句只在职位意图下检索 `doc_type=7`。
 
-没有切片超过阈值时，助手直接说明知识库没有相关资料，不把问题交给模型自由发挥。有切片时，提示词把它们编成 `[1]`…`[n]`，并要求句末引用。若模型漏标，服务端会补一段「参考来源」。响应里始终有结构化 `sources` 事件。
+没有切片超过阈值时，助手直接说明知识库没有相关资料，不把问题交给模型自由发挥。有切片时，提示词把它们编成 `[1]`…`[n]`，并要求句末引用。若模型漏标，服务端会补一段「参考来源」。没有切片时，提示词明确禁止 `[1]`、`[2]`；无论有没有切片，流式输出都会丢掉编号大于资料条数的 `[n]`。末尾没写完的 `[` 先留在缓冲区，避免把半个标记拆进两个 delta。`done.answer` 等于已经推送给前端的文字。响应里始终有结构化 `sources` 事件。
 
 ### 管理接口（需内部令牌）
 
@@ -53,7 +53,7 @@ MySQL `rag_document` 一行对应一个切片。`content_hash` 是标题、章�
 - `GET /rag/admin/stats`
 - `POST /rag/admin/upload`：multipart，字段 `file`、`title`、`doc_type`
 - `POST /rag/admin/reindex?source=knowledge|cms|jobs|uploads|all` 或 `?doc_key=kb:就业政策.md`
-- `DELETE /rag/admin/documents?doc_key=`
+- `DELETE /rag/admin/documents?doc_key=`：同时删掉 `upload:` 文档留在 `data/uploads/` 的正文和 meta，避免按 uploads 重建时又入库
 - `GET /rag/search?q=`：调试检索
 
 `GET /rag` 与 `GET /rag/status` 只返回规模，不要求令牌。
@@ -64,7 +64,7 @@ MySQL `rag_document` 一行对应一个切片。`content_hash` 是标题、章�
 | --- | --- | --- |
 | `student` | 学生就业助手 | `search_jobs`、`get_my_recommendations`（先读 `spark_recommend`，没有则实时推荐）、`predict_salary`、`analyze_resume_gap` |
 | `company` | 企业招聘助手 | `generate_job_description`、`polish_job_description`、`screen_applicants`、`list_my_jobs` |
-| `admin` | 管理员数据助手 | `salary_stats`、`tech_trend`、`region_distribution`、`recommend_eval`、`platform_overview` |
+| `admin` | 管理员数据助手 | `salary_stats`、`tech_trend`、`region_distribution`、`city_distribution`、`recommend_eval`、`platform_overview` |
 
 工具里的 `user_id` / `role` 只来自请求头，并与 `sys_user` 核对。学生不能筛选候选人，也不能看全平台统计；企业只能筛选 `ent_company.user_id` 等于自己的职位。管理员统计是只读参数化 SQL，模型不能提交 SQL。`spark_*` 查询一律 `is_latest=1 AND deleted=0`。
 
@@ -73,6 +73,8 @@ MySQL `rag_document` 一行对应一个切片。`content_hash` 是标题、章�
 `LLM_TOOL_CALLING=auto` 且基址在本机，或模型名里参数量不超过 8B 时，使用关键词和槽位（城市、方向、学历、年限、职位编号、技能）做确定性路由，避免 3B 模型漏调工具。槽位词典来自 `app/spark/dicts.py` 和库里的技术方向、技能标签。`LLM_TOOL_CALLING=true` 时先用 LangChain `bind_tools`，没有合法工具调用再退回同一套路由。工具结果压成短文本后，由模型流式写最终回答。模型不可用时走【离线模式】：工具结果渲染成列表，知识库用 `OfflineGenerator` 做摘录。
 
 政策类问题排除职位切片；找岗位时检索职位切片，并以 SQL 工具结果为准。
+
+管理员问「哪个城市岗位最多」「城市分布」时调用 `city_distribution(top_n)`：对已审核、已上架、未删除的 `job_position` 按 `city, province` 计数。问省份、地区分布或热力图仍用 `region_distribution`（`spark_region_dist`）。两者都对不上，也不像薪资、趋势、评估或平台概况时，改为调用 `platform_overview`，并在就业政策、指南、面经、招聘须知、求职指导和手续 FAQ 上做检索，不再只要求用户换一种问法。
 
 ## 4. 流式协议
 
@@ -92,7 +94,7 @@ MySQL `rag_document` 一行对应一个切片。`content_hash` 是标题、章�
 | `error` | `msg` |
 | `done` | `answer`、`sources`、`tools`、`latency_ms`、`first_token_ms` |
 
-结束后发送 `data: [DONE]`。等待超过约 8 秒会发注释行 `: ping`。同步接口 `POST /agent/chat` 返回与 `done` 相同的 JSON，供测试使用。`GET /agent/stream-demo` 仍是原来的演示流，不查库、不校验令牌。会话落库由后续 Spring Boot 步骤负责，本服务只回传 `session_id`。
+结束后发送 `data: [DONE]`。等待超过约 8 秒会发注释行 `: ping`。同步接口 `POST /agent/chat` 返回与 `done` 相同的 JSON，供测试使用。`GET /agent/stream-demo` 仍是原来的演示流，不查库、不校验令牌。会话和消息由 Spring Boot 写入 `ai_session` / `ai_message`，本服务只回传 `session_id`。
 
 ## 5. 内部令牌
 

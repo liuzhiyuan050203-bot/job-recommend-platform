@@ -21,7 +21,8 @@ const baseMenus = [
   { title: '企业资料与资质', path: '/company/profile', icon: 'OfficeBuilding' },
   { title: '职位管理', path: '/company/jobs', icon: 'Briefcase' },
   { title: '候选人管理', path: '/company/candidates', icon: 'User' },
-  { title: '面试安排', path: '/company/interviews', icon: 'Calendar' }
+  { title: '面试安排', path: '/company/interviews', icon: 'Calendar' },
+  { title: '招聘助手', path: '/company/assistant', icon: 'ChatLineRound' }
 ]
 
 const auditPassed = computed(() => Number(userStore.companyAuditStatus) === 1)

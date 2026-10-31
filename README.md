@@ -19,7 +19,7 @@
 | 模块二 招聘流程 | 已实现 | 职位发布与审核上架、多条件检索、收藏、简历、投递状态机、面试通知 |
 | Spark 分析 | 已实现 | 离线清洗、薪资统计、技术趋势、地区分布与薪资回归 |
 | 推荐 | 已实现 | 用户余弦协同过滤与技能内容匹配融合，结果回写 `spark_recommend`，离线指标写入 `spark_recommend_eval` |
-| RAG 智能问答 | 后续 | 政策与面经切片、Chroma 检索、多角色智能体 SSE |
+| RAG 智能问答 | 已实现 | 政策与面经切片、Chroma 检索、三类助手 SSE、会话与知识库管理 |
 
 ## 技术栈
 
@@ -188,6 +188,34 @@ cd ai-service
 留出集每名学生只有少量收藏/投递，因此 Recall 偏高、Precision 偏低；演示行为按方向和城市聚集，指标比真实场景乐观。
 
 `tests/api/05-recommend.sh` 覆盖：未登录 401、企业/管理员访问学生推荐 403、学生访问推荐评估 403、附带 `userId` 参数仍只返回自己的推荐、推荐职位均在架且已审核、不含已投递职位、企业下架后立即从推荐和相似职位中消失、新注册学生（无行为）冷启动有推荐且有理由、投递后从推荐中移除、相似职位不含自身、评估中融合 NDCG@10 高于热门与内容匹配。
+
+## 智能问答
+
+页面：学生「就业助手」`/student/assistant`，企业「招聘助手」`/company/assistant`，管理员「数据助手」`/admin/assistant`，知识库管理 `/admin/knowledge`。对话走 SSE：前端 `fetch` 带 `Authorization: Bearer`，后端按行转发 ai-service 的事件，并在最前面补一条 `data: {"type":"session","session_id":...,"title":"..."}`。
+
+已有库增加助手消息的 `extra` 列（JSON 文本，含 `sources`、`tools`、`latency_ms`、`first_token_ms`）：
+
+```bash
+mariadb -h127.0.0.1 -ujob -pjob123 job_platform < db/migrations/phase5_ai_session.sql
+```
+
+| 接口 | 说明 |
+| :--- | :--- |
+| `POST /api/{student\|company\|admin}/ai/chat/stream` | 体 `{question, sessionId?}`。`question` 1–2000 字。无 `sessionId` 时创建会话，标题取问题前 20 字。会话必须属于当前用户且角色一致，否则 404。响应 `text/event-stream`，超时约 300 秒 |
+| `GET /api/{role}/ai/sessions` | 当前用户、当前角色的会话，按更新时间倒序，默认 50 条 |
+| `GET /api/{role}/ai/sessions/{id}/messages` | 该会话消息；不是自己的返回 404 |
+| `DELETE /api/{role}/ai/sessions/{id}` | 逻辑删除自己的会话 |
+| `PUT /api/{role}/ai/sessions/{id}` | 重命名，体 `{"title":"..."}` |
+| `GET /api/admin/ai/knowledge/documents` | 文档分页，可按 `docType`、`sourceType`、`q` 过滤 |
+| `GET /api/admin/ai/knowledge/stats` | 文档数、切片数、向量条数 |
+| `POST /api/admin/ai/knowledge/upload` | multipart：`file`（.md/.txt，≤512KB）、`title`、`docType` |
+| `POST /api/admin/ai/knowledge/reindex` | `docKey` 或 `source=knowledge\|cms\|jobs\|uploads\|all`。职位重建大约几十秒 |
+| `DELETE /api/admin/ai/knowledge/documents?docKey=` | 删除一个逻辑文档 |
+| `GET /api/admin/ai/knowledge/search?q=` | 调试检索 |
+
+未登录 401，角色不符 403。AI 服务不可达时，流式接口仍保存用户消息，并返回 `{"type":"error","msg":"AI 服务暂不可用"}`；知识库接口返回明确错误，不回传堆栈。用户编号只从 JWT 读取，内部令牌不出现在日志和响应里。
+
+ai-service 侧：没有资料切片时提示词禁止 `[1]`、`[2]`，流式输出会丢掉编号大于资料条数的标记，`done.answer` 与已经推送的文字一致。管理员问城市岗位数量走 `city_distribution`（在架职位按城市计数），问省份仍走 `region_distribution`。对不上统计意图时，用平台概况加知识库资料回答。
 
 ## 运行测试
 

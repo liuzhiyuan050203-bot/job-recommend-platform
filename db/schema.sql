@@ -753,6 +753,7 @@ CREATE TABLE ai_message (
   session_id  BIGINT       NOT NULL COMMENT '会话编号，关联 ai_session.id',
   msg_role    VARCHAR(16)  NOT NULL COMMENT '消息角色：user用户 assistant助手 system系统',
   content     MEDIUMTEXT   NOT NULL COMMENT '消息正文，助手消息为 SSE 结束后的完整文本',
+  extra       TEXT         NULL COMMENT '助手附带信息，JSON 文本，含 sources、tools、latency_ms、first_token_ms',
   token_count INT          NULL COMMENT '估算 token 数，可空',
   create_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   update_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

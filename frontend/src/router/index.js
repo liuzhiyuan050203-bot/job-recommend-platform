@@ -75,6 +75,12 @@ const routes = [
         meta: { title: '为你推荐' }
       },
       {
+        path: 'assistant',
+        name: 'StudentAssistant',
+        component: () => import('@/views/student/AiAssistant.vue'),
+        meta: { title: '就业助手' }
+      },
+      {
         path: 'jobs/:id',
         name: 'StudentJobDetail',
         component: () => import('@/views/student/JobDetail.vue'),
@@ -147,6 +153,12 @@ const routes = [
         name: 'CompanyInterviews',
         component: () => import('@/views/company/Interviews.vue'),
         meta: { title: '面试安排' }
+      },
+      {
+        path: 'assistant',
+        name: 'CompanyAssistant',
+        component: () => import('@/views/company/AiAssistant.vue'),
+        meta: { title: '招聘助手' }
       }
     ]
   },
@@ -221,6 +233,18 @@ const routes = [
         name: 'AdminRecommend',
         component: () => import('@/views/admin/Recommend.vue'),
         meta: { title: '推荐评估' }
+      },
+      {
+        path: 'assistant',
+        name: 'AdminAssistant',
+        component: () => import('@/views/admin/AiAssistant.vue'),
+        meta: { title: '数据助手' }
+      },
+      {
+        path: 'knowledge',
+        name: 'AdminKnowledge',
+        component: () => import('@/views/admin/Knowledge.vue'),
+        meta: { title: '知识库管理' }
       }
     ]
   },

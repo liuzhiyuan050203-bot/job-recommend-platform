@@ -315,6 +315,25 @@ def ingest_all(rebuild: bool = True) -> dict:
     return report
 
 
+def remove_upload_files(doc_key: str) -> None:
+    """删除管理员上传留下的正文和旁路 meta，避免按 uploads 重建时又入库。"""
+    prefix = "upload:"
+    if not doc_key.startswith(prefix):
+        return
+    name = Path(doc_key[len(prefix) :]).name
+    if not name or name in {".", ".."}:
+        return
+    root = UPLOAD_DIR.resolve()
+    path = (UPLOAD_DIR / name).resolve()
+    if path.parent != root:
+        return
+    if path.is_file():
+        path.unlink()
+    meta = path.with_suffix(path.suffix + ".meta.json")
+    if meta.is_file() and meta.resolve().parent == root:
+        meta.unlink()
+
+
 def save_upload(filename: str, raw: bytes, title: str, doc_type: int) -> LogicalDoc:
     """保存管理员上传的 md/txt 并返回待索引文档。文件名只保留安全字符。"""
     if doc_type not in range(1, 8):

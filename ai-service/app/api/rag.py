@@ -9,7 +9,7 @@ import asyncio
 from fastapi import APIRouter, File, Form, Query, UploadFile
 
 from app.core.response import AppException, success
-from app.rag.ingest import ingest_all, ingest_source, reindex_doc_key, save_upload
+from app.rag.ingest import ingest_all, ingest_source, reindex_doc_key, remove_upload_files, save_upload
 from app.rag.store import delete_doc, list_documents, stats, sync_documents
 from app.services.rag_service import rag_service
 
@@ -105,5 +105,7 @@ async def admin_reindex(
 
 @router.delete("/admin/documents", summary="删除一个逻辑文档")
 async def admin_delete(doc_key: str = Query(..., min_length=1)):
-    removed = await asyncio.to_thread(delete_doc, doc_key.strip())
-    return success(data={"docKey": doc_key.strip(), "deletedChunks": removed}, msg="已删除")
+    key = doc_key.strip()
+    removed = await asyncio.to_thread(delete_doc, key)
+    await asyncio.to_thread(remove_upload_files, key)
+    return success(data={"docKey": key, "deletedChunks": removed}, msg="已删除")

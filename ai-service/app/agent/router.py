@@ -323,7 +323,7 @@ def _route_company(text: str, slots: dict, result: Route) -> Route:
 
 
 def _route_admin(text: str, slots: dict, result: Route) -> Route:
-    if re.search(r"推荐评估|NDCG|Precision|准确率|召回率", text, re.I):
+    if re.search(r"推荐评估|推荐算法|评估指标|NDCG|Precision|Recall|准确率|召回率", text, re.I):
         result.tools.append(ToolRequest("recommend_eval", {}))
         result.doc_types = []
         result.instruction = "只转述评估表中的指标，不要改写数值。"
@@ -333,10 +333,15 @@ def _route_admin(text: str, slots: dict, result: Route) -> Route:
         result.doc_types = []
         result.instruction = "只采用工具结果第一行结论里的技术名称和环比，不要改成列表中的其他技术。"
         return result
-    if re.search(r"地区分布|城市分布|省份|热力图|哪个省|哪个城市|哪些城市|城市.{0,6}(岗位|职位)(最多|数量)|(岗位|职位)最多", text):
+    if _is_city_question(text):
+        result.tools.append(ToolRequest("city_distribution", {"top_n": 8}))
+        result.doc_types = []
+        result.instruction = "只根据工具结论说明岗位最多的城市和各城市职位数，不要改成省份，不要编造没有出现的城市。"
+        return result
+    if re.search(r"地区分布|省份|热力图|哪个省|哪些省|各省|(岗位|职位)最多", text):
         result.tools.append(ToolRequest("region_distribution", {"top_n": 8}))
         result.doc_types = []
-        result.instruction = "按工具中的职位数说明地区分布。"
+        result.instruction = "按工具中的省份职位数说明地区分布，不要改成城市口径。"
         return result
     if re.search(r"平台概况|有多少|多少用户|多少职位|概览|总体情况", text):
         result.tools.append(ToolRequest("platform_overview", {}))
@@ -350,9 +355,24 @@ def _route_admin(text: str, slots: dict, result: Route) -> Route:
         result.doc_types = []
         result.instruction = "按平均月薪从高到低说明，并带上样本量。不要推算工具里没有的城市。"
         return result
-    result.doc_types = []
-    result.instruction = "当前问题不像统计查询。请说明要看薪资、技术趋势、地区分布、推荐评估或平台概况中的哪一项。"
+    result.tools.append(ToolRequest("platform_overview", {}))
+    result.doc_types = [1, 2, 3, 4, 5, 6]
+    result.instruction = "结合平台概况中的数字和资料回答。没有直接依据时说明知识库没有相关内容，不要编造统计数字。"
     return result
+
+
+def _is_city_question(text: str) -> bool:
+    """城市岗位数量问题走 city_distribution。薪资问题留给后面的薪资统计。"""
+    if re.search(r"薪资|工资|月薪|薪酬", text):
+        return False
+    return bool(
+        re.search(
+            r"城市分布|各城市|哪些城市|哪个城市|"
+            r"城市.{0,12}(岗位|职位).{0,8}(最多|数量|分布|排行)|"
+            r"(岗位|职位).{0,10}最多.{0,6}城市",
+            text,
+        )
+    )
 
 
 def allowed_tool_names(role: str) -> set[str]:
@@ -361,5 +381,12 @@ def allowed_tool_names(role: str) -> set[str]:
     if role == "company":
         return {"generate_job_description", "polish_job_description", "screen_applicants", "list_my_jobs"}
     if role == "admin":
-        return {"salary_stats", "tech_trend", "region_distribution", "recommend_eval", "platform_overview"}
+        return {
+            "salary_stats",
+            "tech_trend",
+            "region_distribution",
+            "city_distribution",
+            "recommend_eval",
+            "platform_overview",
+        }
     return set()

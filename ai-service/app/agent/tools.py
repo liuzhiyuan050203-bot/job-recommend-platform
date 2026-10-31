@@ -744,6 +744,40 @@ def tech_trend(caller: Caller, skill: str = "", top_n: int = 5) -> dict[str, Any
     return {"ok": True, "items": items}
 
 
+def city_distribution(caller: Caller, top_n: int = 8) -> dict[str, Any]:
+    """在架且审核通过的职位按城市计数。口径是 job_position，不是省份汇总表。"""
+    if caller.role != "admin":
+        return deny("城市分布仅管理员数据助手可用。")
+    top_n = max(1, min(int(top_n or 8), 20))
+    conn = connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT city, province, COUNT(*) AS job_count
+                FROM job_position
+                WHERE deleted = 0 AND shelf_status = 1 AND audit_status = 1
+                  AND city IS NOT NULL AND city <> ''
+                GROUP BY city, province
+                ORDER BY job_count DESC, city
+                LIMIT %s
+                """,
+                (top_n,),
+            )
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+    items = [
+        {
+            "city": row["city"],
+            "province": row["province"],
+            "jobCount": int(row["job_count"] or 0),
+        }
+        for row in rows
+    ]
+    return {"ok": True, "items": items}
+
+
 def region_distribution(caller: Caller, top_n: int = 8) -> dict[str, Any]:
     if caller.role != "admin":
         return deny("地区分布仅管理员数据助手可用。")
@@ -850,6 +884,7 @@ _FUNCS = {
     "salary_stats": salary_stats,
     "tech_trend": tech_trend,
     "region_distribution": region_distribution,
+    "city_distribution": city_distribution,
     "recommend_eval": recommend_eval,
     "platform_overview": platform_overview,
 }
@@ -866,6 +901,7 @@ _ARG_KEYS = {
     "salary_stats": {"city", "direction"},
     "tech_trend": {"skill", "top_n"},
     "region_distribution": {"top_n"},
+    "city_distribution": {"top_n"},
     "recommend_eval": set(),
     "platform_overview": set(),
 }
@@ -982,6 +1018,17 @@ def render(name: str, result: dict[str, Any]) -> tuple[str, str]:
         for item in result["items"]:
             lines.append(f"- {item['province']}｜职位 {item['jobCount']}｜企业 {item['companyCount']}｜均薪 {item['avgSalary']}")
         return "\n".join(lines), f"返回 {len(result['items'])} 个省份"
+    if name == "city_distribution":
+        lines = []
+        if result["items"]:
+            top = result["items"][0]
+            lines.append(f"结论：岗位最多的城市是{top['city']}，职位 {top['jobCount']}。")
+        lines.append("城市分布：")
+        for item in result["items"]:
+            province = f"（{item['province']}）" if item.get("province") else ""
+            lines.append(f"- {item['city']}{province}｜职位 {item['jobCount']}")
+        summary = f"最多 {result['items'][0]['city']}" if result["items"] else "无城市数据"
+        return "\n".join(lines), summary
     if name == "recommend_eval":
         lines = ["推荐离线评估："]
         for item in result["items"]:
