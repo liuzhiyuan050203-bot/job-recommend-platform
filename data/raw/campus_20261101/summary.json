@@ -1,0 +1,303 @@
+{
+  "started_at": "2026-11-01T02:28:54+08:00",
+  "finished_at": "2026-11-01T02:31:55+08:00",
+  "out_dir": "/workspace/bishe/data/raw/campus_20261101",
+  "scope": "campus",
+  "keyword": "",
+  "page_size": 50,
+  "max_total": 2200,
+  "total_jobs": 1758,
+  "companies_ok": 17,
+  "companies_failed": [
+    {
+      "company_key": "meituan",
+      "company_label": "美团",
+      "cap": 100,
+      "ok": false,
+      "total_reported": null,
+      "fetched": 0,
+      "pages": 0,
+      "error": "network error: fetch failed",
+      "skipped": false,
+      "source": ""
+    }
+  ],
+  "by_company": {
+    "bytedance": 280,
+    "tencent": 180,
+    "alibaba": 180,
+    "xiaomi": 180,
+    "netease": 150,
+    "xiaohongshu": 150,
+    "kuaishou": 150,
+    "didi": 15,
+    "antgroup": 49,
+    "bilibili": 100,
+    "jd": 120,
+    "baidu": 20,
+    "pdd": 34,
+    "oppo": 80,
+    "trip": 10,
+    "mihoyo": 60
+  },
+  "company_metas": [
+    {
+      "company_key": "bytedance",
+      "company_label": "字节跳动",
+      "cap": 280,
+      "ok": true,
+      "total_reported": 2297,
+      "fetched": 280,
+      "pages": 6,
+      "error": null,
+      "skipped": false,
+      "source": "jobs.bytedance.com"
+    },
+    {
+      "company_key": "tencent",
+      "company_label": "腾讯",
+      "cap": 180,
+      "ok": true,
+      "total_reported": 395,
+      "fetched": 180,
+      "pages": 4,
+      "error": null,
+      "skipped": false,
+      "source": "join.qq.com"
+    },
+    {
+      "company_key": "alibaba",
+      "company_label": "阿里巴巴",
+      "cap": 180,
+      "ok": true,
+      "total_reported": 446,
+      "fetched": 180,
+      "pages": 4,
+      "error": null,
+      "skipped": false,
+      "source": "campus-talent.alibaba.com"
+    },
+    {
+      "company_key": "xiaomi",
+      "company_label": "小米",
+      "cap": 180,
+      "ok": true,
+      "total_reported": 801,
+      "fetched": 180,
+      "pages": 4,
+      "error": null,
+      "skipped": false,
+      "source": "xiaomi.jobs.f.mioffice.cn"
+    },
+    {
+      "company_key": "netease",
+      "company_label": "网易",
+      "cap": 150,
+      "ok": true,
+      "total_reported": 614,
+      "fetched": 150,
+      "pages": 3,
+      "error": null,
+      "skipped": false,
+      "source": "hr.163.com"
+    },
+    {
+      "company_key": "xiaohongshu",
+      "company_label": "小红书",
+      "cap": 150,
+      "ok": true,
+      "total_reported": 534,
+      "fetched": 150,
+      "pages": 4,
+      "error": null,
+      "skipped": false,
+      "source": "job.xiaohongshu.com"
+    },
+    {
+      "company_key": "kuaishou",
+      "company_label": "快手",
+      "cap": 150,
+      "ok": true,
+      "total_reported": 466,
+      "fetched": 150,
+      "pages": 3,
+      "error": null,
+      "skipped": false,
+      "source": "campus.kuaishou.cn"
+    },
+    {
+      "company_key": "didi",
+      "company_label": "滴滴",
+      "cap": 180,
+      "ok": true,
+      "total_reported": 1118,
+      "fetched": 15,
+      "pages": 1,
+      "error": null,
+      "skipped": false,
+      "source": "talent.didiglobal.com"
+    },
+    {
+      "company_key": "antgroup",
+      "company_label": "蚂蚁集团",
+      "cap": 140,
+      "ok": true,
+      "total_reported": 464,
+      "fetched": 49,
+      "pages": 1,
+      "error": null,
+      "skipped": false,
+      "source": "hrcareersweb.antgroup.com"
+    },
+    {
+      "company_key": "bilibili",
+      "company_label": "哔哩哔哩",
+      "cap": 120,
+      "ok": true,
+      "total_reported": 390,
+      "fetched": 100,
+      "pages": 2,
+      "error": "network error fetching CSRF: fetch failed",
+      "skipped": false,
+      "source": "jobs.bilibili.com"
+    },
+    {
+      "company_key": "jd",
+      "company_label": "京东",
+      "cap": 120,
+      "ok": true,
+      "total_reported": 254,
+      "fetched": 120,
+      "pages": 2,
+      "error": null,
+      "skipped": false,
+      "source": "campus.jd.com"
+    },
+    {
+      "company_key": "baidu",
+      "company_label": "百度",
+      "cap": 100,
+      "ok": true,
+      "total_reported": 159,
+      "fetched": 20,
+      "pages": 1,
+      "error": null,
+      "skipped": false,
+      "source": "talent.baidu.com"
+    },
+    {
+      "company_key": "pdd",
+      "company_label": "拼多多",
+      "cap": 50,
+      "ok": true,
+      "total_reported": 34,
+      "fetched": 34,
+      "pages": 1,
+      "error": null,
+      "skipped": false,
+      "source": "careers.pinduoduo.com"
+    },
+    {
+      "company_key": "oppo",
+      "company_label": "OPPO",
+      "cap": 80,
+      "ok": true,
+      "total_reported": 147,
+      "fetched": 80,
+      "pages": 2,
+      "error": null,
+      "skipped": false,
+      "source": "careers.oppo.com"
+    },
+    {
+      "company_key": "trip",
+      "company_label": "携程",
+      "cap": 80,
+      "ok": true,
+      "total_reported": 10,
+      "fetched": 10,
+      "pages": 1,
+      "error": null,
+      "skipped": false,
+      "source": "careers.ctrip.com"
+    },
+    {
+      "company_key": "meituan",
+      "company_label": "美团",
+      "cap": 100,
+      "ok": false,
+      "total_reported": null,
+      "fetched": 0,
+      "pages": 0,
+      "error": "network error: fetch failed",
+      "skipped": false,
+      "source": ""
+    },
+    {
+      "company_key": "huawei",
+      "company_label": "华为",
+      "cap": 80,
+      "ok": true,
+      "total_reported": 0,
+      "fetched": 0,
+      "pages": 0,
+      "error": null,
+      "skipped": false,
+      "source": "career.huawei.com"
+    },
+    {
+      "company_key": "mihoyo",
+      "company_label": "米哈游",
+      "cap": 60,
+      "ok": true,
+      "total_reported": 250,
+      "fetched": 60,
+      "pages": 2,
+      "error": null,
+      "skipped": false,
+      "source": "jobs.mihoyo.com"
+    }
+  ],
+  "sample": [
+    {
+      "company": "字节跳动",
+      "title": "算法工程师 - 今日头条",
+      "apply_url": "https://jobs.bytedance.com/campus/position/7667783602995005749/detail"
+    },
+    {
+      "company": "字节跳动",
+      "title": "广告场景下的生成式搜广推大模型技术研究-国际化电商广告（北京/上海/杭州）",
+      "apply_url": "https://jobs.bytedance.com/campus/position/7628834498291665157/detail"
+    },
+    {
+      "company": "字节跳动",
+      "title": "基于多模态大模型与用户行为理解的下一代分发与交互技术-抖音（北京/上海/杭州/深圳）",
+      "apply_url": "https://jobs.bytedance.com/campus/position/7628626095277099269/detail"
+    },
+    {
+      "company": "字节跳动",
+      "title": "大模型驱动的内容生产与分发：IP跨体裁生成与LLM推荐-今日头条（北京/上海/杭州）",
+      "apply_url": "https://jobs.bytedance.com/campus/position/7628624331531995397/detail"
+    },
+    {
+      "company": "字节跳动",
+      "title": "大数据引擎SRE工程师 - 数据平台",
+      "apply_url": "https://jobs.bytedance.com/campus/position/7667465226085796149/detail"
+    },
+    {
+      "company": "字节跳动",
+      "title": "智能创作全栈开发工程师（编辑模版方向） - TikTok研发",
+      "apply_url": "https://jobs.bytedance.com/campus/position/7665626552301848885/detail"
+    },
+    {
+      "company": "字节跳动",
+      "title": "激励策略产品经理（抖音AI产品人才校招） - 抖音增长",
+      "apply_url": "https://jobs.bytedance.com/campus/position/7694611250031380789/detail"
+    },
+    {
+      "company": "字节跳动",
+      "title": "联网大模型数据运营 - AI数据与安全",
+      "apply_url": "https://jobs.bytedance.com/campus/position/7683465284410116405/detail"
+    }
+  ]
+}

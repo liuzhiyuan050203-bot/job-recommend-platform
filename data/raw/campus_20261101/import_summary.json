@@ -1,0 +1,29 @@
+{
+  "imported_jobs": 1758,
+  "companies": 16,
+  "by_company": {
+    "bytedance": 280,
+    "tencent": 180,
+    "alibaba": 180,
+    "xiaomi": 180,
+    "netease": 150,
+    "xiaohongshu": 150,
+    "kuaishou": 150,
+    "didi": 15,
+    "antgroup": 49,
+    "bilibili": 100,
+    "jd": 120,
+    "baidu": 20,
+    "pdd": 34,
+    "oppo": 80,
+    "trip": 10,
+    "mihoyo": 60
+  },
+  "behaviors": {
+    "events": 1595,
+    "favorites": 343,
+    "applications": 86
+  },
+  "csv_rows": 1716,
+  "password_hint": "real_* / Real@123"
+}
