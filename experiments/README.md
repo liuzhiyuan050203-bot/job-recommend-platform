@@ -104,7 +104,40 @@ export PATH=$HOME/.local/bin:$PATH
 
 ---
 
-## 3. Spark 扩展性（进行中）
+## 3. Spark 扩展性（Pandas 对照，不改生产）
+
+脚本：`experiments/scale/{run_scale_bench,bench_worker}.py`；数据：`data/generate_demo_data.py --scale N` → `experiments/data/scale/`（已 gitignore）。  
+**约束**：生产清洗 / 聚合 / 薪资 RF / ALS / 推荐离线任务仍全部走 `ai-service/app/spark/`（PySpark）。本节只对比单机 Pandas 与 `local[1/2/4/8]`，回答「何时 Spark 相对 Pandas 开始划算」，**不**把生产切到 Pandas。
+
+协议：任务计时**不含** SparkSession 启动（另记 startup≈4.5–5.0s）；父进程每 0.1s 采样进程树 RSS（Python+JVM）；规模 1e4/1e5 各 2 次取中位，5e5/1e6 各 1 次；行为行数 = 10×职位数；ALS = 隐式反馈 rank=16、10 iter（Pandas 侧 `implicit`）。环境：8 vCPU / 16GB，PySpark 4.2.1。
+
+### 3.1 关键结论（诚实）
+
+| 任务 | 小规模（≤1e5） | 交叉点 / 1e6 观察 |
+|------|----------------|-------------------|
+| 清洗（逐行 classify） | Pandas 更快（1e4: 0.62s vs Spark4 4.24s） | **≈5e5–1e6**：Spark `local[4/8]` 反超（1e6: **9.9s** vs Pandas **14.1s**） |
+| 多维分位数聚合 | Pandas 全程更快 | 1e6 仍 Pandas 3.3s < Spark8 7.3s；Spark 峰值内存可更低（Spark8 1.4GB vs Pandas 1.8GB） |
+| 隐式 ALS | Pandas/`implicit` 更快 | Spark 随核数近线性加速（1e6: local[1] 63.3s → local[8] **17.6s** ≈ Pandas 18.7s） |
+
+单机演示规模下 Pandas 墙钟常占优；**清洗在 ≥100 万职位时 Spark 任务时间更短**，ALS 在多核下追上。生产仍用 Spark，是为统一批处理管线与后续集群扩展，不是因为本机 1e4 演示数据上 Spark 更快。
+
+### 3.2 代表数字（中位任务秒 / 峰值 RSS MB）
+
+| 规模 | 任务 | Pandas | Spark local[4] | Spark local[8] |
+|-----:|------|-------:|---------------:|---------------:|
+| 1e4 | clean | 0.62 / 173 | 4.24 / 1624 | 3.78 / 2182 |
+| 1e5 | clean | 1.87 / 280 | 5.13 / 1902 | 5.28 / 2589 |
+| 5e5 | clean | 7.24 / 713 | 7.06 / 2413 | 7.74 / 3331 |
+| **1e6** | **clean** | **14.14 / 1278** | **9.90 / 3771** | **9.85 / 3963** |
+| 1e6 | aggregate | 3.31 / 1771 | 7.62 / 2229 | 7.29 / 1403 |
+| 1e6 | ALS | 18.70 / 1246 | 23.30 / 2884 | **17.57 / 2927** |
+
+原始：`results/scale_bench.json`、`results/scale_bench_summary.csv`。
+
+![scale_time](figures/scale_time.png)
+![scale_memory](figures/scale_memory.png)
+
+---
 
 ## 4. RAG 混合检索与评测
 

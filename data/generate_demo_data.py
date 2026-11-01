@@ -9,6 +9,7 @@
   /workspace/bishe/.venv/bin/python data/generate_demo_data.py
   /workspace/bishe/.venv/bin/python data/generate_demo_data.py --seed 20261031
   /workspace/bishe/.venv/bin/python data/generate_demo_data.py --clean
+  /workspace/bishe/.venv/bin/python data/generate_demo_data.py --scale 1000000   # 只生成压测文件，不写库
 
 连接参数可用环境变量覆盖: MYSQL_HOST MYSQL_PORT MYSQL_USER MYSQL_PASSWORD MYSQL_DATABASE。
 统计时间锚点固定为 2026-10-31，不随运行当天变化。
@@ -292,6 +293,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="生成高校就业推荐平台演示数据")
     parser.add_argument("--clean", action="store_true", help="只删除演示数据，不重新插入")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help=f"随机种子，默认 {DEFAULT_SEED}")
+    parser.add_argument("--scale", type=int, default=0,
+                        help="压测模式：生成 N 条职位 CSV 与 10N 条行为 parquet 到 experiments/data/scale/，不连接数据库")
+    parser.add_argument("--events-per-job", type=int, default=10, help="压测模式下每个职位的平均行为条数")
     return parser.parse_args()
 
 
@@ -1598,6 +1602,12 @@ def fingerprint(payload: dict) -> str:
 def main() -> int:
     args = parse_args()
     started = time.perf_counter()
+    if args.scale > 0:
+        sys.path.insert(0, str(ROOT / "data"))
+        from scale_generator import generate_scaled
+
+        print(generate_scaled(args.scale, args.events_per_job, seed=args.seed))
+        return 0
     if args.clean:
         connection = connect()
         try:
