@@ -110,3 +110,31 @@ curl -s -X POST http://127.0.0.1:8000/recommend/run \
 - 仅使用企业官方校园招聘站点的**公开检索接口**，遵守工具默认限速。
 - 数据用于毕业设计演示与统计分析，投递请跳转官网完成；平台不代投、不发送邮件。
 - 薪资字段为估算值，论文与演示中均需注明「非官网公示薪资」。
+
+---
+
+## 公开真实薪资数据集（薪资回归用，与上方「校招职位」无关）
+
+校招入库职位的 `salary_min/max` 是按方向×城市档位**估算**的，**不能当作薪资回归的真值**（见上文「真实 vs 合成」）。论文第×章薪资预测实验改用下列两个 MIT 许可的公开招聘数据集，清洗脚本与复现命令见 `experiments/salary/prepare_real_salary.py`。
+
+| 数据集 | 仓库 / 提交 | 抓取时间（文件元数据） | 原始 → 清洗后 | 许可 | 说明 |
+|--------|-------------|------------------------|---------------|------|------|
+| BOSS 直聘 IT 职位 | [poboll/bosszhipin_spider](https://github.com/poboll/bosszhipin_spider) `@3d70ae3` | Excel 创建时间 **2023-05-08**（北京时间） | 15897 → 去重 9459 → **9269** | MIT（`data/real_salary/LICENSE.bosszhipin_spider.txt`） | 含职位名、城市、学历、经验、公司规模、技能标签、月薪；方向以 Java/后端/测试为主，覆盖约 18 城 |
+| 前程无忧 51job | [wangjksjtu/Data-Mining-51Job](https://github.com/wangjksjtu/Data-Mining-51Job) `@31e9a01` | 仓库提交 **2018-06-25**（UTC+8 次日凌晨） | 71641 → **40896**（仅 IT 职类） | MIT（`data/real_salary/LICENSE.Data-Mining-51Job.txt`） | 年薪已 ÷12 转月薪；有城市/学历/经验/公司规模/行业，**无自由文本职位名**（仅职类标签），薪资水平偏旧 |
+
+清洗口径（与平台特征对齐）：
+
+- 学历映射到 `{专科,本科,硕士,博士,不限}`；超出该刻度的行丢弃。
+- 城市映射到平台 `CITY_PROVINCE`；无法映射的丢弃。
+- 方向用关键词规则归入平台 12 个叶子方向，否则「其他」。
+- 月薪保留区间 `[1000, 100000]`；BOSS 日薪/时薪等非月薪丢弃。
+- 输出列见 `data/real_salary/{boss_2023,job51_2018}.csv`；`manifest.json` 含 sha256 与丢弃统计。
+
+**时间差与池化模型**：51job 为 2018、BOSS 为 2023，绝对薪资水平不可直接混训。实验中的生产候选模型 `pooled_real` 在特征中加入 `data_year`（2018/2023），预测时固定为 2023，相当于用年份协变量吸收水平漂移；报告中仍分别给出两数据集上的指标。校园估算薪资集 `campus_estimated` 仅作「虚高 R²」对照，**不参与生产模型选型**。
+
+复现：
+
+```bash
+.venv/bin/python experiments/salary/prepare_real_salary.py
+.venv/bin/python experiments/salary/run_salary_experiment.py --folds 5
+```

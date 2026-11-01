@@ -1,0 +1,71 @@
+{
+  "env": {
+    "python": "3.13.5",
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.41",
+    "cpu_count": 8,
+    "time": "2026-11-01 10:28:28 +0800",
+    "pyspark": "4.2.1",
+    "MemTotal": "16386368 kB",
+    "MemAvailable": "7771444 kB"
+  },
+  "protocol": {
+    "holdout": "80/20 randomSplit seed=42",
+    "cv_folds": 5,
+    "lambda_grid": [
+      0.01,
+      0.1,
+      1.0,
+      10.0,
+      100.0,
+      1000.0
+    ],
+    "target": "月薪中位数 (salary_min+salary_max)/2，单位元"
+  },
+  "datasets": {
+    "synthetic": {
+      "label": "(a) 合成基准集 demo_（生成器公式）",
+      "ground_truth": "合成",
+      "rows": 3200,
+      "train": 2568,
+      "test": 632,
+      "salary_mean": 16405.3125,
+      "salary_std": 9740.97653458297
+    },
+    "campus_estimated": {
+      "label": "(a') 真实校招·估算薪资（非真值）",
+      "ground_truth": "估算，不可作真值",
+      "rows": 1758,
+      "train": 1408,
+      "test": 350,
+      "salary_mean": 20679.465301478955,
+      "salary_std": 3675.890059236595
+    },
+    "boss_2023": {
+      "label": "(b1) BOSS直聘 2023 真实薪资",
+      "ground_truth": "真实",
+      "rows": 9269,
+      "train": 7447,
+      "test": 1822,
+      "salary_mean": 13675.045851763944,
+      "salary_std": 8243.74599868274
+    },
+    "job51_2018": {
+      "label": "(b2) 前程无忧 2018 真实薪资",
+      "ground_truth": "真实",
+      "rows": 40896,
+      "train": 32857,
+      "test": 8039,
+      "salary_mean": 12534.919663536777,
+      "salary_std": 6922.510661525858
+    },
+    "pooled_real": {
+      "label": "(b3) 合并真实集（含年份特征，生产模型口径）",
+      "ground_truth": "真实",
+      "rows": 50165,
+      "train": 40298,
+      "test": 9867,
+      "salary_mean": 12745.581073656933,
+      "salary_std": 7198.481889106533
+    }
+  }
+}

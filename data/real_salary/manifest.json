@@ -1,0 +1,106 @@
+{
+  "sources": {
+    "boss_java": {
+      "repo": "poboll/bosszhipin_spider",
+      "commit": "3d70ae397a61b288c416ec7995d8e6f6216f6d31",
+      "path": "merged_java.xlsx",
+      "sha256": "cc4c9c6960587f233cc3b63653ee09f421ba525360a214a1969ee24d815fbcf7"
+    },
+    "boss_backend": {
+      "repo": "poboll/bosszhipin_spider",
+      "commit": "3d70ae397a61b288c416ec7995d8e6f6216f6d31",
+      "path": "merged_后端开发.xlsx",
+      "sha256": "3cfe7728448b4bc6b3c18152e8412d8d00ae8df1a8413e8f567baf0989b2b53e"
+    },
+    "boss_test": {
+      "repo": "poboll/bosszhipin_spider",
+      "commit": "3d70ae397a61b288c416ec7995d8e6f6216f6d31",
+      "path": "merged_测试工程师.xlsx",
+      "sha256": "369b64a7267d8a575c9cbf50e9a7aedffacb9ef375653b055611ab98712ecebc"
+    },
+    "boss_license": {
+      "repo": "poboll/bosszhipin_spider",
+      "commit": "3d70ae397a61b288c416ec7995d8e6f6216f6d31",
+      "path": "LICENSE",
+      "sha256": "39cf3708fc05d2062fc99bf8e19847c4a38afba2efc20a53f0b67437a35d28f1"
+    },
+    "job51_middle": {
+      "repo": "wangjksjtu/Data-Mining-51Job",
+      "commit": "31e9a014ed6399f0d650fb177ef664a6d03b04fe",
+      "path": "data/middleData.csv",
+      "sha256": "8c804768a25fbf98988b9e6dbbfa3e3724436c38e84cc12b7782d6b378083c1c"
+    },
+    "job51_license": {
+      "repo": "wangjksjtu/Data-Mining-51Job",
+      "commit": "31e9a014ed6399f0d650fb177ef664a6d03b04fe",
+      "path": "LICENSE",
+      "sha256": "83e4dd21429a91fb7cea67a476032a9641425e5355df2e0f589a738b6ec9fd2c"
+    }
+  },
+  "stats": {
+    "boss_raw_rows": 15897,
+    "boss_after_dedup": 9459,
+    "boss_dropped": {
+      "非月薪(日薪/时薪等)": 148,
+      "实习(天/周或月)": 0,
+      "学历超出平台口径": 42,
+      "城市无省份映射": 0
+    },
+    "boss_clean_rows": 9269,
+    "job51_raw_rows": 71641,
+    "job51_dropped": {
+      "学历超出平台口径": 3727,
+      "城市非具体城市(其他/国外/省名)": 694,
+      "月薪越界(<1000或>100000)": 41,
+      "非IT职类": 26283
+    },
+    "job51_clean_rows": 40896
+  },
+  "boss_direction_counts": {
+    "后端开发": 4495,
+    "测试开发": 3011,
+    "前端开发": 643,
+    "数据开发": 430,
+    "云原生开发": 242,
+    "移动开发": 150,
+    "其他": 83,
+    "算法工程": 79,
+    "人工智能": 59,
+    "运维开发": 37,
+    "嵌入式开发": 33,
+    "UI设计": 7
+  },
+  "job51_direction_counts": {
+    "后端开发": 15266,
+    "运维开发": 7012,
+    "产品经理": 5008,
+    "UI设计": 3612,
+    "测试开发": 2386,
+    "嵌入式开发": 2274,
+    "前端开发": 1890,
+    "数据开发": 1552,
+    "算法工程": 915,
+    "移动开发": 859,
+    "人工智能": 122
+  },
+  "boss_avg_salary": {
+    "count": 9269.0,
+    "mean": 13675.0,
+    "std": 8243.7,
+    "min": 1500.0,
+    "25%": 8500.0,
+    "50%": 11500.0,
+    "75%": 16500.0,
+    "max": 205000.0
+  },
+  "job51_avg_salary": {
+    "count": 40896.0,
+    "mean": 12534.9,
+    "std": 6922.5,
+    "min": 1000.0,
+    "25%": 7500.0,
+    "50%": 11500.0,
+    "75%": 15000.0,
+    "max": 100000.0
+  }
+}

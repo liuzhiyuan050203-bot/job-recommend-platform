@@ -70,7 +70,39 @@ export PATH=$HOME/.local/bin:$PATH
 
 ---
 
-## 1. 薪资预测（进行中，见 salary_run.log）
+## 1. 薪资预测严谨性
+
+脚本：`experiments/salary/{prepare_real_salary,export_platform_jobs,run_salary_experiment}.py`  
+数据说明：`data/REAL_DATA.md`（公开 MIT 数据集）与 `data/real_salary/`。
+
+**核心结论**：演示/校招库里的月薪是按方向×城市公式**估算**的，不是官网真值。在估算标签上模型可做到 R²≈0.97–0.999，属于记忆生成公式，**不能**作为论文主结果。公开真实月薪上，最优测试 R² 约 **0.49–0.56**。
+
+### 1.1 协议
+
+- 80/20 holdout（seed=42）+ 训练集 5 折 CV；Ridge/Lasso 的 λ∈{0.01,…,1000} 按 CV 平均 R² 选取。
+- 模型：LinearRegression、Ridge、Lasso、RandomForest（100 树）、GBT（80 轮）；另报 MeanBaseline。
+- 特征：城市/方向 one-hot、city_tier、edu_years、exp_years；合成/校招另加 job_type；真实数据另加公司规模；可选 jieba→CountVectorizer+IDF 文本。
+
+### 1.2 各数据集最优测试结果（完整表见 `results/salary_metrics.csv`）
+
+| 数据集 | 行数 | 最优模型 / 特征 | 测试 R² | RMSE | MAE | CV R² |
+|--------|------|-----------------|---------|------|-----|-------|
+| synthetic（公式标签） | 3200 | GBT / base+jobtype | 0.973 | 1581 | 724 | 0.980±0.004 |
+| campus_estimated（**非真值**） | 1758 | GBT / base+jobtype+text | 0.999 | 86 | 14 | 0.985±0.013 |
+| BOSS 2023（MIT） | 9269 | GBT / base+company+text | **0.559** | 5394 | 3619 | 0.205±0.484* |
+| 51job 2018（MIT） | 40896 | GBT / base+company+text | **0.493** | 4868 | 3326 | 0.485±0.013 |
+| pooled_real + data_year | 50165 | RF / base+year | **0.372** | 5616 | 3923 | 0.354±0.019 |
+
+\*BOSS 上 GBT 的 CV 方差大，同特征 RF 测试 R²=0.551、CV 0.519±0.046 更稳，生产选用 RF。
+
+![r2](figures/salary_r2_best.png)
+![rf](figures/salary_rf_compare.png)
+
+### 1.3 生产模型
+
+`ai-service/app/spark/salary_model.py` 仍用 **PySpark MLlib RandomForest**，训练改为 `pooled_real`（BOSS+51job），特征含 `data_year`（预测时固定 2023）。网格预测与 `/public/stats/salary/predict` API 不变。指标文件注明 `trainSource=pooled_real` 与「平台职位薪资为估算」。
+
+---
 
 ## 3. Spark 扩展性（进行中）
 

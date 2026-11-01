@@ -106,6 +106,7 @@ def _from_model(city: str, tech_direction: str, education: int, experience_years
                 "exp_years": float(experience_years),
                 "city_tier": city_tier(city),
                 "job_type_num": job_type_for_experience(experience_years),
+                "data_year": float((metrics.get("predictYear") or 2023)),
                 "skills": chosen,
             }
         ],

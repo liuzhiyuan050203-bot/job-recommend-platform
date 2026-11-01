@@ -16,6 +16,7 @@ FEATURE_SCHEMA = StructType(
         StructField("exp_years", DoubleType(), False),
         StructField("city_tier", DoubleType(), False),
         StructField("job_type_num", DoubleType(), False),
+        StructField("data_year", DoubleType(), False),
         StructField("skill_arr", ArrayType(StringType()), False),
         StructField("feature_json", StringType(), False),
     ]
@@ -35,6 +36,7 @@ def build_feature_frame(spark, records: list[dict]):
             "experienceYears": float(item["exp_years"]),
             "cityTier": int(item["city_tier"]),
             "jobType": int(item.get("job_type_num") or 3),
+            "dataYear": float(item.get("data_year") or 2023.0),
             "skills": skills,
         }
         rows.append(
@@ -47,6 +49,7 @@ def build_feature_frame(spark, records: list[dict]):
                 float(item["exp_years"]),
                 float(item["city_tier"]),
                 float(item["job_type_num"]),
+                float(item.get("data_year") or 2023.0),
                 skills,
                 item.get("feature_json") or json.dumps(payload, ensure_ascii=False),
             )
