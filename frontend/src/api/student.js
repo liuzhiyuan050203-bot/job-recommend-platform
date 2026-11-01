@@ -115,6 +115,26 @@ export function deleteResume(id) {
   return request({ url: `/student/resumes/${id}`, method: 'delete' })
 }
 
+export function uploadResumeFile(file) {
+  const form = new FormData()
+  form.append('file', file)
+  return request({
+    url: '/student/resume/upload',
+    method: 'post',
+    data: form,
+    timeout: 60000
+  })
+}
+
+export function mergeResumeSkills(tagIds) {
+  return request({
+    url: '/student/resume/skills',
+    method: 'post',
+    data: { tagIds },
+    timeout: 60000
+  })
+}
+
 export function getFavorites(params) {
   return request({ url: '/student/favorites', method: 'get', params })
 }

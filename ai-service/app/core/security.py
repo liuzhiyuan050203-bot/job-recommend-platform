@@ -34,6 +34,8 @@ def requires_internal_token(path: str) -> bool:
         return True
     if path.startswith("/recommend/user"):
         return True
+    if path.startswith("/api/resume"):
+        return True
     if path in {"/recommend/jobs", "/recommend/radar", "/recommend/run", "/spark/run"}:
         return True
     return False

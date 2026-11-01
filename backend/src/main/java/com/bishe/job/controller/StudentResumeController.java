@@ -2,10 +2,16 @@ package com.bishe.job.controller;
 
 import com.bishe.job.common.Result;
 import com.bishe.job.dto.ResumeSaveDTO;
+import com.bishe.job.service.ResumeDownload;
+import com.bishe.job.service.ResumeFileService;
 import com.bishe.job.service.StudentResumeService;
 import com.bishe.job.vo.ResumeVO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,6 +29,7 @@ import java.util.List;
 public class StudentResumeController {
 
     private final StudentResumeService studentResumeService;
+    private final ResumeFileService resumeFileService;
 
     @GetMapping
     public Result<List<ResumeVO>> list() {
@@ -54,5 +61,22 @@ public class StudentResumeController {
     public Result<Void> delete(@PathVariable("id") Long id) {
         studentResumeService.delete(id);
         return Result.success("简历已删除", null);
+    }
+
+    @GetMapping("/{id}/file")
+    public ResponseEntity<byte[]> file(@PathVariable("id") Long id) {
+        return attachment(resumeFileService.downloadOwn(id));
+    }
+
+    static ResponseEntity<byte[]> attachment(ResumeDownload file) {
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(file.filename())
+                .build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .header("X-Content-Type-Options", "nosniff")
+                .contentType(MediaType.parseMediaType(file.contentType()))
+                .contentLength(file.bytes().length)
+                .body(file.bytes());
     }
 }

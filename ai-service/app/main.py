@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import agent_router, health_router, rag_router, recommend_router, spark_router
+from app.api import agent_router, health_router, rag_router, recommend_router, resume_router, spark_router
 from app.core.config import settings
 from app.core.response import register_exception_handlers, success
 from app.core.security import InternalTokenMiddleware
@@ -63,6 +63,7 @@ app.include_router(spark_router)
 app.include_router(recommend_router)
 app.include_router(rag_router)
 app.include_router(agent_router)
+app.include_router(resume_router)
 
 
 @app.get("/", summary="服务欢迎页")

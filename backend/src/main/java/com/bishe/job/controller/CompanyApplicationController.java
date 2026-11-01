@@ -5,10 +5,12 @@ import com.bishe.job.common.Result;
 import com.bishe.job.dto.ApplicationStatusDTO;
 import com.bishe.job.dto.InterviewNoticeDTO;
 import com.bishe.job.service.RecruitmentService;
+import com.bishe.job.service.ResumeFileService;
 import com.bishe.job.vo.ApplicationDetailVO;
 import com.bishe.job.vo.ApplicationItemVO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CompanyApplicationController {
 
     private final RecruitmentService recruitmentService;
+    private final ResumeFileService resumeFileService;
 
     @GetMapping
     public Result<PageResult<ApplicationItemVO>> page(
@@ -49,5 +52,11 @@ public class CompanyApplicationController {
     @PostMapping("/{id}/interviews")
     public Result<Long> notice(@PathVariable("id") Long id, @Valid @RequestBody InterviewNoticeDTO dto) {
         return Result.success("通知已发送", recruitmentService.sendNotice(id, dto));
+    }
+
+    /** 仅投递到本企业职位的简历原件。 */
+    @GetMapping("/{id}/resume-file")
+    public ResponseEntity<byte[]> resumeFile(@PathVariable("id") Long id) {
+        return StudentResumeController.attachment(resumeFileService.downloadForCompany(id));
     }
 }

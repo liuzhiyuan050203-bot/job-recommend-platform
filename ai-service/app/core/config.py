@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "BAAI/bge-small-zh-v1.5"
     EMBEDDING_CACHE_DIR: str = "./data/models"
 
-    # 内部通信安全令牌 (与 Spring Boot 后端交互共享密钥)
+    # 内部通信安全令牌，必须与 Spring Boot 的 AI_INTERNAL_TOKEN / fastapi.internal-token 相同
     AI_INTERNAL_TOKEN: str = "change-me-internal-token"
 
     # RAG 检索与切片
@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     RAG_CHUNK_SIZE: int = 400
     RAG_CHUNK_OVERLAP: int = 60
     RAG_PROMPT_CHUNK_CHARS: int = 300
+    # dense | bm25 | hybrid | hybrid_rerank。评测后若重排延迟过高则保持 hybrid。
+    RAG_RETRIEVAL_MODE: str = "hybrid"
 
     # 跨域允许源 (支持 Spring Boot 8080 与 Vue 5173)
     CORS_ORIGINS: Union[List[str], str] = [

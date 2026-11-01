@@ -161,6 +161,14 @@ public class RecruitmentServiceImpl implements RecruitmentService {
         LambdaQueryWrapper<JobApplication> wrapper = new LambdaQueryWrapper<JobApplication>()
                 .eq(JobApplication::getCompanyId, company.getId());
         if (jobId != null) {
+            // 不能只按职位编号过滤：那会让其他企业用别人的 jobId 探测（虽然结果为空，仍应明确拒绝）
+            JobPosition job = jobPositionMapper.selectById(jobId);
+            if (job == null) {
+                throw new BusinessException(404, "职位不存在");
+            }
+            if (!company.getId().equals(job.getCompanyId())) {
+                throw new BusinessException(403, "无权查看该职位的投递");
+            }
             wrapper.eq(JobApplication::getPositionId, jobId);
         }
         if (status != null) {
@@ -494,7 +502,8 @@ public class RecruitmentServiceImpl implements RecruitmentService {
         }
         if (application.getResumeId() != null) {
             StuResume resume = stuResumeMapper.selectById(application.getResumeId());
-            if (resume != null) {
+            // 投递上的简历必须仍属于该学生，避免简历编号被改写后把别人的简历带出来
+            if (resume != null && application.getUserId().equals(resume.getUserId())) {
                 detail.setResume(toResume(resume));
             }
         }

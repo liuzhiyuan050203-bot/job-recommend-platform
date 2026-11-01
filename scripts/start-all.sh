@@ -14,7 +14,7 @@ usage() {
 
 启动 MariaDB、Ollama（仅当 LLM_BASE_URL 指向本机且 ollama 存在）、ai-service（8000）、
 Spring Boot（8080）和 Vite（5173）。已在监听的服务会跳过。
-环境变量 AI_INTERNAL_TOKEN、LLM_* 若已设置则原样传给子进程；否则从 ai-service/.env 补齐。
+环境变量若已设置则原样传给子进程；否则依次从仓库根目录 .env、ai-service/.env 补齐。
 EOF
 }
 
@@ -57,10 +57,28 @@ load_dotenv() {
   done < "$file"
 }
 
+if [ -f "$ROOT/.env" ]; then
+  load_dotenv "$ROOT/.env"
+  echo "==> 已读取 .env（不覆盖当前环境变量）"
+fi
+
 if [ -f "$ROOT/ai-service/.env" ]; then
   load_dotenv "$ROOT/ai-service/.env"
   echo "==> 已读取 ai-service/.env（不覆盖当前环境变量）"
 fi
+
+# 根目录用 DB_*，ai-service 读 MYSQL_*。只在后者还没设置时对齐，避免两套口令不一致。
+sync_alias() {
+  local src=$1 dst=$2
+  if [ -z "${!dst+x}" ] && [ -n "${!src+x}" ]; then
+    export "$dst=${!src}"
+  fi
+}
+sync_alias DB_PASSWORD MYSQL_PASSWORD
+sync_alias DB_USERNAME MYSQL_USER
+sync_alias DB_HOST MYSQL_HOST
+sync_alias DB_PORT MYSQL_PORT
+sync_alias DB_NAME MYSQL_DB
 
 pid_alive() {
   local file="$RUN_DIR/$1.pid" pid

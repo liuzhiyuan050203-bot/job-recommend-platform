@@ -25,6 +25,10 @@ chroma_data/
 ai-service/data/
 *.sqlite3
 
+# 学生上传的简历原件
+data/uploads/
+backend/data/uploads/
+
 # Logs
 logs/
 *.log
@@ -44,3 +48,7 @@ derby.log
 
 # OS Generated Files
 .DS_Store
+
+# 实验下载的原始第三方文件（清洗结果进 git）
+experiments/data/raw/
+experiments/data/scale/

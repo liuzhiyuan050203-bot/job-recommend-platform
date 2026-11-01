@@ -1,0 +1,5 @@
+# 生产配置。激活方式：--spring.profiles.active=prod
+# JWT_SECRET 不提供开发默认值；缺失时 Spring 无法完成占位符替换，进程直接退出。
+# 等于开发默认值或短于 32 字节时，由 JwtSecretGuard 在启动阶段失败。
+jwt:
+  secret: ${JWT_SECRET}

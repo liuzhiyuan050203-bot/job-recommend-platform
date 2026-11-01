@@ -211,6 +211,54 @@
       </el-col>
     </el-row>
 
+    <el-card shadow="never" class="box-card">
+      <template #header>
+        <div class="card-header">
+          <span class="card-title"><el-icon><Document /></el-icon> 上传简历并识别技能</span>
+        </div>
+      </template>
+      <p class="upload-tip">支持 PDF、DOCX，单个文件不超过 5MB。识别结果可勾选后并入右侧技能，已有熟练度会保留。</p>
+      <el-upload
+        :auto-upload="false"
+        :limit="1"
+        accept=".pdf,.docx"
+        :on-change="handleResumeFile"
+        :on-remove="clearResumeFile"
+        :on-exceed="() => ElMessage.warning('一次只能上传一份简历')"
+      >
+        <el-button type="primary" plain>选择简历文件</el-button>
+      </el-upload>
+      <div class="upload-actions">
+        <el-button type="primary" :loading="parsingResume" :disabled="!resumeFile" @click="handleParseResume">
+          解析技能
+        </el-button>
+        <el-button
+          type="success"
+          :loading="mergingSkills"
+          :disabled="!selectedTagIds.length"
+          @click="handleMergeSkills"
+        >
+          合并到我的技能
+        </el-button>
+      </div>
+      <el-input
+        v-if="textPreview"
+        class="preview"
+        type="textarea"
+        :rows="4"
+        readonly
+        :model-value="textPreview"
+      />
+      <el-checkbox-group v-if="parsedSkills.length" v-model="selectedTagIds" class="skill-checks">
+        <el-checkbox v-for="skill in parsedSkills" :key="skill.tagId" :value="skill.tagId">
+          {{ skill.name }}
+          <span v-if="skill.direction" class="evidence">{{ skill.direction }}</span>
+          <span v-if="skill.evidence" class="evidence">{{ skill.evidence }}</span>
+        </el-checkbox>
+      </el-checkbox-group>
+      <el-empty v-else-if="parsedOnce && !parsingResume" description="未识别到技能标签" :image-size="64" />
+    </el-card>
+
     <!-- 添加技能弹窗 -->
     <el-dialog v-model="skillDialogVisible" title="添加掌握技能" width="450px" destroy-on-close>
       <el-form ref="skillFormRef" :model="skillForm" :rules="skillRules" label-width="90px">
@@ -272,7 +320,9 @@ import {
   getStudentSkills,
   addStudentSkill,
   updateStudentSkill,
-  deleteStudentSkill
+  deleteStudentSkill,
+  uploadResumeFile,
+  mergeResumeSkills
 } from '@/api/student'
 import { getSkillTags } from '@/api/public'
 import { useUserStore } from '@/stores/user'
@@ -310,6 +360,13 @@ const profileRules = {
 
 const skills = ref([])
 const systemTags = ref([])
+const resumeFile = ref(null)
+const parsingResume = ref(false)
+const mergingSkills = ref(false)
+const parsedOnce = ref(false)
+const textPreview = ref('')
+const parsedSkills = ref([])
+const selectedTagIds = ref([])
 
 const skillDialogVisible = ref(false)
 const selectedTagId = ref(null)
@@ -460,6 +517,67 @@ const handleConfirmAddSkill = async () => {
   }
 }
 
+const handleResumeFile = (uploadFile) => {
+  const raw = uploadFile?.raw
+  if (!raw) {
+    resumeFile.value = null
+    return
+  }
+  const name = (raw.name || '').toLowerCase()
+  if (!name.endsWith('.pdf') && !name.endsWith('.docx')) {
+    ElMessage.warning('只支持 PDF 或 DOCX')
+    resumeFile.value = null
+    return
+  }
+  if (raw.size > 5 * 1024 * 1024) {
+    ElMessage.warning('文件不能超过 5MB')
+    resumeFile.value = null
+    return
+  }
+  resumeFile.value = raw
+}
+
+const clearResumeFile = () => {
+  resumeFile.value = null
+}
+
+const handleParseResume = async () => {
+  if (!resumeFile.value) {
+    ElMessage.warning('请先选择简历文件')
+    return
+  }
+  parsingResume.value = true
+  try {
+    const res = await uploadResumeFile(resumeFile.value)
+    textPreview.value = res?.textPreview || ''
+    parsedSkills.value = res?.skills || []
+    selectedTagIds.value = parsedSkills.value.map((item) => item.tagId)
+    parsedOnce.value = true
+    ElMessage.success(parsedSkills.value.length ? '已识别技能，请勾选后合并' : '解析完成，未识别到技能标签')
+  } catch (err) {
+    console.error(err)
+  } finally {
+    parsingResume.value = false
+  }
+}
+
+const handleMergeSkills = async () => {
+  if (!selectedTagIds.value.length) {
+    ElMessage.warning('请勾选要合并的技能')
+    return
+  }
+  mergingSkills.value = true
+  try {
+    await mergeResumeSkills(selectedTagIds.value)
+    ElMessage.success('已合并到我的技能')
+    fetchSkills()
+  } catch (err) {
+    console.error(err)
+  } finally {
+    mergingSkills.value = false
+  }
+}
+
 onMounted(() => {
   fetchProfile()
   fetchSkills()
@@ -496,5 +614,30 @@ onMounted(() => {
 .direction-text {
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+.upload-tip {
+  margin: 0 0 12px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+.upload-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.preview {
+  margin-top: 12px;
+}
+.skill-checks {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 12px;
+}
+.evidence {
+  margin-left: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 </style>

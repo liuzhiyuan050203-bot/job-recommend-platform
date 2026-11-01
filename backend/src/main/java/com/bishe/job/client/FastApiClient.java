@@ -179,6 +179,23 @@ public class FastApiClient {
         return exchangeAi(builder.build().encode().toUri(), HttpMethod.DELETE, new HttpEntity<>(tokenHeaders()));
     }
 
+    /**
+     * 把简历原件交给 ai-service 抽取技能。令牌与其它内部接口相同。
+     */
+    public JsonNode parseResume(String filename, byte[] bytes) {
+        ByteArrayResource resource = new ByteArrayResource(bytes) {
+            @Override
+            public String getFilename() {
+                return filename;
+            }
+        };
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", resource);
+        HttpHeaders headers = tokenHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        return exchangeAi(URI.create(trimBase() + "/api/resume/parse"), HttpMethod.POST, new HttpEntity<>(body, headers));
+    }
+
     public JsonNode ragSearch(String q, int topK, Integer docType) {
         UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(trimBase() + "/rag/search")
                 .queryParam("q", q)
