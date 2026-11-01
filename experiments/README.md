@@ -106,4 +106,26 @@ export PATH=$HOME/.local/bin:$PATH
 
 ## 3. Spark 扩展性（进行中）
 
-## 4. RAG 混合检索（进行中）
+## 4. RAG 混合检索与评测
+
+脚本：`experiments/rag_eval/run_rag_eval.py`；题集 `questions.jsonl`（50+5）；校验 `validate_questions.py`。  
+生产：`ai-service/app/rag/{bm25,rerank,store,chunking}.py`，默认 `RAG_RETRIEVAL_MODE=hybrid`（Markdown 标题切分仍为生产入库方式）。
+
+| 切分 | 检索 | Hit@1 | Hit@3 | Hit@5 | MRR@10 | 平均 ms | P95 ms | 无关拒答 |
+|------|------|------:|------:|------:|-------:|--------:|-------:|---------:|
+| 定长 | dense | 0.72 | 0.86 | 0.94 | 0.804 | 11.2 | 20.0 | 1.0 |
+| 定长 | bm25 | 0.84 | 0.96 | 0.96 | 0.900 | 7.7 | 20.6 | 1.0 |
+| 定长 | hybrid | 0.86 | 0.96 | 0.98 | 0.913 | 17.1 | 29.2 | 1.0 |
+| 定长 | hybrid+rerank | 0.92 | 1.00 | 1.00 | 0.960 | 1863 | 2371 | 1.0 |
+| **标题** | dense | 0.80 | 0.92 | 0.96 | 0.870 | 13.9 | 24.8 | 1.0 |
+| 标题 | bm25 | 0.82 | 0.94 | 0.98 | 0.886 | 4.9 | 14.3 | 1.0 |
+| **标题** | **hybrid** | **0.92** | 0.96 | **1.00** | **0.947** | **15.0** | 25.0 | 1.0 |
+| 标题 | hybrid+rerank | 0.92 | 1.00 | 1.00 | 0.957 | 1861 | 2060 | 1.0 |
+
+默认选标题切分 + hybrid：与 rerank 同级 Hit@1，延迟约 15ms；rerank 平均 1.86s > 1.5s 阈值，不作默认。`tests/api/06-rag.sh` PASS=92。
+
+![hit](figures/rag_eval_hit.png)
+![lat](figures/rag_eval_latency.png)
+
+---
+

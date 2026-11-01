@@ -1,0 +1,55 @@
+{"id":"q01","question":"三方协议是什么？它和劳动合同是同一份文件吗？","gold":[{"file":"三方协议FAQ.md","section":"三方协议是什么"}],"type":"direct"}
+{"id":"q02","question":"网签已经点了接受，可是还没毕业去报到，这算不算和公司建立了劳动关系？","gold":[{"file":"三方协议FAQ.md","section":"三方协议是什么"}],"type":"paraphrase"}
+{"id":"q03","question":"三方违约金","gold":[{"file":"三方协议FAQ.md","section":"想违约怎么办"}],"type":"keyword"}
+{"id":"q04","question":"毕业生就业协议书签完之后想反悔，解约要走什么步骤？","gold":[{"file":"三方协议FAQ.md","section":"想违约怎么办"}],"type":"synonym"}
+{"id":"q05","question":"网签状态一直停在待学校审核，是不是还没完成签约？","gold":[{"file":"三方协议FAQ.md","section":"网签状态怎么读"}],"type":"direct"}
+{"id":"q06","question":"公司把岗位撤了不接收我，算单位违约吗？改派过了期限档案会去哪？","gold":[{"file":"三方协议FAQ.md","section":"单位违约与改派"}],"type":"paraphrase"}
+{"id":"q07","question":"不同合同期限对应的试用期上限分别是多少？","gold":[{"file":"劳动合同与试用期权益.md","section":"试用期上限与工资"}],"type":"direct"}
+{"id":"q08","question":"双倍工资差额","gold":[{"file":"劳动合同与试用期权益.md","section":"何时签订劳动合同"}],"type":"keyword"}
+{"id":"q09","question":"我还在试用期，想离职要提前几天通知单位？","gold":[{"file":"劳动合同与试用期权益.md","section":"离职与解除"}],"type":"paraphrase"}
+{"id":"q10","question":"试用期内单位能不能等转正再给我交养老和医疗保险？","gold":[{"file":"劳动合同与试用期权益.md","section":"社保、工时与加班"}],"type":"synonym"}
+{"id":"q11","question":"劳动仲裁时效","gold":[{"file":"劳动合同与试用期权益.md","section":"发生争议怎么办"}],"type":"keyword"}
+{"id":"q12","question":"报到证现在还有什么用，没拿到纸质的怎么办？","gold":[{"file":"档案与户口FAQ.md","section":"报到证与就业报到"}],"type":"direct"}
+{"id":"q13","question":"毕业档案里通常装了哪些材料，我能自己拆开带走吗？","gold":[{"file":"档案与户口FAQ.md","section":"档案里有什么、转到哪里"}],"type":"paraphrase"}
+{"id":"q14","question":"包落户","gold":[{"file":"档案与户口FAQ.md","section":"户口迁移"}],"type":"keyword"}
+{"id":"q15","question":"离校时工作还没着落，档案和户口可以先转回生源地吗？","gold":[{"file":"档案与户口FAQ.md","section":"未就业期间的档案户口"}],"type":"paraphrase"}
+{"id":"q16","question":"预备党员的组织关系介绍信过了有效期，应该回哪里重开？","gold":[{"file":"档案与户口FAQ.md","section":"党员材料与境外学历"}],"type":"synonym"}
+{"id":"q17","question":"哪些毕业生可以在离校前申请一次性求职创业补贴？","gold":[{"file":"就业政策.md","section":"求职创业补贴"}],"type":"direct"}
+{"id":"q18","question":"灵活就业社保补贴","gold":[{"file":"就业政策.md","section":"社保补贴与职业培训"}],"type":"keyword"}
+{"id":"q19","question":"毕业不到两年还没就业，去单位见习算不算签了劳动合同？","gold":[{"file":"就业政策.md","section":"就业见习与实名服务"}],"type":"paraphrase"}
+{"id":"q20","question":"自己注册了个体户，想申请有财政贴息的创业贷款，一般要先办什么手续？","gold":[{"file":"就业政策.md","section":"创业担保贷款与场租"}],"type":"synonym"}
+{"id":"q21","question":"一类账户","gold":[{"file":"就业政策.md","section":"申报时容易忽略的材料"}],"type":"keyword"}
+{"id":"q22","question":"西部计划志愿者服务期通常是几年，中途退出还能享受期满政策吗？","gold":[{"file":"基层项目与征兵入伍.md","section":"西部计划"}],"type":"direct"}
+{"id":"q23","question":"三支一扶","gold":[{"file":"基层项目与征兵入伍.md","section":"三支一扶"}],"type":"keyword"}
+{"id":"q24","question":"农村义务教育特设岗位聘期三年，考核合格后能不能留下拿事业编制？","gold":[{"file":"基层项目与征兵入伍.md","section":"特岗教师"}],"type":"paraphrase"}
+{"id":"q25","question":"在校时去当兵，学费和助学贷款国家怎么补偿，退役后几年内必须复学？","gold":[{"file":"基层项目与征兵入伍.md","section":"征兵入伍学费补偿与复学"}],"type":"synonym"}
+{"id":"q26","question":"已经参加西部计划，还能同时去参军入伍吗？","gold":[{"file":"基层项目与征兵入伍.md","section":"基层服务与入伍如何选择"}],"type":"direct"}
+{"id":"q27","question":"应届生技术岗简历建议控制在几页，文件名怎么起？","gold":[{"file":"简历写作指南.md","section":"篇幅与基本信息"}],"type":"direct"}
+{"id":"q28","question":"简历里团队项目必须把「我们」和「我」分开写吗？","gold":[{"file":"简历写作指南.md","section":"项目与实习的 STAR"}],"type":"paraphrase"}
+{"id":"q29","question":"两栏简历","gold":[{"file":"简历写作指南.md","section":"用词与版式"}],"type":"keyword"}
+{"id":"q30","question":"简历开头写“吃苦耐劳、领导力强”这种自我评价合适吗？","gold":[{"file":"简历写作指南.md","section":"常见问题"}],"type":"synonym"}
+{"id":"q31","question":"技术面手写代码时应该按什么顺序写？","gold":[{"file":"面试技巧.md","section":"技术面"}],"type":"direct"}
+{"id":"q32","question":"人事面试问为什么选这座城市、缺点是什么，回答时要注意什么？","gold":[{"file":"面试技巧.md","section":"HR 面"}],"type":"paraphrase"}
+{"id":"q33","question":"无领导小组","gold":[{"file":"面试技巧.md","section":"群面"}],"type":"keyword"}
+{"id":"q34","question":"线上面试要提前检查摄像头和网络吗？结束之后多久可以追问一次进度？","gold":[{"file":"面试技巧.md","section":"远程与礼仪"}],"type":"synonym"}
+{"id":"q35","question":"Java 后端一面除了项目还会问哪些基础和算法？","gold":[{"file":"面经精选.md","section":"Java 后端一面"}],"type":"direct"}
+{"id":"q36","question":"数据开发面试让我讲从业务库到汇总层的离线任务，应该讲到什么程度？","gold":[{"file":"面经精选.md","section":"数据开发一面"}],"type":"paraphrase"}
+{"id":"q37","question":"模拟数据","gold":[{"file":"面经精选.md","section":"诚信"}],"type":"keyword"}
+{"id":"q38","question":"每场面试结束当天，答得含糊和完全不会的题要怎么整理？","gold":[{"file":"面经精选.md","section":"复盘方法"}],"type":"synonym"}
+{"id":"q39","question":"秋招高峰和春招补录大概在哪几个月？","gold":[{"file":"校招时间线与求职流程.md","section":"全年节奏"}],"type":"direct"}
+{"id":"q40","question":"从投简历到入职，中间一般要经过笔试、几轮面试和体检吗？","gold":[{"file":"校招时间线与求职流程.md","section":"从投递到签约"}],"type":"paraphrase"}
+{"id":"q41","question":"培训费押金","gold":[{"file":"校招时间线与求职流程.md","section":"信息渠道与防骗"}],"type":"keyword"}
+{"id":"q42","question":"春天了还没有录用通知，怎么根据网申通过率决定下一步？","gold":[{"file":"校招时间线与求职流程.md","section":"没有 offer 时"}],"type":"synonym"}
+{"id":"q43","question":"学生第一次登录要完善哪些个人档案？技能标签乱选会怎样？","gold":[{"file":"平台使用指南.md","section":"学生账号"}],"type":"direct"}
+{"id":"q44","question":"推荐列表里的匹配分能不能当成被录取的概率？","gold":[{"file":"平台使用指南.md","section":"推荐结果如何理解"}],"type":"paraphrase"}
+{"id":"q45","question":"冷启动","gold":[{"file":"平台使用指南.md","section":"搜索、推荐与薪资"}],"type":"keyword"}
+{"id":"q46","question":"企业资质还在审核的时候，学生端看得到我刚发的岗位吗？","gold":[{"file":"平台使用指南.md","section":"企业账号"}],"type":"synonym"}
+{"id":"q47","question":"在平台发布职位时，城市和月薪应该怎么填？","gold":[{"file":"企业招聘须知.md","section":"发布职位"}],"type":"direct"}
+{"id":"q48","question":"职位广告里写只限男性，或者入职要先交费买设备，能过审吗？","gold":[{"file":"企业招聘须知.md","section":"职位描述怎么写"}],"type":"paraphrase"}
+{"id":"q49","question":"入职收费","gold":[{"file":"企业招聘须知.md","section":"职位描述怎么写"}],"type":"keyword"}
+{"id":"q50","question":"招聘小助手写出来的岗位职责，我能不能原样点发布？","gold":[{"file":"企业招聘须知.md","section":"使用招聘助手"}],"type":"synonym"}
+{"id":"n01","question":"红烧肉需要放哪些香料？","gold":[],"type":"irrelevant"}
+{"id":"n02","question":"量子纠缠和隐变量理论有什么关系？","gold":[],"type":"irrelevant"}
+{"id":"n03","question":"家用轿车的机油一般多久更换一次？","gold":[],"type":"irrelevant"}
+{"id":"n04","question":"贝多芬第九交响曲第四乐章的合唱选自哪首诗？","gold":[],"type":"irrelevant"}
+{"id":"n05","question":"光合作用中卡尔文循环的主要产物是什么？","gold":[],"type":"irrelevant"}

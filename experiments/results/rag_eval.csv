@@ -1,0 +1,9 @@
+chunking,retriever,hit_at_1,hit_at_3,hit_at_5,mrr_at_10,latency_mean_ms,latency_p95_ms,irrelevant_reject_rate,questions,irrelevant_questions
+fixed,dense,0.72,0.86,0.94,0.8042,11.18,19.97,1.0,50,5
+fixed,bm25,0.84,0.96,0.96,0.8995,7.68,20.62,1.0,50,5
+fixed,hybrid,0.86,0.96,0.98,0.9127,17.05,29.2,1.0,50,5
+fixed,hybrid_rerank,0.92,1.0,1.0,0.96,1862.88,2370.95,1.0,50,5
+markdown_heading,dense,0.8,0.92,0.96,0.87,13.85,24.82,1.0,50,5
+markdown_heading,bm25,0.82,0.94,0.98,0.8857,4.88,14.25,1.0,50,5
+markdown_heading,hybrid,0.92,0.96,1.0,0.9467,14.95,24.98,1.0,50,5
+markdown_heading,hybrid_rerank,0.92,1.0,1.0,0.9567,1861.45,2059.86,1.0,50,5

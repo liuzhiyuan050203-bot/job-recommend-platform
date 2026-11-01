@@ -13,11 +13,21 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import chromadb
+import numpy as np
 
 from app.core.config import settings
 from app.core.embedding import embed_documents, embed_query
+from app.rag.bm25 import (
+    bm25_document_text,
+    candidate_pool_size,
+    fuse_order,
+    get_bm25_index,
+    invalidate_bm25,
+    keep_candidate,
+)
 from app.rag.chunking import content_hash, embed_input
 from app.rag.constants import COLLECTION
+from app.rag.rerank import rerank_scores
 from app.spark.db import connect
 
 logger = logging.getLogger(__name__)
@@ -81,6 +91,7 @@ def get_collection(rebuild: bool = False):
 
 def reset_collection() -> None:
     get_collection(rebuild=True)
+    invalidate_bm25()
 
 
 def chroma_count() -> int:
@@ -132,27 +143,32 @@ def _unchanged(doc: LogicalDoc, rows: list[dict[str, Any]]) -> bool:
 
 
 def _delete_docs(doc_keys: list[str], chroma_ids: list[str]) -> None:
-    if chroma_ids:
-        collection = get_collection()
-        for offset in range(0, len(chroma_ids), 200):
-            batch = [item for item in chroma_ids[offset : offset + 200] if item]
-            if not batch:
-                continue
-            try:
-                collection.delete(ids=batch)
-            except Exception:
-                logger.exception("删除 Chroma 向量失败，数量 %s", len(batch))
-    if not doc_keys:
+    if not chroma_ids and not doc_keys:
         return
-    conn = connect()
     try:
-        with conn.cursor() as cur:
-            for offset in range(0, len(doc_keys), 200):
-                batch = doc_keys[offset : offset + 200]
-                marks = ", ".join(["%s"] * len(batch))
-                cur.execute(f"DELETE FROM rag_document WHERE doc_key IN ({marks})", batch)
+        if chroma_ids:
+            collection = get_collection()
+            for offset in range(0, len(chroma_ids), 200):
+                batch = [item for item in chroma_ids[offset : offset + 200] if item]
+                if not batch:
+                    continue
+                try:
+                    collection.delete(ids=batch)
+                except Exception:
+                    logger.exception("删除 Chroma 向量失败，数量 %s", len(batch))
+        if not doc_keys:
+            return
+        conn = connect()
+        try:
+            with conn.cursor() as cur:
+                for offset in range(0, len(doc_keys), 200):
+                    batch = doc_keys[offset : offset + 200]
+                    marks = ", ".join(["%s"] * len(batch))
+                    cur.execute(f"DELETE FROM rag_document WHERE doc_key IN ({marks})", batch)
+        finally:
+            conn.close()
     finally:
-        conn.close()
+        invalidate_bm25()
 
 
 def _insert_rows(docs: list[LogicalDoc]) -> None:
@@ -220,6 +236,8 @@ def _mark_embedded(chunks: list[ChunkRecord], ok: bool) -> None:
 
 
 def _upsert_vectors(docs: list[LogicalDoc]) -> None:
+    # 写入开始和结束都失效：避免并发检索在向量落盘前把旧索引标成已就绪。
+    invalidate_bm25()
     collection = get_collection()
     texts: list[str] = []
     owners: list[tuple[LogicalDoc, ChunkRecord]] = []
@@ -229,6 +247,13 @@ def _upsert_vectors(docs: list[LogicalDoc]) -> None:
             owners.append((doc, chunk))
     if not texts:
         return
+    try:
+        _upsert_vector_batches(collection, texts, owners)
+    finally:
+        invalidate_bm25()
+
+
+def _upsert_vector_batches(collection, texts: list[str], owners: list[tuple[LogicalDoc, ChunkRecord]]) -> None:
     batch = 64
     for offset in range(0, len(texts), batch):
         slice_owners = owners[offset : offset + batch]
@@ -362,24 +387,74 @@ def delete_all_rows() -> int:
     try:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM rag_document")
-            return int(cur.rowcount)
+            deleted = int(cur.rowcount)
     finally:
         conn.close()
+    invalidate_bm25()
+    return deleted
 
 
-def retrieve(
-    query: str,
-    top_k: int | None = None,
-    doc_types: list[int] | None = None,
-    score_threshold: float | None = None,
-) -> list[dict[str, Any]]:
-    """按余弦相似度检索。分数为 1 - Chroma cosine distance，低于阈值的丢弃。"""
-    top_k = top_k or settings.RAG_TOP_K
-    top_k = max(1, min(int(top_k), 10))
-    threshold = settings.RAG_SCORE_THRESHOLD if score_threshold is None else float(score_threshold)
-    query = (query or "").strip()
-    if not query:
+_RETRIEVAL_MODES = {"dense", "bm25", "hybrid", "hybrid_rerank"}
+
+
+def _as_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _unique_ids(ids: list[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for item in ids:
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        ordered.append(item)
+    return ordered
+
+
+def _load_bm25_records() -> list[dict]:
+    """与 Chroma 集合同一批切片。BM25 在这些 document 上建索引。"""
+    collection = get_collection()
+    try:
+        total = int(collection.count())
+    except Exception:
+        logger.exception("Chroma 计数失败")
         return []
+    records: list[dict] = []
+    offset = 0
+    page = 500
+    while offset < total:
+        try:
+            batch = collection.get(limit=page, offset=offset, include=["documents", "metadatas"])
+        except Exception:
+            logger.exception("读取 Chroma 切片失败 offset=%s", offset)
+            break
+        ids = batch.get("ids") or []
+        if not ids:
+            break
+        documents = batch.get("documents") or []
+        metadatas = batch.get("metadatas") or []
+        for index, chroma_id in enumerate(ids):
+            meta = metadatas[index] if index < len(metadatas) and metadatas[index] else {}
+            document = documents[index] if index < len(documents) and documents[index] else ""
+            records.append(
+                {
+                    "id": chroma_id,
+                    "document": document,
+                    "metadata": meta,
+                    "text": bm25_document_text(meta.get("title") or "", meta.get("section") or "", document),
+                }
+            )
+        offset += len(ids)
+        if len(ids) < page:
+            break
+    return records
+
+
+def _dense_search(query_vec: list[float], pool: int, doc_types: list[int] | None) -> list[dict]:
     collection = get_collection()
     try:
         total = int(collection.count())
@@ -392,50 +467,238 @@ def retrieve(
     if doc_types:
         types = [int(item) for item in doc_types]
         where = {"doc_type": types[0]} if len(types) == 1 else {"doc_type": {"$in": types}}
-    n_results = min(max(top_k * 2, top_k), total)
-    vector = embed_query(query)
-    try:
-        result = collection.query(
-            query_embeddings=[vector],
-            n_results=n_results,
-            where=where,
-            include=["documents", "metadatas", "distances"],
-        )
-    except Exception:
-        logger.exception("Chroma 检索失败")
+    n_results = min(pool, total)
+    result = None
+    while n_results >= 1:
+        try:
+            result = collection.query(
+                query_embeddings=[query_vec],
+                n_results=n_results,
+                where=where,
+                include=["documents", "metadatas", "distances"],
+            )
+            break
+        except Exception as exc:
+            message = str(exc).lower()
+            # doc_types 过滤后的条数可能小于候选池，Chroma 会拒绝过大的 n_results。
+            if n_results > 1 and ("n_results" in message or "greater than" in message or "fewer" in message):
+                n_results = max(1, n_results // 2)
+                continue
+            logger.exception("Chroma 检索失败")
+            return []
+    if result is None:
         return []
     ids = (result.get("ids") or [[]])[0]
     docs = (result.get("documents") or [[]])[0]
     metas = (result.get("metadatas") or [[]])[0]
     distances = (result.get("distances") or [[]])[0]
-    hits: list[dict[str, Any]] = []
+    hits = []
     for chroma_id, document, meta, distance in zip(ids, docs, metas, distances):
         meta = meta or {}
         try:
             score = 1.0 - float(distance)
         except (TypeError, ValueError):
             continue
-        if score < threshold:
-            continue
-        source_id = int(meta.get("source_id") or 0)
         hits.append(
             {
                 "chroma_id": chroma_id,
-                "rag_doc_id": int(meta.get("rag_doc_id") or 0),
-                "doc_type": int(meta.get("doc_type") or 0),
-                "source_type": int(meta.get("source_type") or 0),
-                "source_id": source_id or None,
-                "title": meta.get("title") or "",
-                "section": meta.get("section") or "",
-                "chunk_no": int(meta.get("chunk_no") or 0),
-                "doc_key": meta.get("doc_key") or "",
-                "ref": meta.get("ref") or "",
-                "content": document or "",
-                "score": round(score, 4),
+                "document": document or "",
+                "metadata": meta,
+                "score": score,
             }
         )
-    hits.sort(key=lambda item: item["score"], reverse=True)
-    return hits[:top_k]
+    return hits
+
+
+def _cosine_from_store(query_vec: list[float], ids: list[str]) -> dict[str, float]:
+    if not ids:
+        return {}
+    query = np.asarray(query_vec, dtype=np.float32)
+    norm = float(np.linalg.norm(query))
+    if norm > 0:
+        query = query / norm
+    found: dict[str, float] = {}
+    collection = get_collection()
+    for offset in range(0, len(ids), 200):
+        batch = ids[offset : offset + 200]
+        try:
+            got = collection.get(ids=batch, include=["embeddings"])
+        except Exception:
+            logger.exception("读取候选向量失败")
+            continue
+        embeds = got.get("embeddings")
+        got_ids = got.get("ids") or []
+        if embeds is None:
+            continue
+        for chroma_id, embedding in zip(got_ids, embeds):
+            if embedding is None:
+                continue
+            vector = np.asarray(embedding, dtype=np.float32)
+            vector_norm = float(np.linalg.norm(vector))
+            if vector_norm <= 0:
+                continue
+            found[chroma_id] = float(np.dot(query, vector / vector_norm))
+    return found
+
+
+def _pack_hit(item: dict[str, Any], rrf: float) -> dict[str, Any]:
+    meta = item.get("metadata") or {}
+    source_id = _as_int(meta.get("source_id"), 0)
+    return {
+        "chroma_id": item.get("chroma_id") or "",
+        "rag_doc_id": _as_int(meta.get("rag_doc_id"), 0),
+        "doc_type": _as_int(meta.get("doc_type"), 0),
+        "source_type": _as_int(meta.get("source_type"), 0),
+        "source_id": source_id or None,
+        "title": meta.get("title") or "",
+        "section": meta.get("section") or "",
+        "chunk_no": _as_int(meta.get("chunk_no"), 0),
+        "doc_key": meta.get("doc_key") or "",
+        "ref": meta.get("ref") or "",
+        "content": item.get("document") or "",
+        "score": round(float(item.get("score") or 0.0), 4),
+        "rrf": round(float(rrf), 6),
+    }
+
+
+def retrieve(
+    query: str,
+    top_k: int | None = None,
+    doc_types: list[int] | None = None,
+    score_threshold: float | None = None,
+    mode: str | None = None,
+) -> list[dict[str, Any]]:
+    """检索知识库切片。
+
+    mode 为 dense / bm25 / hybrid / hybrid_rerank，默认 settings.RAG_RETRIEVAL_MODE。
+    hybrid 用 RRF 融合两路前 N 条，N = max(20, top_k * 5)。
+    返回里的 score 始终是该切片的稠密余弦；rrf 是融合分。
+    低于阈值且 BM25 不显著的候选丢弃，见 keep_candidate。
+    """
+    top_k = top_k or settings.RAG_TOP_K
+    top_k = max(1, min(int(top_k), 10))
+    threshold = settings.RAG_SCORE_THRESHOLD if score_threshold is None else float(score_threshold)
+    query = (query or "").strip()
+    if not query:
+        return []
+    mode = (mode or settings.RAG_RETRIEVAL_MODE or "hybrid").strip().lower()
+    if mode not in _RETRIEVAL_MODES:
+        logger.warning("未知检索模式 %s，改用 hybrid", mode)
+        mode = "hybrid"
+    try:
+        total = int(get_collection().count())
+    except Exception:
+        logger.exception("Chroma 计数失败")
+        return []
+    if total <= 0:
+        return []
+
+    pool = min(candidate_pool_size(top_k), total)
+    vector = embed_query(query)
+    by_id: dict[str, dict[str, Any]] = {}
+    dense_ids: list[str] = []
+    bm25_ids: list[str] = []
+    if mode in {"dense", "hybrid", "hybrid_rerank"}:
+        for hit in _dense_search(vector, pool, doc_types):
+            chroma_id = hit["chroma_id"]
+            if chroma_id in by_id:
+                continue
+            by_id[chroma_id] = {
+                "chroma_id": chroma_id,
+                "document": hit["document"],
+                "metadata": hit["metadata"],
+                "score": float(hit["score"]),
+                "bm25": 0.0,
+                "bm25_terms": 0,
+            }
+            dense_ids.append(chroma_id)
+    if mode in {"bm25", "hybrid", "hybrid_rerank"}:
+        for hit in get_bm25_index().search(query, pool, doc_types, _load_bm25_records):
+            chroma_id = hit["id"]
+            if not chroma_id:
+                continue
+            if chroma_id not in by_id:
+                by_id[chroma_id] = {
+                    "chroma_id": chroma_id,
+                    "document": hit["document"],
+                    "metadata": hit["metadata"],
+                    "score": None,
+                    "bm25": float(hit["bm25"]),
+                    "bm25_terms": int(hit.get("terms") or 0),
+                }
+            else:
+                by_id[chroma_id]["bm25"] = float(hit["bm25"])
+                by_id[chroma_id]["bm25_terms"] = int(hit.get("terms") or 0)
+            bm25_ids.append(chroma_id)
+    dense_ids = _unique_ids(dense_ids)
+    bm25_ids = _unique_ids(bm25_ids)
+    if not by_id:
+        return []
+
+    missing = [item_id for item_id, item in by_id.items() if item["score"] is None]
+    if missing:
+        cosines = _cosine_from_store(vector, missing)
+        still_missing: list[str] = []
+        for item_id in missing:
+            if item_id in cosines:
+                by_id[item_id]["score"] = cosines[item_id]
+            else:
+                still_missing.append(item_id)
+        if still_missing:
+            texts = []
+            owners = []
+            for item_id in still_missing:
+                item = by_id[item_id]
+                meta = item["metadata"]
+                texts.append(embed_input(meta.get("title") or "", meta.get("section") or "", item["document"]))
+                owners.append(item_id)
+            try:
+                vectors = embed_documents(texts)
+                query_arr = np.asarray(vector, dtype=np.float32)
+                query_norm = float(np.linalg.norm(query_arr)) or 1.0
+                query_arr = query_arr / query_norm
+                for item_id, embedding in zip(owners, vectors):
+                    doc_arr = np.asarray(embedding, dtype=np.float32)
+                    doc_norm = float(np.linalg.norm(doc_arr)) or 1.0
+                    by_id[item_id]["score"] = float(np.dot(query_arr, doc_arr / doc_norm))
+            except Exception:
+                logger.exception("BM25 候选补算余弦失败")
+                for item_id in still_missing:
+                    if by_id[item_id]["score"] is None:
+                        by_id[item_id]["score"] = 0.0
+    for item in by_id.values():
+        if item["score"] is None:
+            item["score"] = 0.0
+
+    cosine = {item_id: float(item["score"]) for item_id, item in by_id.items()}
+    bm25_scores = {item_id: float(item["bm25"]) for item_id, item in by_id.items()}
+
+    def passage_of(item_id: str) -> str:
+        item = by_id[item_id]
+        meta = item["metadata"]
+        return embed_input(meta.get("title") or "", meta.get("section") or "", item["document"])
+
+    ordered, rrf, mode = fuse_order(
+        mode,
+        dense_ids,
+        bm25_ids,
+        cosine=cosine,
+        bm25=bm25_scores,
+        query=query,
+        passage_of=passage_of,
+        rerank_fn=rerank_scores,
+    )
+    hits = []
+    for item_id in ordered:
+        item = by_id.get(item_id)
+        if not item:
+            continue
+        if not keep_candidate(item["score"], item["bm25"], threshold, int(item.get("bm25_terms") or 0)):
+            continue
+        hits.append(_pack_hit(item, rrf.get(item_id, 0.0)))
+        if len(hits) >= top_k:
+            break
+    return hits
 
 
 def list_documents(
@@ -557,6 +820,7 @@ def stats() -> dict[str, Any]:
         "chunks": int(head["chunks"] or 0),
         "chromaCount": chroma_count(),
         "scoreThreshold": settings.RAG_SCORE_THRESHOLD,
+        "retrievalMode": settings.RAG_RETRIEVAL_MODE,
         "byDocType": by_type,
         "bySourceType": by_source,
         "byEmbedStatus": by_status,

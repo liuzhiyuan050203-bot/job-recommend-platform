@@ -39,6 +39,15 @@ def split_markdown(text: str, size: int | None = None, overlap: int | None = Non
     return chunks
 
 
+def split_fixed(text: str, size: int | None = None, overlap: int | None = None) -> list[str]:
+    """忽略 Markdown 标题，把整篇按定长切分。
+
+    分隔符和重叠与 split_text 相同，只是不先按 # / ## / ### 分节。
+    生产入库仍用 split_markdown；本函数供评测比较两种切法。
+    """
+    return split_text(text, size, overlap)
+
+
 def split_text(text: str, size: int | None = None, overlap: int | None = None) -> list[str]:
     """把纯文本切成不超过 size 的片段，相邻片段共享 overlap 个字符。"""
     size = size or settings.RAG_CHUNK_SIZE

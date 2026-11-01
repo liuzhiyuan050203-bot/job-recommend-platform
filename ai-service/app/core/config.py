@@ -58,7 +58,9 @@ class Settings(BaseSettings):
     RAG_CHUNK_SIZE: int = 400
     RAG_CHUNK_OVERLAP: int = 60
     RAG_PROMPT_CHUNK_CHARS: int = 300
-    # dense | bm25 | hybrid | hybrid_rerank。评测后若重排延迟过高则保持 hybrid。
+    # dense | bm25 | hybrid | hybrid_rerank。
+    # 2026-11 评测：标题切分 + hybrid 的 Hit@1=0.92、MRR@10=0.947，约 15ms/问。
+    # hybrid_rerank 的 Hit@1 同为 0.92，平均延迟约 1.86s，超过 1.5s，故默认 hybrid。
     RAG_RETRIEVAL_MODE: str = "hybrid"
 
     # 跨域允许源 (支持 Spring Boot 8080 与 Vue 5173)

@@ -175,13 +175,13 @@ def load_cms() -> list[LogicalDoc]:
     return docs
 
 
-def load_jobs() -> list[LogicalDoc]:
+def load_job_texts(limit: int | None = None) -> list[dict]:
+    """在招职位原文。拼接方式与 load_jobs 相同，limit 只给评测截断干扰项。"""
     conn = connect()
     try:
         with conn.cursor() as cur:
             cur.execute("SET SESSION group_concat_max_len = 2048")
-            cur.execute(
-                """
+            sql = """
                 SELECT p.id, p.title, p.city, p.tech_direction, p.salary_min, p.salary_max,
                        p.salary_months, p.education, p.experience_req, p.description,
                        p.requirement, p.welfare, c.company_name,
@@ -195,25 +195,42 @@ def load_jobs() -> list[LogicalDoc]:
                 INNER JOIN ent_company c ON c.id = p.company_id AND c.deleted = 0
                 WHERE p.deleted = 0 AND p.shelf_status = 1 AND p.audit_status = 1
                 ORDER BY p.id
-                """
-            )
+            """
+            params: list = []
+            if limit is not None:
+                sql += " LIMIT %s"
+                params.append(max(0, int(limit)))
+            cur.execute(sql, params)
             rows = cur.fetchall()
     finally:
         conn.close()
-    docs: list[LogicalDoc] = []
+    items: list[dict] = []
     for row in rows:
-        text = _job_text(row)
-        chunks = _chunks_of(text)
+        items.append(
+            {
+                "doc_key": f"job:{row['id']}",
+                "title": str(row["title"])[:128],
+                "source_id": int(row["id"]),
+                "text": _job_text(row),
+            }
+        )
+    return items
+
+
+def load_jobs(limit: int | None = None) -> list[LogicalDoc]:
+    docs: list[LogicalDoc] = []
+    for item in load_job_texts(limit):
+        chunks = _chunks_of(item["text"])
         if not chunks:
             continue
         docs.append(
             LogicalDoc(
-                doc_key=f"job:{row['id']}",
+                doc_key=item["doc_key"],
                 doc_type=7,
                 source_type=5,
-                source_id=int(row["id"]),
-                title=str(row["title"])[:128],
-                ref=f"job:{row['id']}",
+                source_id=item["source_id"],
+                title=item["title"],
+                ref=item["doc_key"],
                 chunks=chunks,
             )
         )
