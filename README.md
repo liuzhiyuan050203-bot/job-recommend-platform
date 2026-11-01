@@ -22,6 +22,10 @@
 | RAG 智能问答 | 已实现 | 政策与面经切片、Chroma 检索、三类助手 SSE、会话与知识库管理 |
 | 仪表盘与演示 | 已实现 | 公开/学生/企业/管理端 ECharts 真实数据看板、系统演示页 `/demo`、一键启停 |
 
+## 实验与论文素材
+
+离线对比、消融与扩展性压测见 [`experiments/README.md`](experiments/README.md)（可复现脚本、表格与图）。公开真实薪资与校招数据说明见 [`data/REAL_DATA.md`](data/REAL_DATA.md)。**生产清洗 / 聚合 / 薪资回归 / ALS / 推荐离线任务仍使用 PySpark**；Pandas 仅出现在扩展性对照实验中。
+
 ## 技术栈
 
 | 部分 | 技术 |
