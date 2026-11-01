@@ -63,8 +63,12 @@ def drop_pairs(events: pd.DataFrame, pairs: set[tuple[int, int]]) -> pd.DataFram
     return events.loc[mask].copy()
 
 
-def aggregate_frame(events: pd.DataFrame, ref_ts: float) -> tuple[pd.DataFrame, pd.Series]:
-    """按 (用户, 职位) 汇总：权重 × 指数衰减，再 log1p。半衰期 45 天，参考时间为 ref_ts。"""
+def aggregate_frame(
+    events: pd.DataFrame, ref_ts: float, half_life_days: float | None = HALF_LIFE_DAYS
+) -> tuple[pd.DataFrame, pd.Series]:
+    """按 (用户, 职位) 汇总：权重 × 指数衰减，再 log1p。默认半衰期 45 天，参考时间为 ref_ts。
+
+    half_life_days=None 表示不做时间衰减（消融实验用）。"""
     empty = pd.DataFrame(columns=["user_id", "position_id", "contrib", "rating"])
     if events is None or len(events) == 0:
         return empty, pd.Series(dtype=float)
@@ -74,7 +78,10 @@ def aggregate_frame(events: pd.DataFrame, ref_ts: float) -> tuple[pd.DataFrame, 
     fallback = np.where(behavior == 2, 3.0, np.where(behavior == 3, 5.0, 1.0))
     weight = np.where(np.isfinite(weight) & (weight > 0), weight, fallback)
     age = np.maximum(0.0, float(ref_ts) - ts)
-    contrib = weight * np.power(0.5, age / HALF_LIFE_SECONDS)
+    if half_life_days is None or half_life_days <= 0:
+        contrib = weight.copy()
+    else:
+        contrib = weight * np.power(0.5, age / (float(half_life_days) * 86400.0))
     frame = pd.DataFrame(
         {
             "user_id": pd.to_numeric(events["user_id"], errors="coerce").fillna(0).astype(np.int64),

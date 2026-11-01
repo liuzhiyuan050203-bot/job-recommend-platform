@@ -5,9 +5,10 @@
 1. 用户-用户余弦：隐式反馈先按浏览 1、收藏 3、投递 5 加权，再相对全体行为最大时间做
    45 天半衰期衰减，同一学生对同一职位汇总后取 log1p。相似度只保留正相关邻居，并用
    共同交互数收缩。约 200 名学生，矩阵放在 Driver 上即可，也便于实时推荐复用。
-2. Spark MLlib ALS（implicitPrefs）：同一份衰减评分，rank=8、迭代 6 次。因子只用于
-   离线比较；新学生没有因子，实时侧一律用预计算的用户评分矩阵做余弦。
-   在当前演示集上，用户余弦的留出 NDCG@10 明显高于 ALS，因此生产协同过滤选用用户余弦；
+2. Spark MLlib ALS（implicitPrefs）：同一份衰减评分。默认 rank=8、迭代 6 次仅作快速对照；
+   消融实验在验证集上网格搜索 rank∈{8,32,64}×reg×alpha 后，调参 ALS 的 NDCG@10 可逼近
+   用户余弦，但仍略低，且新学生没有因子。实时侧一律用预计算的用户评分矩阵做余弦。
+   生产协同过滤因此选用用户余弦（可解释、冷启动友好）；ALS 保留在离线任务中作对照与论文消融。
    融合在同一留出集上再选权重，目标是不低于单一算法，并尽量同时用上两路信号。
 
 内容匹配把技能熟练度与职位标签的余弦、期望方向、期望城市、学历是否达到要求、专业是否
@@ -63,6 +64,8 @@ ALS_RANK = 8
 ALS_ITER = 6
 ALS_REG = 0.08
 ALS_ALPHA = 20.0
+# 学历不达标职位的内容分乘子（消融实验可传 1.0 关闭）
+EDU_PENALTY = 0.35
 
 
 def run_recommend(batch_no: str) -> dict:
@@ -425,7 +428,7 @@ def _coerce_ids(frame: pd.DataFrame) -> None:
             frame[column] = pd.to_numeric(frame[column], errors="coerce").fillna(0).astype(np.int64)
 
 
-def _content_matrix(profiles, jobs, skills, job_tags, user_index, item_index):
+def _content_matrix(profiles, jobs, skills, job_tags, user_index, item_index, edu_penalty: float = EDU_PENALTY):
     n_users = len(user_index)
     n_items = len(item_index)
     tag_ids = sorted(
@@ -506,7 +509,7 @@ def _content_matrix(profiles, jobs, skills, job_tags, user_index, item_index):
     content = 100.0 * (
         0.50 * tag_cos + 0.20 * dir_match + 0.16 * city_match + 0.08 * edu_score + 0.06 * major_hit
     )
-    content = np.where(edu_ok, content, content * 0.35)
+    content = np.where(edu_ok, content, content * float(edu_penalty))
     content = np.clip(content, 0.0, 100.0)
     return content, {
         "directions": directions,
