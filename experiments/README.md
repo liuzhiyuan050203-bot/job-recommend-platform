@@ -162,3 +162,8 @@ export PATH=$HOME/.local/bin:$PATH
 
 ---
 
+---
+
+## 附录：接口测试质量
+
+见 [`test_quality_table.md`](test_quality_table.md)（由 `tests/run-all.sh` 真实汇总生成）。
