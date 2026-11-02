@@ -249,3 +249,9 @@ bash scripts/start-spark-cluster.sh && .venv/bin/python experiments/spark_cluste
 ## 批任务与在线问答的 CPU 争用
 
 见 [`stability/README.md`](stability/README.md)：Spark 推荐批次运行期间，问答从 6 问 1 次超时（最长 181.59 s）改善为 24/24 完成（最长 18.69 s）；Ollama 解码从 0.4–3 tok/s 恢复到 16.4–18.6 tok/s。
+
+---
+
+## 附录：学生 / 企业多维度 UX 审计
+
+见 [`ux_audit/REPORT.md`](ux_audit/REPORT.md)（学生端 + 企业端五维度 D1–D5 体验审计与技能 API 对照）。
