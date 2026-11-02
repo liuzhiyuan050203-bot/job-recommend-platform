@@ -18,13 +18,13 @@
 | 模块一 基础业务 | 已实现 | 学生档案与技能、企业资料与资质审核、轮播图与资讯、面经评论、分类与技能标签 |
 | 模块二 招聘流程 | 已实现 | 职位发布与审核上架、多条件检索、收藏、简历、投递状态机、面试通知 |
 | Spark 分析 | 已实现 | 离线清洗、薪资统计、技术趋势、地区分布与薪资回归 |
-| 推荐 | 已实现 | 用户余弦协同过滤与技能内容匹配融合，结果回写 `spark_recommend`，离线指标写入 `spark_recommend_eval` |
+| 推荐 | 已实现 | Spark DataFrame 实现的用户余弦协同过滤与技能内容匹配融合，邻居写入 `spark_user_neighbor`，结果回写 `spark_recommend`，离线指标写入 `spark_recommend_eval` |
 | RAG 智能问答 | 已实现 | 政策与面经切片、Chroma 检索、三类助手 SSE、会话与知识库管理 |
 | 仪表盘与演示 | 已实现 | 公开/学生/企业/管理端 ECharts 真实数据看板、系统演示页 `/demo`、一键启停 |
 
 ## 实验与论文素材
 
-离线对比、消融与扩展性压测见 [`experiments/README.md`](experiments/README.md)（可复现脚本、表格与图）。公开真实薪资与校招数据说明见 [`data/REAL_DATA.md`](data/REAL_DATA.md)。**生产清洗 / 聚合 / 薪资回归 / ALS / 推荐离线任务仍使用 PySpark**；Pandas 仅出现在扩展性对照实验中。
+离线对比、消融与扩展性压测见 [`experiments/README.md`](experiments/README.md)（可复现脚本、表格与图）。公开真实薪资与校招数据说明见 [`data/REAL_DATA.md`](data/REAL_DATA.md)。**生产清洗 / 聚合 / 薪资回归 / 用户余弦协同过滤 / ALS / 推荐离线任务全部使用 PySpark DataFrame**；numpy / Pandas 只出现在 `experiments/` 下的对照实现与扩展性实验中。
 
 ## 技术栈
 
@@ -44,7 +44,7 @@
 ├── backend/          # Spring Boot，包名 com.bishe.job
 ├── frontend/         # Vue 3
 ├── ai-service/       # FastAPI
-├── db/               # schema.sql（28 张表）、seed.sql、README.md
+├── db/               # schema.sql（29 张表）、seed.sql、README.md
 ├── scripts/          # start-mysql.sh、start-ollama.sh、start-all.sh、stop-all.sh
 ├── tests/
 │   ├── run-all.sh    # 拉起依赖并跑完全部接口脚本
@@ -199,22 +199,26 @@ cd ai-service
 
 算法（离线任务 `recommend`，写入 `spark_task_log`）：
 
-- **协同过滤**：浏览 1、收藏 3、投递 5，按全体行为最大时间做 45 天半衰期衰减，同一学生对同一职位汇总后 `log1p`。在留出集上比较用户-用户余弦（共同交互收缩、保留正相关邻居）和 MLlib 隐式 ALS（rank 8、6 轮），按 NDCG@10 择优。学生规模约 200，余弦矩阵放在 Driver 上，并保存为 `ai-service/data/recommend/cf_model.pkl` 供实时推荐复用。
+- **协同过滤（Spark 实现，`app/spark/recommend_cf.py`）**：浏览 1、收藏 3、投递 5，按全体行为最大时间做 45 天半衰期衰减，同一学生对同一职位汇总后 `log1p`，得到 (user, item, rating) DataFrame。用户-用户余弦用**按职位自连接**计算：同一职位下的两名学生两两配对（只算 u<v 一半再镜像），一次 groupBy 同时得到点积和共同交互数，除以两人的 L2 范数得余弦，再乘收缩系数 `co/(co+15)`；`Window.partitionBy(user).orderBy(sim desc)` + `row_number` 保留 Top-40 正相关邻居；预测分 = Σsim·r / Σsim 通过邻居表与评分表 join 后聚合。没有选 `RowMatrix.columnSimilarities`：它（DIMSUM）只给余弦，收缩还需要共同交互数，得再做一遍自连接；学生数百、行为稀疏时自连接是精确结果，代价 Σ(每个职位交互人数²) 很小。在留出集上与 MLlib 隐式 ALS（rank 8、6 轮，保留作离线对照）按 NDCG@10 择优。全体学生的邻居写入 `spark_user_neighbor`（随批次 `is_latest` 切换），稀疏评分与热度导出为 `ai-service/data/recommend/cf_model.pkl`（v2，仅 {学生:{职位:评分}}）供实时推荐使用；Driver 只收集每名学生每种算法的 Top-20。
 - **内容匹配**：技能熟练度与职位标签的余弦、期望方向、期望城市、学历是否达到要求、专业是否出现在职位名称或任职要求中。学历不够的职位再乘 0.35。
-- **融合**：线性 `alpha×CF+(1-alpha)×内容`，或门控（内容分高的职位才放大协同信号）。`alpha`、是否按活跃度缩放、线性或门控都在留出集上按 NDCG@10 选择。没有行为、或行为只落在无人共同交互的职位上（协同过滤整行为 0）的学生，按冷启动用 0.75×内容 + 0.25×近期行为热度。
+- **融合**：线性 `alpha×CF+(1-alpha)×内容`，或门控（内容分高的职位才放大协同信号）。`alpha`、是否按活跃度缩放、线性或门控（2×2×10=40 组）与候选集 crossJoin 后在 Spark 里一次开窗排序、聚合出各组指标，按 NDCG@10 选择。没有行为、或行为只落在无人共同交互的职位上（协同过滤整行为 0）的学生，按冷启动用 0.75×内容 + 0.25×近期行为热度。
 - **过滤**：只推荐已上架、已审核、未删除且企业资质通过的职位，并排除该学生已投递的职位。每名有档案的学生写 Top20，算法 1/2/3 各一份（1 协同过滤，2 内容，3 融合），含匹配分、两项分子分、名次和中文理由。新批次 `is_latest=1`，只保留最近 5 批。
 - **评估**：按学生把收藏/投递按时间留出约 20%（测试对上的浏览一并从训练集去掉），在未见过的在架职位上计算 Precision/Recall/NDCG@5、10、20 和目录覆盖率，并与热门基线对比。结果在 `spark_recommend_eval` 和 `ai-service/data/recommend/eval_metrics.json`。
 
-学生端 `GET /api/student/recommend` 读最新融合结果；该学生还没有批次时调用 `GET /recommend/user/{id}` 实时计算；分析服务不可用时用技能、方向、城市和投递热度做 SQL 兜底。职位详情的相似职位走 `GET /api/public/jobs/{id}/similar`，按标签重合、同方向、同城市排序。页面：学生「为你推荐」、首页推荐条、职位详情「相似职位」、管理端「推荐评估」。
+学生端 `GET /api/student/recommend` 读最新融合结果；该学生还没有批次时调用 `GET /recommend/user/{id}` 实时计算（纯 Python，不启动 Spark：离线批次里已有邻居的学生直接读 `spark_user_neighbor`；批次之后才产生行为的学生按同一公式对稀疏评分做倒排索引余弦；返回字段 `cfSource` 标明 `spark_neighbor_table` / `on_the_fly` / `none`）；分析服务不可用时用技能、方向、城市和投递热度做 SQL 兜底。职位详情的相似职位走 `GET /api/public/jobs/{id}/similar`，按标签重合、同方向、同城市排序。页面：学生「为你推荐」、首页推荐条、职位详情「相似职位」、管理端「推荐评估」。
 
-本次演示数据上，用户余弦的留出 NDCG@10（0.582）高于隐式 ALS（0.287），融合（线性、alpha=0.45、不按活跃度缩放）高于协同过滤、内容匹配和热门基线。整次任务约 12 秒（含 Spark 启动）。具体指标以 `spark_recommend_eval` 中 `is_latest=1` 的行为准：
+当前演示数据（2026-11-02 批次 `20261102185805edcb`：309 名学生、4984 个职位、留出 232 名学生）上，用户余弦的留出 NDCG@10（0.3231）高于隐式 ALS（0.1465），融合（线性、alpha=0.55、不按活跃度缩放）高于协同过滤、内容匹配和热门基线。具体指标以 `spark_recommend_eval` 中 `is_latest=1` 的行为准：
 
 | 算法 | P@10 | R@10 | NDCG@10 | 覆盖率@10 |
 | :--- | ---: | ---: | ---: | ---: |
-| 协同过滤（用户余弦） | 0.1385 | 0.6125 | 0.5820 | 0.1907 |
-| 内容匹配 | 0.0935 | 0.4150 | 0.3553 | 0.3160 |
-| 融合 | 0.1510 | 0.6725 | 0.6190 | 0.3004 |
-| 热门基线 | 0.0050 | 0.0225 | 0.0162 | 0.0075 |
+| 协同过滤（用户余弦） | 0.0802 | 0.3161 | 0.3231 | 0.1557 |
+| 内容匹配 | 0.0789 | 0.3096 | 0.2544 | 0.2378 |
+| 融合 | 0.0944 | 0.3714 | 0.3572 | 0.2064 |
+| 热门基线 | 0.0043 | 0.0187 | 0.0125 | 0.0041 |
+
+**Spark 实现与原 numpy 实现的等价性**（`experiments/recommend/verify_spark_cf.py`，结果 `experiments/results/recommend_spark_equivalence.json`）：同一数据上 8548 条邻居中 8546 条一致，共同邻居的相似度最大绝对差 3.3e-16，另 2 条都是第 40 名并列边界上的取舍差异（numpy argpartition 任意取，Spark 按 neighbor_id 升序）；三种算法 309 名学生的 Top-10/Top-20 列表与顺序完全一致，匹配分差 0；四种算法 NDCG@10 与选中的融合参数完全一致。
+
+耗时（8 vCPU 单机 `local[*]`，driver 2g）：Spark 整次任务约 135 秒（加载 1.6、余弦 17.9、ALS 12.8、40 组融合网格评估 87.8、生产打分 12.2、写库 1.9），原 numpy 实现约 3.4 秒。数据只有几百名学生时 Spark 的调度与 shuffle 固定开销占主导，40 组网格（约 4500 万行 crossJoin + 开窗）是主要耗时；换来的是同一份代码可以在 Standalone 集群上横向扩展，Driver 内存不随学生数平方增长。
 
 留出集每名学生只有少量收藏/投递，因此 Recall 偏高、Precision 偏低；演示行为按方向和城市聚集，指标比真实场景乐观。
 

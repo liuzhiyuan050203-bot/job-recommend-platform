@@ -1,32 +1,36 @@
-"""单用户实时推荐与相似职位。
+"""单用户实时推荐与相似职位（在线服务侧，不启动 Spark，也不依赖 numpy / pandas）。
 
-离线批次把全体学生的衰减评分矩阵存成 pickle。实时侧不再启动 Spark：
-已有学生或新学生都用这份矩阵做用户余弦，内容分按当前档案和技能现算。
-没有行为时退化为内容分与热门分。相似职位按标签 Jaccard、方向和城市，
-有模型时再加一点共现。
+分工：离线 Spark 任务（recommend.py / recommend_cf.py）计算全体学生的衰减评分、
+用户余弦相似度与 Top-40 邻居，邻居写入 spark_user_neighbor，稀疏评分导出到 cf_model.pkl。
+在线侧只做「查表 + 小规模加权求和」：
+
+* 已在离线批次里有邻居的学生：直接读 spark_user_neighbor（is_latest=1）的邻居与相似度，
+  预测 = Σ sim·r_v / Σ sim，r_v 取自离线导出的稀疏评分，不再重算相似度；
+* 离线批次之后才产生行为的新学生：用其实时行为按同一公式（45 天半衰期、log1p、
+  共现收缩、Top-40 正相关邻居）对离线评分做一次倒排索引余弦，只涉及与他有共同职位的学生；
+* 没有行为：退化为内容分与热门分。
+
+内容分按当前档案和技能现算，所以改简历/技能后刷新推荐立即生效。
+相似职位按标签 Jaccard、方向和城市，有模型时再加一点共现。
 """
 
 from __future__ import annotations
 
 import logging
+import math
 import pickle
 import threading
 import time
 from collections import defaultdict
 
-import numpy as np
-import pandas as pd
-
 from app.spark.db import connect
 from app.spark.paths import RECOMMEND_MODEL_PATH
 from app.spark.recommend_eval import (
     HALF_LIFE_DAYS,
-    aggregate_frame,
+    NEIGHBORS,
+    SHRINK,
     build_reason,
     clip_score,
-    cosine_one,
-    fuse_scores,
-    minmax_rows,
     skill_match_percent,
 )
 
@@ -47,6 +51,7 @@ def invalidate_caches() -> None:
 
 
 def load_model():
+    """读取离线导出的稀疏模型，并建好倒排索引与范数。旧版（稠密矩阵）模型不再兼容，返回 None。"""
     path = RECOMMEND_MODEL_PATH
     if not path.is_file():
         return None
@@ -60,6 +65,21 @@ def load_model():
     except Exception:
         logger.exception("读取推荐模型失败")
         return None
+    if not isinstance(data, dict) or int(data.get("version") or 0) < 2 or not isinstance(data.get("ratings"), dict):
+        logger.warning("推荐模型版本过旧，请重新运行 Spark 推荐任务")
+        return None
+    ratings: dict[int, dict[int, float]] = {
+        int(user): {int(item): float(value) for item, value in row.items() if float(value) > 0}
+        for user, row in data["ratings"].items()
+    }
+    by_item: dict[int, list[tuple[int, float]]] = defaultdict(list)
+    for user, row in ratings.items():
+        for item, value in row.items():
+            by_item[item].append((user, value))
+    data["ratings"] = ratings
+    data["byItem"] = dict(by_item)
+    data["norms"] = {user: math.sqrt(sum(v * v for v in row.values())) for user, row in ratings.items()}
+    data["popularity"] = {int(k): float(v) for k, v in (data.get("popularity") or {}).items()}
     with _lock:
         _model["data"] = data
         _model["mtime"] = mtime
@@ -80,6 +100,108 @@ def load_catalog(force: bool = False) -> dict:
     return data
 
 
+def decayed_ratings(events: list[dict], ref_ts: float, half_life_days: float = HALF_LIFE_DAYS) -> dict[int, float]:
+    """与离线 recommend_cf.implicit_ratings 同一公式：权重 × 0.5^(age/半衰期)，按职位求和后 log1p。"""
+    sums: dict[int, float] = defaultdict(float)
+    for row in events:
+        weight = row.get("weight")
+        behavior = int(row.get("behavior_type") or 1)
+        if weight is None or not math.isfinite(float(weight)) or float(weight) <= 0:
+            weight = 3.0 if behavior == 2 else 5.0 if behavior == 3 else 1.0
+        age = max(0.0, float(ref_ts) - float(row.get("ts") or 0.0))
+        sums[int(row["position_id"])] += float(weight) * math.pow(0.5, age / (float(half_life_days) * 86400.0))
+    return {item: math.log1p(total) for item, total in sums.items() if math.log1p(total) > 0}
+
+
+def neighbors_from_table(user_id: int, batch_no: str | None) -> list[tuple[int, float]]:
+    """读取离线 Spark 写入的邻居（只取与当前模型同一批次的生效行）。"""
+    conn = connect()
+    try:
+        with conn.cursor() as cur:
+            sql = (
+                "SELECT neighbor_id, similarity FROM spark_user_neighbor "
+                "WHERE user_id = %s AND is_latest = 1 AND deleted = 0"
+            )
+            args: list = [int(user_id)]
+            if batch_no:
+                sql += " AND batch_no = %s"
+                args.append(batch_no)
+            cur.execute(sql + " ORDER BY rank_no", args)
+            rows = cur.fetchall()
+    except Exception:
+        logger.exception("读取 spark_user_neighbor 失败")
+        return []
+    finally:
+        conn.close()
+    return [(int(row["neighbor_id"]), float(row["similarity"])) for row in rows if float(row["similarity"]) > 0]
+
+
+def neighbors_on_the_fly(user_vec: dict[int, float], model: dict, self_id: int | None = None) -> list[tuple[int, float]]:
+    """新学生的近邻：倒排索引只遍历与其有共同职位的学生，公式同离线 Spark。"""
+    user_norm = math.sqrt(sum(v * v for v in user_vec.values()))
+    if user_norm < 1e-8:
+        return []
+    dots: dict[int, float] = defaultdict(float)
+    overlap: dict[int, int] = defaultdict(int)
+    for item, value in user_vec.items():
+        for other, other_value in model["byItem"].get(item, ()):
+            if other == self_id:
+                continue
+            dots[other] += value * other_value
+            overlap[other] += 1
+    sims = []
+    for other, dot in dots.items():
+        norm = model["norms"].get(other, 0.0)
+        if norm <= 1e-8:
+            continue
+        co = overlap[other]
+        sim = dot / (norm * user_norm) * (co / (co + SHRINK))
+        if sim > 0:
+            sims.append((other, sim))
+    sims.sort(key=lambda item: (-item[1], item[0]))
+    return sims[:NEIGHBORS]
+
+
+def predict_from_neighbors(neighbors: list[tuple[int, float]], model: dict) -> dict[int, float]:
+    denom = sum(sim for _other, sim in neighbors)
+    if denom <= 1e-12:
+        return {}
+    scores: dict[int, float] = defaultdict(float)
+    for other, sim in neighbors:
+        for item, value in model["ratings"].get(other, {}).items():
+            scores[item] += sim * value
+    return {item: value / denom for item, value in scores.items()}
+
+
+def _minmax(values: list[float], banned: list[bool]) -> list[float]:
+    """单行 min-max 到 0-100，口径同离线（全 0 → 0，平坦且大于 0 → 100，屏蔽位 0）。"""
+    live = [v for v, b in zip(values, banned) if not b]
+    if not live:
+        return [0.0] * len(values)
+    lo, hi = min(live), max(live)
+    out = []
+    for value, blocked in zip(values, banned):
+        if blocked or hi <= 1e-8:
+            out.append(0.0)
+        elif hi - lo > 1e-6:
+            out.append(max(0.0, min(100.0, (value - lo) / (hi - lo) * 100.0)))
+        else:
+            out.append(100.0)
+    return out
+
+
+def _fuse(cf_mm: float, content: float, popularity: float, activity: float, cold: bool, alpha: float, fusion: str, adaptive: bool) -> float:
+    if cold:
+        mixed = 0.75 * content + 0.25 * popularity
+    else:
+        alpha_u = alpha * (0.25 + 0.75 * max(0.0, min(1.0, activity / 8.0))) if adaptive else alpha
+        if fusion == "gated":
+            mixed = content * ((1.0 - alpha_u) + alpha_u * (cf_mm / 100.0))
+        else:
+            mixed = alpha_u * cf_mm + (1.0 - alpha_u) * content
+    return max(0.0, min(100.0, mixed))
+
+
 def recommend_for_user(user_id: int, top_k: int = 10) -> dict:
     top_k = max(1, min(int(top_k), 50))
     catalog = load_catalog()
@@ -93,89 +215,55 @@ def recommend_for_user(user_id: int, top_k: int = 10) -> dict:
         return _empty(user_id, model)
 
     item_ids = [int(job["id"]) for job in jobs]
-    n_items = len(item_ids)
-    content = np.zeros(n_items, dtype=np.float64)
     major = str((profile or {}).get("major") or "")
     direction = str((profile or {}).get("expectDirection") or "")
     city = str((profile or {}).get("expectCity") or "")
     education = int((profile or {}).get("education") or 0)
-    for index, job in enumerate(jobs):
-        content[index] = _content_one(skills, major, direction, city, education, job, catalog["tagNames"])
+    content = [_content_one(skills, major, direction, city, education, job, catalog["tagNames"]) for job in jobs]
 
-    cf = np.zeros(n_items, dtype=np.float64)
-    activity = 0.0
     ref_ts = float(model["refTs"]) if model and model.get("refTs") is not None else 0.0
     if events:
         ref_ts = max(ref_ts, max(float(row["ts"]) for row in events))
-    ratings = {}
-    if events:
-        frame = pd.DataFrame(events)
-        grouped, _pop = aggregate_frame(frame, ref_ts or float(frame["ts"].max()))
-        activity = float(len(grouped))
-        ratings = {int(pid): float(val) for pid, val in zip(grouped["position_id"], grouped["rating"])}
+    ratings = decayed_ratings(events, ref_ts) if events else {}
+    activity = float(len(ratings))
+    cf_source = "none"
+    raw_scores: dict[int, float] = {}
     if model and ratings:
-        model_items = [int(item) for item in model["itemIds"]]
-        model_index = {item: index for index, item in enumerate(model_items)}
-        user_vec = np.zeros(len(model_items), dtype=np.float64)
-        for position_id, rating in ratings.items():
-            col = model_index.get(int(position_id))
-            if col is not None:
-                user_vec[col] = rating
-        matrix = np.asarray(model["ratings"], dtype=np.float64)
-        self_index = None
-        model_users = [int(item) for item in model["userIds"]]
-        if int(user_id) in model_users:
-            self_index = model_users.index(int(user_id))
-        raw = cosine_one(user_vec, matrix, self_index=self_index)
-        for index, position_id in enumerate(item_ids):
-            col = model_index.get(int(position_id))
-            if col is not None:
-                cf[index] = float(raw[col])
+        neighbors = neighbors_from_table(user_id, model.get("batchNo"))
+        cf_source = "spark_neighbor_table"
+        if not neighbors:
+            neighbors = neighbors_on_the_fly(ratings, model, self_id=int(user_id))
+            cf_source = "on_the_fly"
+        raw_scores = predict_from_neighbors(neighbors, model)
+    cf = [float(raw_scores.get(position_id, 0.0)) for position_id in item_ids]
 
-    popularity = np.zeros(n_items, dtype=np.float64)
-    if model and model.get("popularity") is not None:
-        model_items = [int(item) for item in model["itemIds"]]
-        model_index = {item: index for index, item in enumerate(model_items)}
-        pop_vector = np.asarray(model["popularity"], dtype=np.float64)
-        for index, position_id in enumerate(item_ids):
-            col = model_index.get(int(position_id))
-            if col is not None:
-                popularity[index] = float(pop_vector[col])
-    if float(popularity.max()) <= 0:
-        apply_counts = np.array([job["applyCount"] for job in jobs], dtype=np.float64)
-        peak = float(apply_counts.max()) if n_items else 0.0
-        popularity = np.zeros(n_items) if peak <= 0 else 100.0 * np.log1p(apply_counts) / np.log1p(peak)
+    pop_map = (model or {}).get("popularity") or {}
+    popularity = [float(pop_map.get(position_id, 0.0)) for position_id in item_ids]
+    if max(popularity, default=0.0) <= 0:
+        counts = [float(job["applyCount"]) for job in jobs]
+        peak = max(counts, default=0.0)
+        popularity = [0.0] * len(jobs) if peak <= 0 else [100.0 * math.log1p(c) / math.log1p(peak) for c in counts]
 
-    banned = np.zeros((1, n_items), dtype=bool)
-    for index, position_id in enumerate(item_ids):
-        if position_id in applied:
-            banned[0, index] = True
-    cf_mm = minmax_rows(cf.reshape(1, -1), banned)[0]
+    banned = [position_id in applied for position_id in item_ids]
+    cf_mm = _minmax(cf, banned)
     alpha = float(model["alpha"]) if model and model.get("alpha") is not None else 0.45
     fusion = model.get("fusion") if model else "gated"
     adaptive = bool(model.get("adaptiveAlpha")) if model else True
     if fusion not in ("linear", "gated"):
         fusion = "gated"
-    hybrid = fuse_scores(
-        cf_mm.reshape(1, -1),
-        content.reshape(1, -1),
-        popularity.reshape(1, -1),
-        np.array([activity], dtype=np.float64),
-        alpha,
-        fusion,
-        adaptive,
-    )[0]
-    hybrid = hybrid.copy()
-    hybrid[banned[0]] = -1.0
-    order = np.argsort(-hybrid)
+    cold = activity <= 0 or max(cf_mm, default=0.0) <= 0
+    hybrid = [
+        -1.0 if banned[i] else _fuse(cf_mm[i], content[i], popularity[i], activity, cold, alpha, fusion, adaptive)
+        for i in range(len(jobs))
+    ]
+    order = sorted(range(len(jobs)), key=lambda i: (-hybrid[i], i))
     items = []
-    cold = activity <= 0 or cf_mm.size == 0 or float(np.max(cf_mm)) <= 0
     for position_index in order:
         if hybrid[position_index] < 0:
             continue
         if len(items) >= top_k:
             break
-        job = jobs[int(position_index)]
+        job = jobs[position_index]
         percent, names = skill_match_percent(skills, set(job["tags"]), catalog["tagNames"])
         text = f"{job['title']} {job.get('requirement') or ''}"[:500]
         reason = build_reason(
@@ -215,6 +303,7 @@ def recommend_for_user(user_id: int, top_k: int = 10) -> dict:
         "source": "realtime",
         "strategy": "hybrid" if model else "content_popular",
         "cfMethod": (model or {}).get("cfMethod") or "user_cosine",
+        "cfSource": cf_source,
         "coldStart": bool(cold),
         "halfLifeDays": HALF_LIFE_DAYS,
         "items": items,
@@ -405,22 +494,21 @@ def _content_one(skills, major, direction, city, education, job, tag_names) -> f
 
 
 def _cooccurrence(job_id: int) -> dict[int, float] | None:
+    """看过/收藏/投递过该职位的学生，对其他职位的评分之和，按最大值归一。"""
     model = load_model()
-    if not model or model.get("ratings") is None:
+    if not model:
         return None
-    item_ids = [int(item) for item in model["itemIds"]]
-    if job_id not in item_ids:
+    touched = [user for user, _value in model["byItem"].get(int(job_id), ())]
+    if not touched:
         return None
-    matrix = np.asarray(model["ratings"], dtype=np.float64)
-    column = matrix[:, item_ids.index(job_id)]
-    touched = (column > 0).astype(np.float64)
-    if float(touched.sum()) <= 0:
-        return None
-    counts = matrix.T @ touched
-    peak = float(counts.max()) if len(counts) else 0.0
+    counts: dict[int, float] = defaultdict(float)
+    for user in touched:
+        for item, value in model["ratings"].get(user, {}).items():
+            counts[item] += value
+    peak = max(counts.values(), default=0.0)
     if peak <= 0:
         return None
-    return {item_ids[index]: float(counts[index] / peak) for index in range(len(item_ids))}
+    return {item: value / peak for item, value in counts.items()}
 
 
 def _query_catalog() -> dict:

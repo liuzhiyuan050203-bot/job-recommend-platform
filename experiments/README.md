@@ -1,13 +1,14 @@
 # 实验章节素材（可复现）
 
 所有数字均来自本目录脚本的真实运行，原始输出在 `results/`，图在 `figures/`。
-**生产流水线仍使用 PySpark**（清洗 / 聚合 / 薪资回归 / ALS / 推荐离线任务）；本目录的 Pandas 对比只用于扩展性压测。
+**生产流水线全部使用 PySpark DataFrame**（清洗 / 聚合 / 薪资回归 / 用户余弦协同过滤 / ALS / 推荐离线任务）。本目录的 numpy / Pandas 代码只用于：推荐消融的对照实现（`recommend/numpy_reference.py`，即改造前的 numpy 版本，用来做等价性校验）和扩展性压测。
 
 ```bash
 export PATH=$HOME/.local/bin:$PATH
 # 分项复现（各一条命令）
 .venv/bin/python experiments/salary/run_salary_experiment.py --folds 5
 .venv/bin/python experiments/recommend/run_recommend_ablation.py --seeds 5
+.venv/bin/python experiments/recommend/verify_spark_cf.py   # Spark 协同过滤 vs numpy 参考实现（会真正跑一次推荐任务并写库）
 .venv/bin/python experiments/scale/run_scale_bench.py
 .venv/bin/python experiments/rag_eval/run_rag_eval.py
 ```
@@ -67,6 +68,20 @@ export PATH=$HOME/.local/bin:$PATH
 在弱偏好行为上，**Popularity NDCG@10=0.1763±0.0087 最高**，Content 降至 0.037，Hybrid/UserCF ≈0.17。说明原生成器的「方向+城市」聚集会抬高内容与混合指标；论文需如实写明演示数据偏差，并把 pop_noise 作为压力测试。
 
 原始表：`results/recommend_*_{summary,alpha_sweep,coldstart}.csv`，汇总 JSON：`results/recommend_ablation.json`。
+
+### 2.6 生产实现：Spark 用户余弦与 numpy 参考实现的等价性
+
+生产推荐（`ai-service/app/spark/recommend.py` + `recommend_cf.py`）的衰减评分、用户余弦（按职位自连接，点积与共同交互数一次聚合，收缩 `co/(co+15)`）、Top-40 邻居（Window + row_number）、预测、min-max、40 组融合网格、Top-K 与指标聚合全部是 Spark DataFrame 运算。消融脚本仍调用 `recommend/numpy_reference.py`（改造前的 numpy 实现），所以 2.1–2.5 的数字不受影响。`recommend/verify_spark_cf.py` 在同一份数据上同时跑两种实现并对比（`results/recommend_spark_equivalence.json`，2026-11-02，309 名学生 / 4984 职位 / 10516 个非零评分 / 留出 232 人）：
+
+| 检查项 | 结果 |
+|---|---|
+| 邻居对（Spark 表 vs numpy） | 8548 vs 8548，Jaccard 0.999766；不一致的 2 对均为第 40 名并列边界（`mismatched_pairs_all_rank40_ties=true`） |
+| 共同邻居相似度最大绝对差 | 3.3e-16 |
+| CF / 内容 / 融合 Top-10、Top-20 重合率 | 均为 1.0（309 名学生顺序完全一致，匹配分差 0） |
+| NDCG@10（numpy = Spark） | 余弦 0.3231、融合 0.3572、内容 0.2544、热门 0.0125；选中参数均为 linear / α=0.55 / 非自适应 |
+| 耗时 | numpy 参考 3.4 s（含读库）；Spark 135.1 s（加载 1.6 / 余弦 17.9 / ALS 12.8 / 融合网格评估 87.8 / 生产打分 12.2 / 写库 1.9），8 vCPU `local[*]` |
+
+单机小数据上 Spark 的调度、shuffle 固定开销远大于计算本身，这与第 3 节扩展性结论一致；Spark 版本的意义在于 Driver 不再持有 用户×职位 稠密矩阵，可在 Standalone 集群上横向扩展。
 
 ---
 

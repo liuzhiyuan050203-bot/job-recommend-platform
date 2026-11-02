@@ -3,8 +3,8 @@
     .venv/bin/python experiments/recommend/run_recommend_ablation.py [--seeds 5] [--quick]
 
 数据：库里 user_behavior_log / stu_profile / stu_skill / job_position（由 data/generate_demo_data.py
-生成的合成行为）。直接复用生产代码 ai-service/app/spark/recommend.py、recommend_eval.py 的
-加载、内容打分、用户余弦、ALS、融合与评估函数，保证实验与线上实现一致。
+生成的合成行为）。复用 numpy_reference.py（生产 Spark 实现的 numpy 参考版，数值等价性见
+verify_spark_cf.py）的加载、内容打分、用户余弦、ALS、融合与评估函数。
 
 评估协议
 - 正样本：收藏/投递过的 (学生, 职位)。每个学生留出 20% 正样本做测试（向下取整，至少 1 个，
@@ -38,8 +38,11 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import FIGURES, RESULTS, env_info, save_json, setup_matplotlib  # noqa: E402
 
-from app.spark import recommend as R  # noqa: E402
-from app.spark import recommend_eval as E  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+# 生产推荐已改为 Spark DataFrame 实现；消融实验需要上百组网格，仍用等价的 numpy 参考实现
+import numpy_reference as R  # noqa: E402
+
+E = R
 from app.spark.session import get_spark  # noqa: E402
 
 KS = (5, 10, 20)

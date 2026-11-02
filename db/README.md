@@ -2,7 +2,7 @@
 
 高校就业推荐平台的 MySQL 库（MariaDB 11.8，MySQL 协议）。业务库由 Spring Boot 读写，PySpark 把离线结果写回本库，RAG 原文放在 `rag_document`，向量放在 Chroma。
 
-字符集 `utf8mb4` / `utf8mb4_unicode_ci`，引擎 InnoDB。28 张表都有中文表注释和字段注释，并包含 `create_time`、`update_time`、`deleted`（0 否，1 是）。
+字符集 `utf8mb4` / `utf8mb4_unicode_ci`，引擎 InnoDB。29 张表都有中文表注释和字段注释，并包含 `create_time`、`update_time`、`deleted`（0 否，1 是）。
 
 ## 初始化
 
@@ -61,6 +61,7 @@ Spark 结果行是按这两条职位手工填的占位数据，正式环境由 P
 | spark_salary_predict | 薪资回归预测结果 |
 | spark_recommend | User-CF、内容匹配、融合推荐及匹配分 |
 | spark_recommend_eval | 推荐离线评估：Precision/Recall/NDCG@K 与目录覆盖率 |
+| spark_user_neighbor | Spark 计算的用户余弦 Top-40 邻居（收缩后相似度、原始余弦、共同交互数、名次），随批次 is_latest 切换，供实时推荐复用；旧库执行 `migrations/phase6_spark_neighbor.sql` 补建 |
 | spark_task_log | Spark 任务批次、状态、行数和错误信息 |
 | rag_document | RAG 知识切片；向量在 Chroma，这里记 `chroma_id` |
 | ai_session | 学生、企业或管理员智能体的会话 |

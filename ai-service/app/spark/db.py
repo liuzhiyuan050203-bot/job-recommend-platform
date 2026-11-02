@@ -19,6 +19,7 @@ ALLOWED_TABLES = {
     "spark_salary_predict",
     "spark_recommend",
     "spark_recommend_eval",
+    "spark_user_neighbor",
 }
 KEEP_BATCHES = 5
 
@@ -124,12 +125,18 @@ def _prune(cur, table: str, keep: int = KEEP_BATCHES) -> int:
     return int(cur.rowcount)
 
 
-def publish(batch_no: str, payloads: list[tuple[str, list[str], list[tuple]]]) -> dict[str, int]:
+def publish(
+    batch_no: str,
+    payloads: list[tuple[str, list[str], list[tuple]]],
+    activate_tables: list[str] | None = None,
+) -> dict[str, int]:
     """插入 is_latest=1 的新批次，成功后把同表旧批次置 0，并只保留最近 5 批。
 
-    插入、切换和清理在一个事务内提交。失败则回滚，已生效的 latest 数据不变。
+    activate_tables 中的表已由 Spark JDBC 以 is_latest=0 追加好本批次数据，这里在同一事务里
+    把本批次切为 1、其余批次切为 0 并清理。插入、切换和清理在一个事务内提交。
+    失败则回滚，已生效的 latest 数据不变。
     """
-    if not payloads:
+    if not payloads and not activate_tables:
         return {}
     conn = connect()
     counts: dict[str, int] = {}
@@ -145,13 +152,61 @@ def publish(batch_no: str, payloads: list[tuple[str, list[str], list[tuple]]]) -
                     (batch_no,),
                 )
                 _prune(cur, table)
+            for table in activate_tables or []:
+                if table not in ALLOWED_TABLES:
+                    raise RuntimeError(f"不允许写入表 {table}")
+                cur.execute(f"SELECT COUNT(*) AS n FROM {table} WHERE batch_no=%s", (batch_no,))
+                counts[table] = int(cur.fetchone()["n"])
+                cur.execute(f"UPDATE {table} SET is_latest=1 WHERE batch_no=%s AND deleted=0", (batch_no,))
+                cur.execute(
+                    f"UPDATE {table} SET is_latest=0 WHERE batch_no<>%s AND is_latest=1 AND deleted=0",
+                    (batch_no,),
+                )
+                _prune(cur, table)
         conn.commit()
         return counts
     except Exception:
         conn.rollback()
+        _discard(batch_no, activate_tables or [])
         raise
     finally:
         conn.close()
+
+
+def _discard(batch_no: str, tables: list[str]) -> None:
+    """发布失败时删掉已由 Spark 追加但未生效的本批次行。"""
+    if not tables:
+        return
+    try:
+        conn = connect()
+        try:
+            with conn.cursor() as cur:
+                for table in tables:
+                    if table in ALLOWED_TABLES:
+                        cur.execute(f"DELETE FROM {table} WHERE batch_no=%s AND is_latest=0", (batch_no,))
+        finally:
+            conn.close()
+    except Exception:
+        pass
+
+
+def write_dataframe(frame, table: str) -> None:
+    """用 Spark JDBC 把 DataFrame 追加到 spark_* 表（各分区并行写，Driver 不收集数据）。"""
+    if table not in ALLOWED_TABLES:
+        raise RuntimeError(f"不允许写入表 {table}")
+    from app.spark.session import jdbc_url
+
+    (
+        frame.write.format("jdbc")
+        .option("url", jdbc_url() + "&rewriteBatchedStatements=true")
+        .option("driver", "com.mysql.cj.jdbc.Driver")
+        .option("user", settings.MYSQL_USER)
+        .option("password", settings.MYSQL_PASSWORD)
+        .option("dbtable", table)
+        .option("batchsize", "2000")
+        .mode("append")
+        .save()
+    )
 
 
 def _parse_json(value):

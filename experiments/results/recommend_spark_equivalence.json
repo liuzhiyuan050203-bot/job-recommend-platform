@@ -1,0 +1,94 @@
+{
+  "batchNo": "20261102185805edcb",
+  "users": 309,
+  "items": 4984,
+  "ratingNonZero": 10516,
+  "holdoutUsers": {
+    "numpy": 232,
+    "spark": 232
+  },
+  "similarity": {
+    "neighbor_rows_spark": 8548,
+    "neighbor_pairs_numpy": 8548,
+    "neighbor_set_jaccard": 0.999766,
+    "max_abs_diff": 0.00894801052698396,
+    "max_abs_diff_on_common_pairs": 3.3306690738754696e-16,
+    "mismatched_pairs": 2,
+    "mismatched_pairs_all_rank40_ties": true
+  },
+  "lists": {
+    "cf": {
+      "users": 309,
+      "top10_overlap_mean": 1.0,
+      "top10_overlap_min": 1.0,
+      "top10_identical_order_users": 309,
+      "top20_overlap_mean": 1.0,
+      "max_abs_match_score_diff_on_common_items": 0.0
+    },
+    "content": {
+      "users": 309,
+      "top10_overlap_mean": 1.0,
+      "top10_overlap_min": 1.0,
+      "top10_identical_order_users": 309,
+      "top20_overlap_mean": 1.0,
+      "max_abs_match_score_diff_on_common_items": 0.0
+    },
+    "hybrid": {
+      "users": 309,
+      "top10_overlap_mean": 1.0,
+      "top10_overlap_min": 1.0,
+      "top10_identical_order_users": 309,
+      "top20_overlap_mean": 1.0,
+      "max_abs_match_score_diff_on_common_items": 0.0
+    }
+  },
+  "ndcg10": {
+    "numpy": {
+      "cosine": 0.3231,
+      "hybrid": 0.3572,
+      "content": 0.2544,
+      "popular": 0.0125,
+      "best": {
+        "alpha": 0.55,
+        "fusion": "linear",
+        "adaptive": false
+      }
+    },
+    "spark": {
+      "cosine": 0.3231,
+      "hybrid": 0.3572,
+      "content": 0.2544,
+      "popular": 0.0125,
+      "best": {
+        "alpha": 0.55,
+        "fusion": "linear",
+        "adaptive": false
+      }
+    }
+  },
+  "timing_seconds": {
+    "numpy_reference_total_incl_load": 3.442,
+    "numpy_cosine_predict": {
+      "train": 0.0176,
+      "full": 0.0132
+    },
+    "spark_job_total": 135.145,
+    "spark_stage_seconds": {
+      "load": 1.624,
+      "cosine": 17.871,
+      "als": 12.777,
+      "eval": 87.841,
+      "score": 12.234,
+      "write": 1.891
+    }
+  },
+  "env": {
+    "python": "3.13.5",
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.41",
+    "cpu_count": 8,
+    "time": "2026-11-02 19:00:20 +0800",
+    "pyspark": "4.2.1",
+    "MemTotal": "16386368 kB",
+    "MemAvailable": "8203288 kB"
+  }
+}
