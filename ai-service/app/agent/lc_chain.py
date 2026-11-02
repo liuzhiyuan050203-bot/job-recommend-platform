@@ -26,7 +26,7 @@ from langchain_core.runnables import Runnable, RunnableBranch, RunnableLambda, R
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
-from app.agent.router import Route, ToolRequest, allowed_tool_names, route
+from app.agent.router import COMPANY_DOC_TYPES, Route, ToolRequest, allowed_tool_names, route
 from app.agent.tools import Caller, execute, render
 
 logger = logging.getLogger(__name__)
@@ -168,6 +168,10 @@ class ScreenArgs(BaseModel):
     job_id: int | None = None
 
 
+class StatsArgs(BaseModel):
+    days: int = Field(default=7, description="统计最近多少天，本周为 7")
+
+
 class SalaryArgs(BaseModel):
     city: str = ""
     direction: str = ""
@@ -195,6 +199,7 @@ TOOL_CATALOG: dict[str, tuple[str, type[BaseModel]]] = {
     "polish_job_description": ("接收需要润色的职位描述", PolishArgs),
     "screen_applicants": ("按技能匹配排序本公司某职位的候选人", ScreenArgs),
     "list_my_jobs": ("列出当前企业发布的职位", LimitArgs),
+    "application_stats": ("统计本公司近 N 天的投递概况、状态分布、热门职位和待办提醒", StatsArgs),
     "salary_stats": ("查询城市或方向的平均月薪", SalaryArgs),
     "tech_trend": ("查询需求环比增长最快的技术", TrendArgs),
     "region_distribution": ("查询职位数最多的省份", TopArgs),
@@ -205,7 +210,7 @@ TOOL_CATALOG: dict[str, tuple[str, type[BaseModel]]] = {
 
 ROLE_AGENT_PROMPTS = {
     "student": "你是高校就业推荐平台的学生就业助手。需要查职位、推荐、薪资或技能差距时调用一个工具，不要直接回答。",
-    "company": "你是高校就业推荐平台的企业招聘助手。需要生成或润色职位描述、筛选候选人、查看本公司职位时调用一个工具，不要直接回答。",
+    "company": "你是高校就业推荐平台的企业招聘助手。需要生成或润色职位描述、筛选候选人、查看本公司职位或投递统计时调用一个工具，不要直接回答。",
     "admin": "你是高校就业推荐平台的管理员数据助手。需要统计数字时调用一个工具，不要直接回答，不要编造数字。",
 }
 
@@ -285,13 +290,18 @@ def agent_tool_requests(question: str, caller: Caller, llm=None) -> list[ToolReq
 # --------------------------------------------------------------------------- 路由
 
 
-def doc_types_for_tools(tools: list[ToolRequest]) -> list[int]:
+def doc_types_for_tools(tools: list[ToolRequest], role: str = "") -> list[int]:
     names = {item.name for item in tools}
     if "search_jobs" in names:
-        return [7]
-    if "analyze_resume_gap" in names or "polish_job_description" in names or "generate_job_description" in names:
-        return [5, 4]
-    return []
+        types = [7]
+    elif "analyze_resume_gap" in names or "polish_job_description" in names or "generate_job_description" in names:
+        types = [5, 4]
+    else:
+        types = []
+    if role == "company":
+        # 企业侧不检索学生求职指导等资料
+        types = [value for value in types if value in COMPANY_DOC_TYPES]
+    return types
 
 
 def build_router(caller: Caller, use_agent: bool) -> Runnable:
@@ -302,6 +312,9 @@ def build_router(caller: Caller, use_agent: bool) -> Runnable:
         decided = route(question, caller.role)
         if decided.refusal:
             return decided
+        if any(item.name == "application_stats" for item in decided.tools):
+            # 投递统计是确定性意图，规则命中时直接用规则结果（含时间窗口），不再交给模型选工具
+            return decided
         try:
             picked = agent_tool_requests(question, caller)
         except Exception:
@@ -309,7 +322,7 @@ def build_router(caller: Caller, use_agent: bool) -> Runnable:
             picked = None
         if not picked:
             return decided
-        return Route(tools=picked, doc_types=doc_types_for_tools(picked), instruction="")
+        return Route(tools=picked, doc_types=doc_types_for_tools(picked, caller.role), instruction="")
 
     return RunnableBranch(
         (lambda _question: use_agent, RunnableLambda(agent_route, name="role_agent")),

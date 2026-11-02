@@ -114,12 +114,33 @@ def _system_prompt(agent: str, has_sources: bool) -> str:
         cite = "引用资料时在句末只写[1]、[2]这种序号，不要写成[资料1]。序号只能使用【资料】里出现的编号。"
     else:
         cite = "当前没有可引用的资料切片，回答中不要出现[1]、[2]这类方括号序号。"
+    if agent == AGENT_NAMES["company"]:
+        tail = (
+            "并引导 HR 使用「招聘看板」「候选人管理」或换个问法。"
+            "你面向企业招聘方，不要给出面向学生的求职建议，不要建议咨询学校就业指导中心。用简洁中文。"
+        )
+    else:
+        tail = "并提醒以学校和当地最新政策为准。用简洁中文。"
     return (
         f"你是高校就业推荐平台的{agent}。"
         "只根据【资料】和【工具结果】回答，禁止编造政策、岗位、候选人和统计数字。"
         f"{cite}资料和工具都是“无”时，直接说明知识库没有相关信息，"
-        "并提醒以学校和当地最新政策为准。用简洁中文。"
+        + tail
     )
+
+
+def _no_hit_text(role: str, tag: str = "") -> str:
+    """知识库与工具都没有结果时的兜底话术，按角色区分。"""
+    lead = f"{tag}，" if tag else ""
+    if role == "company":
+        return (
+            f"{lead}企业招聘知识库中没有找到与该问题直接对应的资料。"
+            "想看本公司实时投递进展，可以问我「本周投递概况」「筛选职位 编号 的候选人」，"
+            "或到「招聘看板」「候选人管理」「职位管理」查看。"
+        )
+    if role == "admin":
+        return f"{lead}知识库中没有找到与该问题直接对应的资料，请换一种问法或查看管理端数据看板。"
+    return f"{lead}知识库中没有找到与该问题相关的资料，请以学校就业指导中心和当地最新政策为准。"
 
 
 # 未写完的「[资料2」或「【资料2」先留在缓冲区，避免把半个引用拆进两个 delta。
@@ -289,7 +310,9 @@ def _ensure_citations(answer: str, chunks: list[dict]) -> str:
     return answer.rstrip() + "\n\n参考来源：\n" + "\n".join(lines)
 
 
-def _offline_text(question: str, chunks: list[dict], tool_text: str, timed_out: bool = False) -> str:
+def _offline_text(
+    question: str, chunks: list[dict], tool_text: str, timed_out: bool = False, role: str = "student"
+) -> str:
     """离线或大模型超时时的确定性回答：工具结果原文 + 知识库抽取式摘录（带 [n] 引用）。"""
     tag = "【降级回答】大模型响应超时" if timed_out else "【离线模式】大模型不可用"
     parts = []
@@ -303,7 +326,7 @@ def _offline_text(question: str, chunks: list[dict], tool_text: str, timed_out: 
             prefix = "" if parts else lead
             parts.append(prefix + extracted)
     if not parts:
-        return f"{tag}，知识库中没有找到与该问题相关的资料，请以学校就业指导中心和当地最新政策为准。"
+        return _no_hit_text(role, tag)
     return "\n\n".join(parts)
 
 
@@ -435,7 +458,7 @@ async def iter_events(
             elif decided.answer_shape == "job_list" and _bullet_items(tool_text):
                 text = "【离线模式】大模型不可用，以下为查询结果：\n" + _compose_job_answer("", tool_text)
             else:
-                text = _offline_text(question, chunk_list, tool_text)
+                text = _offline_text(question, chunk_list, tool_text, role=caller.role)
             text = _ensure_citations(text, chunk_list)
             async for piece in emit_text(text):
                 yield piece
@@ -444,7 +467,10 @@ async def iter_events(
             return
 
         if not chunk_list and not tool_text_parts:
-            fixed = "知识库中没有找到与该问题直接对应的资料。请换一种问法，或向学校就业指导中心核实最新政策。"
+            if caller.role == "student":
+                fixed = "知识库中没有找到与该问题直接对应的资料。请换一种问法，或向学校就业指导中心核实最新政策。"
+            else:
+                fixed = _no_hit_text(caller.role)
             # 仍交给模型会增加幻觉，政策类问题在没有命中时直接说明
             if not decided.tools:
                 async for piece in emit_text(fixed):
@@ -505,7 +531,7 @@ async def iter_events(
                     held.clear()
                 else:
                     partial = len(answer_parts) > model_parts_before
-                    fallback = _offline_text(question, chunk_list, tool_text, timed_out=True)
+                    fallback = _offline_text(question, chunk_list, tool_text, timed_out=True, role=caller.role)
                     async for piece in emit_text(("\n\n" if partial else "") + fallback):
                         yield piece
             except Exception:
@@ -513,7 +539,7 @@ async def iter_events(
                 degraded = "llm_error"
                 hold_jobs = False
                 held.clear()
-                fallback = _offline_text(question, chunk_list, tool_text)
+                fallback = _offline_text(question, chunk_list, tool_text, role=caller.role)
                 async for piece in emit_text("\n" + fallback):
                     yield piece
             if hold_jobs:

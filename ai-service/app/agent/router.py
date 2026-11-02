@@ -348,7 +348,42 @@ def _route_student(text: str, slots: dict, result: Route) -> Route:
     return result
 
 
+# 企业侧可检索的知识库类型：4 企业招聘须知、6 手续 FAQ（劳动合同、三方等用工规则）。
+# 1 就业政策、2 平台使用指南（学生视角）、3 面经、5 求职指导都是面向学生的资料，企业兜底不再混入。
+COMPANY_DOC_TYPES = (4, 6)
+
+_COMPANY_STATS = re.compile(
+    r"(投递|简历|应聘|申请|候选人|招聘).{0,8}(概况|统计|情况|汇总|数量|总数|多少|几份|几个|趋势|进展|分布|数据|漏斗)"
+    r"|(收到|新增|来了).{0,8}(多少|几份|几个).{0,4}(简历|投递|申请)?"
+    r"|招聘(看板|概况|进度|数据)|待(初筛|处理)的?(简历|投递)|投递漏斗|转化率|录用率",
+)
+
+
+def is_company_stats_question(text: str) -> bool:
+    return bool(_COMPANY_STATS.search(text or ""))
+
+
+def _stats_window(text: str) -> int:
+    if re.search(r"今天|今日", text):
+        return 1
+    if re.search(r"本月|这个月|近一个月|最近一个月|30\s*天|三十天", text):
+        return 30
+    matched = re.search(r"(?:近|最近|过去)\s*(\d{1,2})\s*天", text)
+    if matched:
+        return max(1, min(int(matched.group(1)), 90))
+    return 7
+
+
 def _route_company(text: str, slots: dict, result: Route) -> Route:
+    if is_company_stats_question(text) and not re.search(r"筛选|筛一下|润色|改写|(写|生成|起草).{0,20}(JD|jd|描述)", text):
+        result.tools.append(ToolRequest("application_stats", {"days": _stats_window(text)}))
+        result.doc_types = []
+        result.instruction = (
+            "你在为企业 HR 汇报本公司投递数据。只使用工具结果中的数字，按新增投递、状态分布、"
+            "投递最多的职位、待办提醒四部分简要说明，并给出一条筛选或优化职位的建议。"
+            "不要提及学校就业指导中心或学生求职建议。"
+        )
+        return result
     if re.search(r"筛选|候选人|简历筛选|投递的人", text):
         args = {}
         if slots["job_id"]:
@@ -383,9 +418,13 @@ def _route_company(text: str, slots: dict, result: Route) -> Route:
         result.doc_types = []
         result.instruction = "只列出工具返回的本企业职位。"
         return result
-    types = _policy_types(text)
-    result.doc_types = types or [4, 2, 6]
-    result.instruction = "从企业招聘和劳动用工角度回答，依据资料，不要编造审核结论。"
+    types = [value for value in _policy_types(text) if value in COMPANY_DOC_TYPES]
+    result.doc_types = types or list(COMPANY_DOC_TYPES)
+    result.instruction = (
+        "你在为企业 HR 回答。从企业招聘管理和劳动用工合规角度回答，依据资料，不要编造审核结论；"
+        "不要给出面向学生的求职建议，不要建议咨询学校就业指导中心。"
+        "涉及本公司投递数据时，提示可以问「本周投递概况」或到「招聘看板」「候选人管理」查看。"
+    )
     return result
 
 
@@ -454,7 +493,13 @@ def allowed_tool_names(role: str) -> set[str]:
     if role == "student":
         return {"search_jobs", "get_my_recommendations", "predict_salary", "analyze_resume_gap"}
     if role == "company":
-        return {"generate_job_description", "polish_job_description", "screen_applicants", "list_my_jobs"}
+        return {
+            "generate_job_description",
+            "polish_job_description",
+            "screen_applicants",
+            "list_my_jobs",
+            "application_stats",
+        }
     if role == "admin":
         return {
             "salary_stats",

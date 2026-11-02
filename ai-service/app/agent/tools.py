@@ -657,6 +657,126 @@ def list_my_jobs(caller: Caller, limit: int = 8) -> dict[str, Any]:
     return {"ok": True, "company": company["company_name"], "items": items}
 
 
+def _window_days(days: Any) -> int:
+    try:
+        value = int(days)
+    except (TypeError, ValueError):
+        value = 7
+    return max(1, min(value, 90))
+
+
+def application_stats(caller: Caller, days: Any = 7) -> dict[str, Any]:
+    """当前企业近 N 天的投递概况：新增、状态分布、热门职位、待处理提醒和近期面试。
+
+    企业编号由登录用户经 ent_company.user_id 换算，不接受模型或前端传入的 company_id。
+    """
+    if caller.role != "company":
+        return deny("投递统计仅企业招聘助手可用。")
+    company = _company_of(caller.user_id)
+    if not company:
+        return deny("当前账号没有企业资料。")
+    company_id = int(company["id"])
+    window = _window_days(days)
+    conn = connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT a.status,
+                       COUNT(*) AS total,
+                       SUM(a.apply_time >= DATE_SUB(NOW(), INTERVAL %s DAY)) AS recent
+                FROM job_application a
+                INNER JOIN job_position p ON p.id = a.position_id AND p.deleted = 0
+                WHERE a.company_id = %s AND a.deleted = 0
+                GROUP BY a.status
+                """,
+                (window, company_id),
+            )
+            by_status = {int(row["status"]): (int(row["total"] or 0), int(row["recent"] or 0)) for row in cur.fetchall()}
+            cur.execute(
+                """
+                SELECT p.id, p.title,
+                       COUNT(a.id) AS total,
+                       SUM(a.apply_time >= DATE_SUB(NOW(), INTERVAL %s DAY)) AS recent,
+                       SUM(a.status = 0) AS pending
+                FROM job_position p
+                INNER JOIN job_application a ON a.position_id = p.id AND a.deleted = 0
+                WHERE p.company_id = %s AND p.deleted = 0
+                GROUP BY p.id, p.title
+                ORDER BY recent DESC, total DESC, p.id ASC
+                LIMIT 3
+                """,
+                (window, company_id),
+            )
+            top_jobs = [
+                {
+                    "jobId": int(row["id"]),
+                    "title": row["title"],
+                    "total": int(row["total"] or 0),
+                    "recent": int(row["recent"] or 0),
+                    "pending": int(row["pending"] or 0),
+                }
+                for row in cur.fetchall()
+            ]
+            cur.execute(
+                """
+                SELECT COUNT(*) AS cnt,
+                       MIN(a.apply_time) AS oldest,
+                       SUM(a.apply_time < DATE_SUB(NOW(), INTERVAL 3 DAY)) AS overdue
+                FROM job_application a
+                INNER JOIN job_position p ON p.id = a.position_id AND p.deleted = 0
+                WHERE a.company_id = %s AND a.deleted = 0 AND a.status = 0
+                """,
+                (company_id,),
+            )
+            pending_row = cur.fetchone() or {}
+            cur.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM job_interview i
+                INNER JOIN job_application a ON a.id = i.application_id AND a.deleted = 0
+                WHERE i.company_id = %s AND i.deleted = 0 AND i.interview_status = 0
+                  AND i.interview_time >= NOW() AND i.interview_time < DATE_ADD(NOW(), INTERVAL 7 DAY)
+                """,
+                (company_id,),
+            )
+            upcoming = int((cur.fetchone() or {}).get("cnt") or 0)
+            cur.execute(
+                """
+                SELECT COUNT(*) AS cnt FROM job_position
+                WHERE company_id = %s AND deleted = 0 AND shelf_status = 1 AND audit_status = 1
+                """,
+                (company_id,),
+            )
+            online_jobs = int((cur.fetchone() or {}).get("cnt") or 0)
+    finally:
+        conn.close()
+    status_items = [
+        {
+            "status": code,
+            "name": APP_STATUS[code],
+            "total": by_status.get(code, (0, 0))[0],
+            "recent": by_status.get(code, (0, 0))[1],
+        }
+        for code in sorted(APP_STATUS)
+    ]
+    oldest = pending_row.get("oldest")
+    return {
+        "ok": True,
+        "company": company["company_name"],
+        "days": window,
+        "onlineJobs": online_jobs,
+        "total": sum(item["total"] for item in status_items),
+        "recent": sum(item["recent"] for item in status_items),
+        "statuses": status_items,
+        "topJobs": top_jobs,
+        "pending": int(pending_row.get("cnt") or 0),
+        "pendingOverdue": int(pending_row.get("overdue") or 0),
+        "oldestPending": oldest.strftime("%Y-%m-%d") if hasattr(oldest, "strftime") else (str(oldest) if oldest else ""),
+        "upcomingInterviews": upcoming,
+    }
+
+
 def salary_stats(caller: Caller, city: str = "", direction: str = "") -> dict[str, Any]:
     if caller.role != "admin":
         return deny("薪资统计仅管理员数据助手可用。")
@@ -890,6 +1010,7 @@ _FUNCS = {
     "polish_job_description": polish_job_description,
     "screen_applicants": screen_applicants,
     "list_my_jobs": list_my_jobs,
+    "application_stats": application_stats,
     "salary_stats": salary_stats,
     "tech_trend": tech_trend,
     "region_distribution": region_distribution,
@@ -907,6 +1028,7 @@ _ARG_KEYS = {
     "polish_job_description": {"text"},
     "screen_applicants": {"job_id"},
     "list_my_jobs": {"limit"},
+    "application_stats": {"days"},
     "salary_stats": {"city", "direction"},
     "tech_trend": {"skill", "top_n"},
     "region_distribution": {"top_n"},
@@ -996,6 +1118,35 @@ def render(name: str, result: dict[str, Any]) -> tuple[str, str]:
                 f"- {item['id']} {item['title']}｜{item['city']}｜{item['shelf']}/{item['audit']}｜投递 {item['applyCount']}"
             )
         return "\n".join(lines), f"列出 {len(result['items'])} 个职位"
+    if name == "application_stats":
+        period = "近 7 天（本周）" if result["days"] == 7 else f"近 {result['days']} 天"
+        lines = [
+            f"结论：{result['company']}{period}新增投递 {result['recent']} 份，累计 {result['total']} 份，"
+            f"待初筛 {result['pending']} 份。",
+            f"在架职位 {result['onlineJobs']} 个。",
+            "状态分布（累计｜" + period + "新增）：",
+        ]
+        for item in result["statuses"]:
+            lines.append(f"- {item['name']}｜{item['total']}｜{item['recent']}")
+        if result["topJobs"]:
+            lines.append("投递最多的职位：")
+            for job in result["topJobs"]:
+                lines.append(
+                    f"- {job['title']}（编号 {job['jobId']}）｜新增 {job['recent']}｜累计 {job['total']}｜待初筛 {job['pending']}"
+                )
+        else:
+            lines.append("投递最多的职位：暂无投递。")
+        reminders = []
+        if result["pending"]:
+            tip = f"有 {result['pending']} 份投递待初筛"
+            if result["pendingOverdue"]:
+                tip += f"，其中 {result['pendingOverdue']} 份已超过 3 天未处理（最早 {result['oldestPending']}）"
+            reminders.append(tip + "，请到「候选人管理」处理。")
+        if result["upcomingInterviews"]:
+            reminders.append(f"未来 7 天有 {result['upcomingInterviews']} 场待进行的笔试/面试，请到「面试安排」确认。")
+        lines.append("待办提醒：" + ("；".join(reminders) if reminders else "暂无待处理事项。"))
+        summary = f"{period}新增 {result['recent']} 份，待初筛 {result['pending']} 份"
+        return "\n".join(lines), summary
     if name == "salary_stats":
         lines = []
         if result["items"]:
