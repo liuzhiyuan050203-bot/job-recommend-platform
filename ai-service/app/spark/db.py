@@ -103,6 +103,40 @@ def finish_task(
         conn.close()
 
 
+def fail_unfinished(batch_no: str, task_names: dict[str, str], tasks: list[str], error_msg: str) -> int:
+    """批次子进程异常退出时收尾：仍为运行中（0）的任务改为失败；一个任务都没写入的批次补写失败记录。
+
+    返回被改写或补写的行数，任务日志表因此不会留下永远“运行中”的记录。
+    """
+    conn = connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE spark_task_log SET status=2, end_time=%s, error_msg=%s WHERE batch_no=%s AND status=0",
+                (datetime.now(), clip(error_msg, 4000), batch_no),
+            )
+            changed = int(cur.rowcount or 0)
+            cur.execute("SELECT task_code FROM spark_task_log WHERE batch_no=%s", (batch_no,))
+            seen = {row["task_code"] for row in cur.fetchall()}
+            now = datetime.now()
+            for code in tasks:
+                if code in seen:
+                    continue
+                cur.execute(
+                    """
+                    INSERT INTO spark_task_log
+                        (batch_no, task_code, task_name, status, start_time, end_time, error_msg, params_json, deleted)
+                    VALUES (%s, %s, %s, 2, %s, %s, %s, %s, 0)
+                    """,
+                    (batch_no, code, task_names.get(code, code), now, now, clip(error_msg, 4000),
+                     _dumps({"batchNo": batch_no, "taskCode": code})),
+                )
+                changed += 1
+            return changed
+    finally:
+        conn.close()
+
+
 def _insert(cur, table: str, columns: list[str], rows: list[tuple]) -> None:
     if table not in ALLOWED_TABLES:
         raise RuntimeError(f"不允许写入表 {table}")

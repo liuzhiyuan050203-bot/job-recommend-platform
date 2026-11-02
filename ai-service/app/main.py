@@ -13,6 +13,7 @@ from app.api import agent_router, health_router, rag_router, recommend_router, r
 from app.core.config import settings
 from app.core.response import register_exception_handlers, success
 from app.core.security import InternalTokenMiddleware
+from app.spark.runner import shutdown as shutdown_batches
 from app.spark.session import stop_spark
 
 # 日志基本配置
@@ -20,6 +21,10 @@ logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+# DEBUG 模式下 py4j 会为每条 JVM 调用打一行日志（一次推荐批次十几万行），httpcore/openai 也逐包记录；
+# 这些日志在请求进程里同步写盘、争 GIL，压测时会拖慢流式回答，统一收到 WARNING。
+for _noisy in ("py4j", "httpcore", "httpcore2", "httpx2", "openai", "urllib3", "multipart", "chromadb", "hpack"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 logger = logging.getLogger("ai_service")
 
 
@@ -31,6 +36,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Chroma storage dir: {settings.CHROMA_DIR}")
     logger.info(f"Configured CORS origins: {settings.CORS_ORIGINS}")
     yield
+    shutdown_batches()
     stop_spark()
     logger.info(f"Shutting down {settings.APP_NAME}...")
 

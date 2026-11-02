@@ -37,6 +37,17 @@ class Settings(BaseSettings):
     SPARK_EXECUTOR_MEMORY: str = "1g"
     SPARK_EXECUTOR_CORES: int = 2
     SPARK_CORES_MAX: int = 4
+    # 批任务与在线问答共用一台机器时的资源隔离（见 docs：experiments/stability/README.md）。
+    # SPARK_LOCAL_CORES：SPARK_MASTER 为 local[*] 时改写成 local[N]，给大模型和 API 留核；0 表示不改写。
+    SPARK_LOCAL_CORES: int = 4
+    # SPARK_BATCH_ISOLATED：批任务在独立子进程里跑（自带 Driver JVM），不占 ai-service 进程；false 退回进程内线程。
+    SPARK_BATCH_ISOLATED: bool = True
+    # SPARK_BATCH_NICE：子进程 nice 值（0~19），Driver JVM 与 Python worker 都继承，CPU 紧张时让位给问答。
+    SPARK_BATCH_NICE: int = 10
+    # SPARK_BATCH_QUEUE_MAX：运行中之外最多排队几个批次，超过返回 409；相同任务组合已在排队时直接复用。
+    SPARK_BATCH_QUEUE_MAX: int = 2
+    # SPARK_BATCH_TIMEOUT：单个批次子进程最长运行秒数，超时终止并把未结束任务记为失败。
+    SPARK_BATCH_TIMEOUT: int = 1800
 
     # Chroma 向量数据库目录 (解析为 ai-service 下绝对路径)
     CHROMA_DIR: str = "./data/chroma"
@@ -50,6 +61,10 @@ class Settings(BaseSettings):
     LLM_MAX_TOKENS: int = 800
     LLM_TIMEOUT: int = 120
     LLM_TOOL_CALLING: str = "auto"  # "auto" | "true" | "false"
+    # 助手流式回答的服务端时限（秒）：首个片段超过 LLM_FIRST_TOKEN_TIMEOUT 未到，或生成总时长超过
+    # LLM_ANSWER_DEADLINE，就停止等待大模型，改用知识库摘录/工具结果作答（带引用），不让前端一直等到超时。
+    LLM_FIRST_TOKEN_TIMEOUT: float = 45.0
+    LLM_ANSWER_DEADLINE: float = 90.0
 
     # 嵌入模型配置 (FastEmbed)
     EMBEDDING_MODEL: str = "BAAI/bge-small-zh-v1.5"

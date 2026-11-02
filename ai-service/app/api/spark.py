@@ -9,7 +9,7 @@ from app.core.response import AppException, success
 from app.services.spark_service import spark_service
 from app.spark.db import list_tasks, tasks_of_batch
 from app.spark.predict import predict_salary
-from app.spark.runner import SparkBusyError, call_exclusive, is_running, normalize_tasks, submit_async
+from app.spark.runner import SparkBusyError, batch_phase, call_exclusive, normalize_tasks, queue_state, submit_async
 
 router = APIRouter(prefix="/spark", tags=["Spark Analysis"])
 
@@ -23,7 +23,9 @@ class RunBody(BaseModel):
 
 def _status_payload() -> dict:
     data = spark_service.get_status()
-    data["running"] = is_running()
+    queue = queue_state()
+    data["running"] = queue["running"]
+    data["batchQueue"] = queue
     return data
 
 
@@ -70,10 +72,14 @@ def list_spark_tasks(current: int = 1, size: int = 10, batch_no: Optional[str] =
 
 @router.get("/tasks/{batch_no}", summary="按批次查看任务")
 def get_spark_batch(batch_no: str):
+    """state：QUEUED 排队中 / RUNNING 运行中 / FINISHED 全部结束（看各任务 status 判断成败）。"""
+    phase = batch_phase(batch_no)
     rows = tasks_of_batch(batch_no)
-    if not rows:
+    if not rows and phase is None:
         raise AppException("批次不存在", code=404)
-    return success(data={"batchNo": batch_no, "tasks": rows})
+    if phase is None:
+        phase = "RUNNING" if any(int(row.get("status") or 0) == 0 for row in rows) else "FINISHED"
+    return success(data={"batchNo": batch_no, "state": phase, "tasks": rows})
 
 
 @router.get("/salary/predict", summary="薪资预测")

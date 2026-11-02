@@ -1,6 +1,7 @@
 """可复用的 SparkSession。
 
-master 取 settings.SPARK_MASTER（环境变量 SPARK_MASTER），默认 local[*]；
+master 取 settings.SPARK_MASTER（环境变量 SPARK_MASTER），默认 local[*]，
+并按 SPARK_LOCAL_CORES（默认 4）改写成 local[4]，给同机的大模型和 API 留出 CPU；
 设为 spark://127.0.0.1:7077 时连接 scripts/start-spark-cluster.sh 拉起的 Standalone 伪分布式集群，
 Driver 在 ai-service 进程内（client 模式），Executor 在各 Worker 上。
 """
@@ -36,7 +37,15 @@ def jdbc_url() -> str:
 
 
 def spark_master() -> str:
-    return (settings.SPARK_MASTER or "local[*]").strip() or "local[*]"
+    """local[*] 会占满全部核，与同机的大模型推理抢 CPU；SPARK_LOCAL_CORES>0 时改写成 local[N]。
+
+    显式写了 local[2] 这类核数或 spark:// 集群地址时原样使用（集群核数由 SPARK_CORES_MAX 限制）。
+    """
+    master = (settings.SPARK_MASTER or "local[*]").strip() or "local[*]"
+    cores = int(settings.SPARK_LOCAL_CORES or 0)
+    if master in ("local[*]", "local") and cores > 0:
+        return f"local[{min(cores, os.cpu_count() or cores)}]"
+    return master
 
 
 def is_cluster() -> bool:

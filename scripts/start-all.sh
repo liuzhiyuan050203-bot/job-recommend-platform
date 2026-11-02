@@ -126,6 +126,7 @@ if [ "$llm_local" != 1 ]; then
   echo "==> LLM_BASE_URL 不是本机，跳过 Ollama"
 elif curl -sf -m 2 -o /dev/null "http://127.0.0.1:11434/api/tags"; then
   echo "==> Ollama 已在运行"
+  bash "$ROOT/scripts/start-ollama.sh" || echo "警告: 检查模型/推理线程失败，继续启动"
 elif ! command -v ollama >/dev/null 2>&1; then
   echo "==> 未找到 ollama，跳过本地模型（大模型不可达时助手走离线模式）"
 elif pid_alive ollama; then
@@ -152,7 +153,7 @@ if [ "$SPARK_CLUSTER" = 1 ]; then
     echo "==> 注意: ai-service 已在运行，沿用它启动时的 SPARK_MASTER；要切到集群请先 stop-all 再加 --spark-cluster 启动"
   fi
 fi
-echo "==> SPARK_MASTER=${SPARK_MASTER:-local[*]}"
+echo "==> SPARK_MASTER=${SPARK_MASTER:-local[*]}（local[*] 实际按 SPARK_LOCAL_CORES=${SPARK_LOCAL_CORES:-4} 限核；推荐/分析批次在独立子进程中以 nice ${SPARK_BATCH_NICE:-10} 运行）"
 
 if curl -sf -m 2 -o /dev/null "http://127.0.0.1:8000/health"; then
   echo "==> ai-service 已在运行"

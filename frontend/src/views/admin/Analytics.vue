@@ -281,7 +281,11 @@ async function runAnalysis() {
   running.value = true
   try {
     const data = await runSparkAnalysis({})
-    ElMessage.success(data?.batchNo ? `已提交批次 ${data.batchNo}` : '分析任务已提交')
+    if (data?.status === 'QUEUED') {
+      ElMessage.success(`已有批次在运行，批次 ${data.batchNo} 已排队，前一批结束后自动开始`)
+    } else {
+      ElMessage.success(data?.batchNo ? `已提交批次 ${data.batchNo}` : '分析任务已提交')
+    }
     await loadTasks()
   } catch {
     // 拦截器已提示

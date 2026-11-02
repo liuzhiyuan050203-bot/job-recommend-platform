@@ -114,14 +114,36 @@ awk -v c="$(jqv .data.coverage)" 'BEGIN{exit !(c>0 && c<=1)}' && ok "目录覆�
 
 if ai_up; then
   req POST /admin/recommend/run "$T_ADMIN" '{}'
+  REC_BATCH=""
   if [ "$(jqv .code)" = "409" ]; then
-    ok "已有任务运行时返回 409"
+    ok "已有任务运行且排队已满时返回 409"
   else
     expect_ok "触发推荐任务"
-    [ -n "$(jqv .data.batchNo)" ] && [ "$(jqv .data.batchNo)" != null ] && ok "返回推荐批次号" || bad "返回推荐批次号"
+    REC_BATCH=$(jqv .data.batchNo)
+    [ -n "$REC_BATCH" ] && [ "$REC_BATCH" != null ] && ok "返回推荐批次号" || bad "返回推荐批次号"
   fi
   AI=$(curl -s -m 10 "http://127.0.0.1:8000/recommend/similar/$FIRST?top_k=3" | jq -r .code)
   [ "$AI" = 200 ] && ok "FastAPI 相似职位" || bad "FastAPI 相似职位"
+  # 批次在后台子进程跑约 2~3 分钟，要等它结束：既检验批次真的成功，也避免和 06 的大模型问答同时抢 CPU
+  if [ -n "$REC_BATCH" ] && [ "$REC_BATCH" != null ]; then
+    echo "  等待推荐批次 $REC_BATCH 结束（最多 900s）..."
+    WAIT_START=$(date +%s)
+    if wait_spark_batch "$REC_BATCH" 900; then
+      ok "推荐批次结束 ($(( $(date +%s) - WAIT_START ))s)"
+      [ "$(jq '[.data.tasks[] | select(.taskCode == "recommend" and .status == 1)] | length' <<<"$BATCH_BODY")" -ge 1 ] \
+        && ok "推荐批次状态为成功" || bad "推荐批次状态为成功: $(jq -c '[.data.tasks[] | {taskCode,status,errorMsg}]' <<<"$BATCH_BODY")"
+      BODY=$BATCH_BODY
+      [ "$(jq -r '.data.tasks[] | select(.taskCode == "recommend") | .paramsJson.sparkMaster // empty' <<<"$BATCH_BODY")" != "" ] \
+        && ok "任务日志记录 Spark master ($(jq -r '.data.tasks[] | select(.taskCode == "recommend") | .paramsJson.sparkMaster' <<<"$BATCH_BODY"))" \
+        || bad "任务日志记录 Spark master"
+      req GET /admin/recommend/stats "$T_ADMIN"
+      [ "$(jqv .data.batchNo)" = "$REC_BATCH" ] && ok "推荐统计切换到新批次" || bad "推荐统计切换到新批次"
+    else
+      bad "推荐批次 900s 内结束"
+    fi
+  else
+    wait_spark_idle 900 || echo "  [WARN] 900s 内仍有批次在运行"
+  fi
 else
   skip "ai-service 未运行，跳过推荐任务触发与 FastAPI 接口"
 fi

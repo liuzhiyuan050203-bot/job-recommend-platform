@@ -1,0 +1,86 @@
+{
+  "summary": {
+    "label": "before_idle",
+    "asked": 3,
+    "done": 3,
+    "client_timeouts": 0,
+    "first_token_s": {
+      "median": 1.58,
+      "max": 16.75
+    },
+    "total_s": {
+      "median": 9.99,
+      "max": 25.09
+    },
+    "health_probe_ms": {
+      "n": 74,
+      "p50": 2.8,
+      "p99": 23.9,
+      "max": 90.3
+    }
+  },
+  "batch": null,
+  "results": [
+    {
+      "question": "三方协议怎么签？",
+      "start_offset_s": 0.0,
+      "server_first_token_ms": 16570,
+      "server_latency_ms": 24852,
+      "degraded": null,
+      "first_byte_s": 0.1,
+      "first_token_s": 16.75,
+      "total_s": 25.09,
+      "done": true,
+      "done_line": true,
+      "mode": "online",
+      "answer_chars": 240,
+      "offline_excerpt": false,
+      "error": null,
+      "session_id": 101,
+      "end_offset_s": 25.09,
+      "role": "student",
+      "round": 1
+    },
+    {
+      "question": "列出我发布的职位",
+      "start_offset_s": 25.09,
+      "server_first_token_ms": 1435,
+      "server_latency_ms": 9834,
+      "degraded": null,
+      "first_byte_s": 0.09,
+      "first_token_s": 1.58,
+      "total_s": 9.99,
+      "done": true,
+      "done_line": true,
+      "mode": "online",
+      "answer_chars": 189,
+      "offline_excerpt": false,
+      "error": null,
+      "session_id": 102,
+      "end_offset_s": 35.08,
+      "role": "company",
+      "round": 1
+    },
+    {
+      "question": "哪个城市岗位最多",
+      "start_offset_s": 35.08,
+      "server_first_token_ms": 1202,
+      "server_latency_ms": 1931,
+      "degraded": null,
+      "first_byte_s": 0.04,
+      "first_token_s": 1.28,
+      "total_s": 2.0,
+      "done": true,
+      "done_line": true,
+      "mode": "online",
+      "answer_chars": 20,
+      "offline_excerpt": false,
+      "error": null,
+      "session_id": 103,
+      "end_offset_s": 37.08,
+      "role": "admin",
+      "round": 1
+    }
+  ],
+  "time": "2026-11-02 21:26:55"
+}

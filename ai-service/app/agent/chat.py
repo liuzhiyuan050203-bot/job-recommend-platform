@@ -289,19 +289,26 @@ def _ensure_citations(answer: str, chunks: list[dict]) -> str:
     return answer.rstrip() + "\n\n参考来源：\n" + "\n".join(lines)
 
 
-def _offline_text(question: str, chunks: list[dict], tool_text: str) -> str:
+def _offline_text(question: str, chunks: list[dict], tool_text: str, timed_out: bool = False) -> str:
+    """离线或大模型超时时的确定性回答：工具结果原文 + 知识库抽取式摘录（带 [n] 引用）。"""
+    tag = "【降级回答】大模型响应超时" if timed_out else "【离线模式】大模型不可用"
     parts = []
     if tool_text.strip() and tool_text.strip() != "无":
-        parts.append("【离线模式】大模型不可用，以下为查询结果：\n" + tool_text.strip())
+        parts.append(f"{tag}，以下为查询结果：\n" + tool_text.strip())
     if chunks:
         extracted = OfflineGenerator.generate(question, chunks, max_sentences=3)
         extracted = re.sub(r"^【离线模式】[^\n]*\n?", "", extracted).strip()
         if extracted:
-            prefix = "" if parts else "【离线模式】未连接大模型，以下为知识库原文摘录：\n"
+            lead = f"{tag}，以下为知识库原文摘录：\n" if timed_out else "【离线模式】未连接大模型，以下为知识库原文摘录：\n"
+            prefix = "" if parts else lead
             parts.append(prefix + extracted)
     if not parts:
-        return "【离线模式】知识库中没有找到与该问题相关的资料，请以学校就业指导中心和当地最新政策为准。"
+        return f"{tag}，知识库中没有找到与该问题相关的资料，请以学校就业指导中心和当地最新政策为准。"
     return "\n\n".join(parts)
+
+
+class LLMTimeout(RuntimeError):
+    """大模型首字或总时长超过服务端时限。"""
 
 
 async def iter_events(
@@ -320,6 +327,7 @@ async def iter_events(
     gate = _CitationGate()
     online = False
     handling_error = False
+    degraded: str | None = None
     try:
         online = await asyncio.to_thread(is_available)
     except Exception:
@@ -363,7 +371,7 @@ async def iter_events(
     async def end_turn() -> AsyncIterator[str]:
         async for piece in flush_gate():
             yield piece
-        yield _finish(answer_parts, source_items, tool_events, elapsed(), first_token_ms)
+        yield _finish(answer_parts, source_items, tool_events, elapsed(), first_token_ms, degraded)
         yield "data: [DONE]\n\n"
 
     try:
@@ -470,9 +478,10 @@ async def iter_events(
             yield _sse({"type": "status", "text": "正在生成回答…"})
             held: list[str] = []
             hold_jobs = decided.answer_shape == "job_list"
+            model_parts_before = len(answer_parts)
             try:
                 token_limit = 120 if hold_jobs else ANSWER_TOKENS
-                async for delta in _stream_tokens(answer_inputs, token_limit):
+                async for delta in _stream_tokens(answer_inputs, token_limit, started_at=started):
                     if delta == "__hb__":
                         yield ": ping\n\n"
                         continue
@@ -486,8 +495,22 @@ async def iter_events(
                         first_token_ms = elapsed()
                     answer_parts.append(cleaned)
                     yield _sse({"type": "delta", "text": cleaned})
+            except LLMTimeout as exc:
+                # 机器负载高（如 Spark 批次与大模型争 CPU）时不再干等：职位列表直接用工具结果，
+                # 其余问题用知识库抽取式摘录（带引用）收尾，保证在客户端超时前给出 done。
+                logger.warning("大模型超时，改用降级回答：%s", exc)
+                degraded = "llm_timeout"
+                yield _sse({"type": "status", "text": "大模型响应较慢，改用知识库摘录作答…"})
+                if hold_jobs:
+                    held.clear()
+                else:
+                    partial = len(answer_parts) > model_parts_before
+                    fallback = _offline_text(question, chunk_list, tool_text, timed_out=True)
+                    async for piece in emit_text(("\n\n" if partial else "") + fallback):
+                        yield piece
             except Exception:
                 logger.exception("流式生成失败，改为离线摘录")
+                degraded = "llm_error"
                 hold_jobs = False
                 held.clear()
                 fallback = _offline_text(question, chunk_list, tool_text)
@@ -519,17 +542,25 @@ async def iter_events(
             yield piece
 
 
-def _finish(parts: list[str], sources: list[dict], tools: list[dict], latency_ms: int, first_token_ms: int | None) -> str:
-    return _sse(
-        {
-            "type": "done",
-            "answer": "".join(parts),
-            "sources": sources,
-            "tools": tools,
-            "latency_ms": latency_ms,
-            "first_token_ms": first_token_ms,
-        }
-    )
+def _finish(
+    parts: list[str],
+    sources: list[dict],
+    tools: list[dict],
+    latency_ms: int,
+    first_token_ms: int | None,
+    degraded: str | None = None,
+) -> str:
+    payload = {
+        "type": "done",
+        "answer": "".join(parts),
+        "sources": sources,
+        "tools": tools,
+        "latency_ms": latency_ms,
+        "first_token_ms": first_token_ms,
+    }
+    if degraded:
+        payload["degraded"] = degraded
+    return _sse(payload)
 
 
 async def _to_thread_stream(func, *args):
@@ -542,9 +573,20 @@ async def _to_thread_stream(func, *args):
     yield task.result()
 
 
-async def _stream_tokens(inputs: dict, max_tokens: int | None = None) -> AsyncIterator[str]:
-    """LCEL 回答链 .astream；8 秒没有新片段时插一条心跳。"""
+async def _stream_tokens(
+    inputs: dict, max_tokens: int | None = None, started_at: float | None = None
+) -> AsyncIterator[str]:
+    """LCEL 回答链 .astream；8 秒没有新片段时插一条心跳。
+
+    服务端时限：从调用开始 LLM_FIRST_TOKEN_TIMEOUT 秒内没有首个片段，或整轮对话（自 started_at 起）
+    超过 LLM_ANSWER_DEADLINE 秒，取消大模型请求并抛 LLMTimeout，由调用方降级作答。
+    """
     queue: asyncio.Queue = asyncio.Queue()
+    begin = time.perf_counter()
+    turn_start = started_at if started_at is not None else begin
+    first_limit = float(settings.LLM_FIRST_TOKEN_TIMEOUT or 0)
+    total_limit = float(settings.LLM_ANSWER_DEADLINE or 0)
+    got_first = False
     llm = get_llm(streaming=True, max_tokens=max_tokens or ANSWER_TOKENS)
     chain = build_answer_chain(_system_prompt, _fit_prompt, llm)
 
@@ -560,8 +602,18 @@ async def _stream_tokens(inputs: dict, max_tokens: int | None = None) -> AsyncIt
     task = asyncio.create_task(pump())
     try:
         while True:
+            now = time.perf_counter()
+            waits = [8.0]
+            if not got_first and first_limit > 0:
+                waits.append(first_limit - (now - begin))
+            if total_limit > 0:
+                waits.append(total_limit - (now - turn_start))
+            wait = min(waits)
+            if wait <= 0:
+                stage = "首个片段" if not got_first else "完整回答"
+                raise LLMTimeout(f"{stage}超时（首字限 {first_limit:.0f}s，总限 {total_limit:.0f}s）")
             try:
-                item = await asyncio.wait_for(queue.get(), timeout=8)
+                item = await asyncio.wait_for(queue.get(), timeout=wait)
             except asyncio.TimeoutError:
                 yield "__hb__"
                 continue
@@ -570,6 +622,7 @@ async def _stream_tokens(inputs: dict, max_tokens: int | None = None) -> AsyncIt
             if isinstance(item, Exception):
                 raise item
             if item:
+                got_first = True
                 yield item
     finally:
         if not task.done():

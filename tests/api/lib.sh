@@ -32,3 +32,27 @@ jqv() { echo "$BODY" | jq -r "$1"; }
 login() { # login USER PASS -> 设置 $TOKEN（失败为空）
   req POST /public/auth/login "" "{\"username\":\"$1\",\"password\":\"$2\"}"; TOKEN=$(jqv '.data.token // empty'); }
 summary() { echo "== $(basename "$0"): PASS=$PASS FAIL=$FAIL"; echo "$(basename "$0") $PASS $FAIL" >> /tmp/job-api-test-summary.txt; [ "$FAIL" = 0 ]; }
+# Spark 批次轮询（直连 ai-service，不计入断言）。批次与助手问答同机争 CPU，后续脚本开始前要等批次结束。
+AI_BASE=${AI_BASE:-http://127.0.0.1:8000}
+# spark_batch_state BATCH -> 输出 QUEUED/RUNNING/FINISHED，取不到时输出空
+spark_batch_state() { curl -s -m 5 "$AI_BASE/spark/tasks/$1" | jq -r '.data.state // empty' 2>/dev/null; }
+# wait_spark_batch BATCH [SECONDS] -> 等到 FINISHED 返回 0，超时返回 1；结束后 $BATCH_BODY 为批次详情
+wait_spark_batch() {
+  local batch=$1 limit=${2:-900} waited=0 state
+  while [ "$waited" -lt "$limit" ]; do
+    state=$(spark_batch_state "$batch")
+    if [ "$state" = FINISHED ]; then BATCH_BODY=$(curl -s -m 5 "$AI_BASE/spark/tasks/$batch"); return 0; fi
+    sleep 3; waited=$((waited + 3))
+  done
+  BATCH_BODY=$(curl -s -m 5 "$AI_BASE/spark/tasks/$batch"); return 1
+}
+# wait_spark_idle [SECONDS] -> 没有运行或排队中的批次时返回 0（ai-service 未启动也视为空闲）
+wait_spark_idle() {
+  local limit=${1:-900} waited=0 running
+  while [ "$waited" -lt "$limit" ]; do
+    running=$(curl -s -m 5 "$AI_BASE/spark/status" | jq -r '.data.running // false' 2>/dev/null)
+    [ "$running" != true ] && return 0
+    sleep 3; waited=$((waited + 3))
+  done
+  return 1
+}

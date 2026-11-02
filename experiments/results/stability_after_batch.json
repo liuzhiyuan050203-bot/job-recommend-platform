@@ -1,0 +1,311 @@
+{
+  "summary": {
+    "label": "after_batch",
+    "asked": 6,
+    "done": 6,
+    "client_timeouts": 0,
+    "first_token_s": {
+      "median": 0.225,
+      "max": 0.26
+    },
+    "total_s": {
+      "median": 9.434999999999999,
+      "max": 14.82
+    },
+    "health_probe_ms": {
+      "n": 312,
+      "p50": 2.3,
+      "p99": 7.2,
+      "max": 84.3
+    }
+  },
+  "batch": {
+    "batchNo": "20261102215143cf0a",
+    "tasks": [
+      {
+        "id": 96,
+        "batchNo": "20261102215143cf0a",
+        "taskCode": "recommend",
+        "taskName": "混合职位推荐",
+        "status": 1,
+        "startTime": "2026-11-02 21:51:44",
+        "endTime": "2026-11-02 21:54:17",
+        "inputCount": 26019,
+        "outputCount": 21420,
+        "resultMsg": "Spark 为 357 名学生各生成协同过滤、内容、融合 Top20；协同过滤选用用户余弦，融合为线性 alpha=0.55（固定权重），融合 NDCG@10=0.3602。留出集 NDCG@10：用户余弦 0.3244 高于 ALS 0.1460，采用用户余弦。学生约 200 人且行为按方向和城市聚集，邻居平均比低秩因子更稳",
+        "errorMsg": null,
+        "paramsJson": {
+          "topK": 20,
+          "alpha": 0.55,
+          "cfImpl": "Spark DataFrame：评分按职位自连接求点积与共现数，Window 取前 40 邻居",
+          "engine": "spark",
+          "fusion": "linear",
+          "batchNo": "20261102215143cf0a",
+          "holdout": "per-user last ~20% favorite/apply by time",
+          "metrics": [
+            {
+              "k": 5,
+              "algo": "cf",
+              "ndcg": 0.3109,
+              "recall": 0.2864,
+              "coverage": 0.1053,
+              "precision": 0.1446,
+              "userCount": 231
+            },
+            {
+              "k": 10,
+              "algo": "cf",
+              "ndcg": 0.3244,
+              "recall": 0.3175,
+              "coverage": 0.1551,
+              "precision": 0.0805,
+              "userCount": 231
+            },
+            {
+              "k": 20,
+              "algo": "cf",
+              "ndcg": 0.3346,
+              "recall": 0.3485,
+              "coverage": 0.2284,
+              "precision": 0.0444,
+              "userCount": 231
+            },
+            {
+              "k": 5,
+              "algo": "content",
+              "ndcg": 0.2262,
+              "recall": 0.2431,
+              "coverage": 0.1518,
+              "precision": 0.1238,
+              "userCount": 231
+            },
+            {
+              "k": 10,
+              "algo": "content",
+              "ndcg": 0.2555,
+              "recall": 0.311,
+              "coverage": 0.2356,
+              "precision": 0.0792,
+              "userCount": 231
+            },
+            {
+              "k": 20,
+              "algo": "content",
+              "ndcg": 0.2695,
+              "recall": 0.3528,
+              "coverage": 0.3525,
+              "precision": 0.0446,
+              "userCount": 231
+            },
+            {
+              "k": 5,
+              "algo": "hybrid",
+              "ndcg": 0.334,
+              "recall": 0.3117,
+              "coverage": 0.1342,
+              "precision": 0.1593,
+              "userCount": 231
+            },
+            {
+              "k": 10,
+              "algo": "hybrid",
+              "ndcg": 0.3602,
+              "recall": 0.3752,
+              "coverage": 0.2057,
+              "precision": 0.0952,
+              "userCount": 231
+            },
+            {
+              "k": 20,
+              "algo": "hybrid",
+              "ndcg": 0.3833,
+              "recall": 0.4466,
+              "coverage": 0.3315,
+              "precision": 0.0565,
+              "userCount": 231
+            },
+            {
+              "k": 5,
+              "algo": "popular",
+              "ndcg": 0.0091,
+              "recall": 0.0108,
+              "coverage": 0.0027,
+              "precision": 0.0043,
+              "userCount": 231
+            },
+            {
+              "k": 10,
+              "algo": "popular",
+              "ndcg": 0.0126,
+              "recall": 0.0188,
+              "coverage": 0.0041,
+              "precision": 0.0043,
+              "userCount": 231
+            },
+            {
+              "k": 20,
+              "algo": "popular",
+              "ndcg": 0.0156,
+              "recall": 0.0274,
+              "coverage": 0.0074,
+              "precision": 0.0035,
+              "userCount": 231
+            }
+          ],
+          "cfMethod": "user_cosine",
+          "alsNdcg10": 0.146,
+          "userCount": 357,
+          "sparkAppId": "local-1793627505476",
+          "catalogSize": 4842,
+          "sparkMaster": "local[4]",
+          "cosineNdcg10": 0.3244,
+          "halfLifeDays": 45,
+          "holdoutUsers": 231,
+          "hybridNdcg10": 0.3602,
+          "neighborRows": 8800,
+          "stageSeconds": {
+            "als": 20.792,
+            "eval": 76.434,
+            "load": 3.335,
+            "score": 13.081,
+            "write": 1.941,
+            "cosine": 34.736
+          },
+          "adaptiveAlpha": false,
+          "cfChoiceReason": "留出集 NDCG@10：用户余弦 0.3244 高于 ALS 0.1460，采用用户余弦。学生约 200 人且行为按方向和城市聚集，邻居平均比低秩因子更稳",
+          "elapsedSeconds": 153.525
+        }
+      }
+    ],
+    "finished_offset_s": 156.7
+  },
+  "results": [
+    {
+      "question": "三方协议怎么签？",
+      "start_offset_s": 8.01,
+      "server_first_token_ms": 197,
+      "server_latency_ms": 10136,
+      "degraded": null,
+      "first_byte_s": 0.02,
+      "first_token_s": 0.23,
+      "total_s": 10.18,
+      "done": true,
+      "done_line": true,
+      "mode": "online",
+      "answer_chars": 353,
+      "offline_excerpt": false,
+      "error": null,
+      "session_id": 118,
+      "end_offset_s": 18.19,
+      "role": "student",
+      "round": 1,
+      "batch_running_at_end": true
+    },
+    {
+      "question": "列出我发布的职位",
+      "start_offset_s": 18.2,
+      "server_first_token_ms": 166,
+      "server_latency_ms": 14763,
+      "degraded": null,
+      "first_byte_s": 0.03,
+      "first_token_s": 0.21,
+      "total_s": 14.82,
+      "done": true,
+      "done_line": true,
+      "mode": "online",
+      "answer_chars": 287,
+      "offline_excerpt": false,
+      "error": null,
+      "session_id": 119,
+      "end_offset_s": 33.02,
+      "role": "company",
+      "round": 1,
+      "batch_running_at_end": true
+    },
+    {
+      "question": "哪个城市岗位最多",
+      "start_offset_s": 33.04,
+      "server_first_token_ms": 218,
+      "server_latency_ms": 1125,
+      "degraded": null,
+      "first_byte_s": 0.02,
+      "first_token_s": 0.26,
+      "total_s": 1.17,
+      "done": true,
+      "done_line": true,
+      "mode": "online",
+      "answer_chars": 20,
+      "offline_excerpt": false,
+      "error": null,
+      "session_id": 120,
+      "end_offset_s": 34.21,
+      "role": "admin",
+      "round": 1,
+      "batch_running_at_end": true
+    },
+    {
+      "question": "三方协议怎么签？",
+      "start_offset_s": 34.22,
+      "server_first_token_ms": 225,
+      "server_latency_ms": 8652,
+      "degraded": null,
+      "first_byte_s": 0.02,
+      "first_token_s": 0.26,
+      "total_s": 8.69,
+      "done": true,
+      "done_line": true,
+      "mode": "online",
+      "answer_chars": 305,
+      "offline_excerpt": false,
+      "error": null,
+      "session_id": 121,
+      "end_offset_s": 42.92,
+      "role": "student",
+      "round": 2,
+      "batch_running_at_end": true
+    },
+    {
+      "question": "列出我发布的职位",
+      "start_offset_s": 42.93,
+      "server_first_token_ms": 174,
+      "server_latency_ms": 10140,
+      "degraded": null,
+      "first_byte_s": 0.03,
+      "first_token_s": 0.22,
+      "total_s": 10.19,
+      "done": true,
+      "done_line": true,
+      "mode": "online",
+      "answer_chars": 190,
+      "offline_excerpt": false,
+      "error": null,
+      "session_id": 122,
+      "end_offset_s": 53.13,
+      "role": "company",
+      "round": 2,
+      "batch_running_at_end": true
+    },
+    {
+      "question": "哪个城市岗位最多",
+      "start_offset_s": 53.15,
+      "server_first_token_ms": 142,
+      "server_latency_ms": 974,
+      "degraded": null,
+      "first_byte_s": 0.03,
+      "first_token_s": 0.19,
+      "total_s": 1.03,
+      "done": true,
+      "done_line": true,
+      "mode": "online",
+      "answer_chars": 20,
+      "offline_excerpt": false,
+      "error": null,
+      "session_id": 123,
+      "end_offset_s": 54.17,
+      "role": "admin",
+      "round": 2,
+      "batch_running_at_end": true
+    }
+  ],
+  "time": "2026-11-02 21:54:19"
+}

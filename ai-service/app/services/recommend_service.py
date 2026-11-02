@@ -10,7 +10,7 @@ import logging
 from typing import Any
 
 from app.spark.recommend_online import latest_evaluation, recommend_for_user, similar_jobs, skill_radar
-from app.spark.runner import is_running
+from app.spark.runner import queue_state
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +28,10 @@ class RecommendService:
             "algorithm_version": self.algorithm_version,
             "strategies": ["user_cf", "content_based", "hybrid_ranking"],
             "description": "融合协同过滤与学生-岗位技能画像的混合推荐引擎",
-            "running": is_running(),
         }
+        queue = queue_state()
+        data["running"] = queue["running"]
+        data["batchQueue"] = queue
         try:
             latest = latest_evaluation()
             if latest.get("batchNo"):

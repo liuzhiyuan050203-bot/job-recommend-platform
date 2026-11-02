@@ -154,7 +154,11 @@ async function run() {
   try {
     const data = await runRecommend()
     const batchNo = data?.batchNo
-    ElMessage.success(batchNo ? `已提交批次 ${batchNo}` : '推荐任务已提交')
+    if (data?.status === 'QUEUED') {
+      ElMessage.success(`已有批次在运行，批次 ${batchNo} 已排队，前一批结束后自动开始`)
+    } else {
+      ElMessage.success(batchNo ? `已提交批次 ${batchNo}` : '推荐任务已提交')
+    }
     stopPoll()
     const started = Date.now()
     timer = setInterval(async () => {

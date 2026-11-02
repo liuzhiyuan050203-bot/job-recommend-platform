@@ -16,6 +16,11 @@ if ! curl -sf -m 2 -o /dev/null "$AI/health"; then
   exit 0
 fi
 
+# 助手流式回答依赖本机大模型；前面脚本触发的 Spark 批次若仍在跑会与之争 CPU，先等批次结束（最多 900s）
+if ! wait_spark_idle 900; then
+  echo "  [WARN] 900s 后仍有 Spark 批次在运行，继续执行（服务端有大模型超时降级兜底）"
+fi
+
 DOC_KEY=""
 TMP_MD=""
 STREAM_FILE=""

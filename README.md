@@ -164,6 +164,7 @@ cd ai-service
 - aggregate：从库中已审核职位聚合出 `spark_salary_stat`（省/城市/方向的均值、中位数、P25/P75）、`spark_tech_trend`（月份×技能需求与环比）、`spark_region_dist`（省份职位/企业/投递数与 6 位 adcode）。
 - salary_regression：MLlib 随机森林回归预测平均月薪，模型保存在 `ai-service/data/models/salary_model`，城市×方向×学历×经验网格预测写入 `spark_salary_predict`。
 - 每次运行一个 `batch_no`，新批次 `is_latest=1`，旧批次置 0，每表只保留最近 5 批。同一时间只允许一次运行。
+- 资源隔离：后台触发的批次在独立子进程中以 `nice 10` 运行，`local[*]` 实际限为 `SPARK_LOCAL_CORES`（默认 4）核；运行中再提交会排队（最多 2 个，相同任务合并，满了返回 409），`/spark/status` 的 `batchQueue` 可查看。Ollama 推理线程由 `scripts/start-ollama.sh` 设为核数-2；大模型首 token 超过 45 s 或整轮超过 90 s 时改用知识库摘录作答并带引用。实测与原因分析见 `experiments/stability/README.md`。
 
 实测（2026-10-31，8 核）：整次运行约 20 秒；CSV 3360 行 → 有效 2409（重复 200、面议 476、异常 275）；薪资统计 239 行、技术趋势 683 行、地区 16 省；模型测试集 RMSE≈1841、MAE≈1031、R2≈0.966。
 
