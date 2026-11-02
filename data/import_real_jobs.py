@@ -430,7 +430,12 @@ def default_skills_for_direction(direction: str, skill_by_name: dict[str, int], 
 
 
 def import_jobs(cur, jobs: list[dict[str, Any]], pass_hash: str, admin_id: int, rng: random.Random) -> dict[str, Any]:
+    from retag_real_jobs import new_tags
+
     cat, skill_by_name, skill_dir, admin_id2 = fetch_maps(cur)
+    tags_by_dir: dict[str, list[int]] = {}
+    for name, tid in sorted(skill_by_name.items(), key=lambda item: item[1]):
+        tags_by_dir.setdefault(skill_dir.get(name, ""), []).append(tid)
     admin_id = admin_id or admin_id2
     cat = ensure_categories(cur, cat)
 
@@ -558,9 +563,8 @@ def import_jobs(cur, jobs: list[dict[str, Any]], pass_hash: str, admin_id: int, 
                 ),
             )
             position_id = cur.lastrowid
-            tag_ids = match_skills(title, project, direction, skill_by_name)
-            if len(tag_ids) < 2:
-                tag_ids = list(dict.fromkeys(tag_ids + default_skills_for_direction(direction, skill_by_name, skill_dir)))[:4]
+            # 标签只按职位名称匹配、非研发岗位不补默认技能，规则见 retag_real_jobs.new_tags（UX 审计 P1-1）
+            tag_ids = new_tags(title, direction, skill_by_name, tags_by_dir)
             for tid in tag_ids:
                 cur.execute(
                     "INSERT INTO job_position_tag (position_id, tag_id, create_time, update_time, deleted) VALUES (%s,%s,%s,%s,0)",

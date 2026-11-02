@@ -12,8 +12,9 @@
    用户余弦，但仍略低，且新学生没有因子。生产协同过滤因此选用用户余弦（可解释、冷启动友好）；
    ALS 保留在离线任务中作对照与论文消融。
 
-内容匹配把技能熟练度与职位标签的余弦、期望方向、期望城市、学历是否达到要求、专业是否
-出现在职位名称或任职要求里做加权，学历不够的职位再乘 0.35。没有行为的学生用
+内容匹配把技能熟练度与职位标签的余弦、期望方向（自由填写先归一，同方向 1、相近方向 0.5）、期望城市、学历是否达到要求、专业是否
+出现在职位名称或任职要求里做加权，学历不够的职位再乘 0.35；与期望方向冲突的职位，内容分、协同分、
+热度分统一乘 0.5（相近方向 0.9），避免「相似同学也看过」把跨方向岗位顶到前面。没有行为的学生用
 0.75×内容 + 0.25×近期行为热度。以上都是 Spark 列表达式，在「学生 × 在架职位」候选集上计算。
 
 融合权重、是否按活跃度缩放、线性或门控（2×2×10=40 组）与候选集 crossJoin 后一次性在 Spark
@@ -423,7 +424,7 @@ def _grid_metrics(spark, cf_frame: DataFrame, truth: DataFrame, catalog_size: in
                 params.append((cfg_id, fusion, adaptive, float(alpha)))
                 cfg_id += 1
     grid = spark.createDataFrame(params, ["cfg_id", "fusion", "adaptive", "alpha"])
-    scored = cf_frame.select("user_id", "position_id", "item_idx", "cf_mm", "cf_hi", "content", "popularity", "activity").crossJoin(F.broadcast(grid))
+    scored = cf_frame.select("user_id", "position_id", "item_idx", "cf_mm", "cf_hi", "content", "popularity", "activity", "dir_factor").crossJoin(F.broadcast(grid))
     scored = scored.withColumn("hybrid", CF.fused_expr(F.col("alpha"), F.col("fusion"), F.col("adaptive")))
     ranked = CF.top_k(scored, "hybrid", max(EVAL_KS), ["cfg_id", "user_id"]).select("cfg_id", "user_id", "position_id", "rank_no")
     rows = CF.evaluate(spark, ranked, truth, EVAL_KS, catalog_size, ["cfg_id"])
@@ -507,7 +508,7 @@ def _als_predict(ratings: DataFrame, pairs: DataFrame | None, users: DataFrame |
 
 def _top_rows(prod: DataFrame, user_tags, job_tags, tag_names) -> list:
     """三种算法各取 Top-N（Spark Window），附上技能重合后收集到 Driver（每人至多 3×20 行）。"""
-    cols = ["user_id", "position_id", "cf_mm", "content", "hybrid", "popularity", "dir_match", "city_match", "major_hit", "u_dir", "u_city", "u_major"]
+    cols = ["user_id", "position_id", "cf_mm", "content", "hybrid", "popularity", "dir_rel", "j_dir", "city_match", "major_hit", "u_dir", "u_city", "u_major"]
     parts = []
     for algo, score_col in ((1, "cf_mm"), (2, "content"), (3, "hybrid")):
         ranked = CF.top_k(prod, score_col, TOP_N, ["user_id"])
@@ -521,19 +522,21 @@ def _top_rows(prod: DataFrame, user_tags, job_tags, tag_names) -> list:
 def _recommend_rows(batch_no: str, top_rows: list) -> list[tuple]:
     rows = []
     for row in top_rows:
-        names = list(row["skill_names"] or [])
-        percent = int(row["skill_percent"] or 0)
         reason = build_reason(
-            names,
-            percent,
-            row["u_dir"] or "",
-            row["u_city"] or "",
-            bool(row["dir_match"]),
-            bool(row["city_match"]),
-            row["u_major"] or "",
-            bool(row["major_hit"]),
-            float(row["cf_mm"]),
-            float(row["popularity"]) >= 70,
+            hit_skills=list(row["skill_names"] or []),
+            missing_skills=list(row["missing_names"] or []),
+            hit_count=int(row["hit_count"] or 0),
+            job_tag_count=int(row["job_tag_count"] or 0),
+            relation=row["dir_rel"] or "none",
+            user_direction=row["u_dir"] or "",
+            job_direction=row["j_dir"] or "",
+            city=row["u_city"] or "",
+            city_match=bool(row["city_match"]),
+            major=row["u_major"] or "",
+            major_match=bool(row["major_hit"]),
+            cf_score=float(row["cf_mm"]),
+            popular=float(row["popularity"]) >= 70,
+            variant=int(row["rank_no"]) + int(row["user_id"]),
         )
         rows.append(
             (

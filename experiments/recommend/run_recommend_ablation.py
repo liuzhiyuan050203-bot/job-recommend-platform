@@ -14,7 +14,8 @@ verify_spark_cf.py）的加载、内容打分、用户余弦、ALS、融合与�
 - 融合权重 alpha 的选择不看测试集：在训练集里再按同样方式留出 20% 作验证集选 alpha，
   再用全部训练数据重算分数在测试集上报告（"Hybrid(val-α)"）。alpha 扫描曲线 0..1 步长 0.1
   直接画测试集指标，仅用于展示敏感性。
-- 消融：45 天时间衰减 开/关；学历惩罚 0.35 开/关（=1.0）。
+- 消融：45 天时间衰减 开/关；学历惩罚 0.35 开/关（=1.0）；求职方向归一 + 冲突降权 开/关
+  （关 = 方向只看字面相等，P1-1 修复前的口径）。另报 FarDir@10：Top-10 中与期望方向冲突的职位占比。
 - 冷启动：随机抽 20% 学生当"新学生"：full = 删掉其全部行为（没有协同信号，融合走 0.75 内容 + 0.25
   热门的兜底）；fewshot3 = 只保留其随机 3 条行为。真值为这些学生其余的收藏/投递。
   （原生成器每人 8–14 个收藏，天然不存在稀疏学生，所以用模拟。）
@@ -46,6 +47,7 @@ E = R
 from app.spark.session import get_spark  # noqa: E402
 
 KS = (5, 10, 20)
+NO_DIR = "nodir"
 ALS_TUNING: list[dict] = []
 SWEEP = [round(x * 0.1, 1) for x in range(11)]
 
@@ -89,9 +91,16 @@ class Ctx:
         self.ref_ts = float(events["ts"].max())
         self.content = {}
         for pen in (R.EDU_PENALTY, 1.0):
-            self.content[pen], _ = R._content_matrix(
+            self.content[pen], aux = R._content_matrix(
                 profiles, jobs, frames["skills"], frames["job_tags"], self.user_index, self.item_index, edu_penalty=pen
             )
+            self.dir_factor = aux["dir_factor"]
+        # 方向加权消融：方向只看字面相等、无冲突系数（P1-1 修复前的口径）
+        self.content[NO_DIR], _ = R._content_matrix(
+            profiles, jobs, frames["skills"], frames["job_tags"], self.user_index, self.item_index,
+            edu_penalty=R.EDU_PENALTY, direction_weighting=False,
+        )
+        self.far = self.dir_factor < 0.75
 
     def ratings(self, train_events, half_life):
         grouped, pop = E.aggregate_frame(train_events, self.ref_ts, half_life_days=half_life)
@@ -113,6 +122,14 @@ class Ctx:
             out[f"NDCG@{k}"] = row["ndcg"]
             out[f"Cov@{k}"] = row["coverage"]
         out["users"] = rows[0]["userCount"] if rows else 0
+        # 跨方向率：真值学生 Top-10 里与期望方向冲突的职位占比（越低越对口）
+        idx = [self.user_index[u] for u in truth if u in self.user_index]
+        out["FarDir@10"] = float("nan")
+        if idx and scores is not None:
+            top = R.top_indices(scores[idx], banned[idx], 10)
+            valid = top >= 0
+            far = np.take_along_axis(self.far[idx], np.where(valid, top, 0), axis=1) & valid
+            out["FarDir@10"] = float(far.sum() / max(1, valid.sum()))
         return out
 
 
@@ -133,6 +150,7 @@ def score_all(ctx: Ctx, spark, train_events, half_life, seed, with_als=True, als
         "als_mm": E.minmax_rows(als, banned) if als is not None else None,
         "activity": activity,
         "pop_mat": np.broadcast_to(pop, ratings.shape).copy(),
+        "dir_factor": ctx.dir_factor,
     }
 
 
@@ -157,11 +175,12 @@ def als_predict(spark, ratings, ctx, seed, rank=None, reg=None, alpha=None, iter
     return U @ V.T
 
 
-def fuse(s, content, cf_key, alpha, adaptive=False):
-    return E.fuse_scores(s[cf_key], content, s["pop"], s["activity"], alpha, "linear", adaptive)
+def fuse(s, content, cf_key, alpha, adaptive=False, direction=True):
+    factor = s["dir_factor"] if direction else None
+    return E.fuse_scores(s[cf_key], content, s["pop"], s["activity"], alpha, "linear", adaptive, factor)
 
 
-def pick_alpha_on_val(ctx, spark, train_events, half_life, content, seed, cf_key, als_params=None):
+def pick_alpha_on_val(ctx, spark, train_events, half_life, content, seed, cf_key, als_params=None, direction=True):
     """在训练集内部再留出 20% 正样本选 alpha（不触碰测试集）。"""
     val_held = split_random(train_events, seed + 1000)
     inner = E.drop_pairs(train_events, val_held)
@@ -169,7 +188,7 @@ def pick_alpha_on_val(ctx, spark, train_events, half_life, content, seed, cf_key
     truth = ctx.truth(val_held)
     best, best_score = 0.5, -1
     for alpha in SWEEP:
-        m = ctx.metrics(fuse(s, content, cf_key, alpha), s["banned"], truth)
+        m = ctx.metrics(fuse(s, content, cf_key, alpha, direction=direction), s["banned"], truth)
         if m["NDCG@10"] > best_score + 1e-12:
             best, best_score = alpha, m["NDCG@10"]
     return best
@@ -247,6 +266,9 @@ def run_split(ctx, spark, events, held, seed, label, records, sweep_rows, cold_r
         a_cos = pick_alpha_on_val(ctx, spark, train, half_life, ctx.content[pen], seed, "cos_mm")
         add("Hybrid(cosine, val-α)", fuse(s, ctx.content[pen], "cos_mm", a_cos), {"alpha": a_cos})
         add("Hybrid(cosine, val-α, no edu penalty)", fuse(s, ctx.content[1.0], "cos_mm", a_cos), {"alpha": a_cos})
+        add("Content(no direction weighting)", ctx.content[NO_DIR])
+        a_nd = pick_alpha_on_val(ctx, spark, train, half_life, ctx.content[NO_DIR], seed, "cos_mm", direction=False)
+        add("Hybrid(cosine, val-α, no direction weighting)", fuse(s, ctx.content[NO_DIR], "cos_mm", a_nd, direction=False), {"alpha": a_nd})
         if decay_name == "decay45":
             (rk, rg, al), grid = tune_als_on_val(ctx, spark, train, half_life, seed)
             ALS_TUNING.append({"protocol": label, "seed": seed, "best": [rk, rg, al], "grid": grid})
@@ -288,6 +310,7 @@ def run_split(ctx, spark, events, held, seed, label, records, sweep_rows, cold_r
             ("ALS", s["als_mm"]),
             ("Content", ctx.content[pen]),
             ("Content(no edu penalty)", ctx.content[1.0]),
+            ("Content(no direction weighting)", ctx.content[NO_DIR]),
             ("Hybrid(α=0.5, linear)", fuse(s, ctx.content[pen], "cos_mm", 0.5)),
             ("Hybrid(α=0.5, adaptive)", fuse(s, ctx.content[pen], "cos_mm", 0.5, adaptive=True)),
         )
@@ -313,7 +336,7 @@ def main():
     base_events = frames["events"]
     base_events = base_events[base_events["position_id"].isin(set(frames["jobs"]["position_id"].astype(int)))].copy()
     variants = ["original", "pop_noise"] if args.variant == "both" else [args.variant]
-    metric_cols = [f"{m}@{k}" for k in KS for m in ("P", "R", "NDCG", "Cov")]
+    metric_cols = [f"{m}@{k}" for k in KS for m in ("P", "R", "NDCG", "Cov")] + ["FarDir@10"]
     all_out = {"env": env_info(), "seeds": list(range(1, args.seeds + 1)), "variants": {}}
     for variant in variants:
         ctx = Ctx(frames, base_events)

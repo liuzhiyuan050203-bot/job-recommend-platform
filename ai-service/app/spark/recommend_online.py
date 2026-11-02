@@ -29,8 +29,12 @@ from app.spark.recommend_eval import (
     HALF_LIFE_DAYS,
     NEIGHBORS,
     SHRINK,
+    DIR_FACTOR,
+    DIR_SCORE,
     build_reason,
     clip_score,
+    direction_relation,
+    skill_detail,
     skill_match_percent,
 )
 
@@ -190,15 +194,16 @@ def _minmax(values: list[float], banned: list[bool]) -> list[float]:
     return out
 
 
-def _fuse(cf_mm: float, content: float, popularity: float, activity: float, cold: bool, alpha: float, fusion: str, adaptive: bool) -> float:
+def _fuse(cf_mm: float, content: float, popularity: float, activity: float, cold: bool, alpha: float, fusion: str, adaptive: bool, factor: float = 1.0) -> float:
+    """口径同 recommend_cf.fused_expr：content 已乘方向系数，线性融合的协同分和兜底热度分再乘一次。"""
     if cold:
-        mixed = 0.75 * content + 0.25 * popularity
+        mixed = 0.75 * content + 0.25 * popularity * factor
     else:
         alpha_u = alpha * (0.25 + 0.75 * max(0.0, min(1.0, activity / 8.0))) if adaptive else alpha
         if fusion == "gated":
             mixed = content * ((1.0 - alpha_u) + alpha_u * (cf_mm / 100.0))
         else:
-            mixed = alpha_u * cf_mm + (1.0 - alpha_u) * content
+            mixed = alpha_u * cf_mm * factor + (1.0 - alpha_u) * content
     return max(0.0, min(100.0, mixed))
 
 
@@ -219,7 +224,9 @@ def recommend_for_user(user_id: int, top_k: int = 10) -> dict:
     direction = str((profile or {}).get("expectDirection") or "")
     city = str((profile or {}).get("expectCity") or "")
     education = int((profile or {}).get("education") or 0)
-    content = [_content_one(skills, major, direction, city, education, job, catalog["tagNames"]) for job in jobs]
+    relations = [direction_relation(direction, job["techDirection"]) for job in jobs]
+    factors = [DIR_FACTOR[rel] for rel in relations]
+    content = [_content_one(skills, major, direction, city, education, job, catalog["tagNames"], rel) for job, rel in zip(jobs, relations)]
 
     ref_ts = float(model["refTs"]) if model and model.get("refTs") is not None else 0.0
     if events:
@@ -253,7 +260,7 @@ def recommend_for_user(user_id: int, top_k: int = 10) -> dict:
         fusion = "gated"
     cold = activity <= 0 or max(cf_mm, default=0.0) <= 0
     hybrid = [
-        -1.0 if banned[i] else _fuse(cf_mm[i], content[i], popularity[i], activity, cold, alpha, fusion, adaptive)
+        -1.0 if banned[i] else _fuse(cf_mm[i], content[i], popularity[i], activity, cold, alpha, fusion, adaptive, factors[i])
         for i in range(len(jobs))
     ]
     order = sorted(range(len(jobs)), key=lambda i: (-hybrid[i], i))
@@ -264,19 +271,23 @@ def recommend_for_user(user_id: int, top_k: int = 10) -> dict:
         if len(items) >= top_k:
             break
         job = jobs[position_index]
-        percent, names = skill_match_percent(skills, set(job["tags"]), catalog["tagNames"])
+        detail = skill_detail(skills, set(job["tags"]), catalog["tagNames"])
         text = f"{job['title']} {job.get('requirement') or ''}"[:500]
         reason = build_reason(
-            names,
-            percent,
-            direction,
-            city,
-            bool(direction and direction == job["techDirection"]),
-            bool(city and city == job["city"]),
-            major,
-            bool(len(major) >= 2 and major in text),
-            float(cf_mm[position_index]),
-            float(popularity[position_index]) >= 70,
+            hit_skills=detail["hits"],
+            missing_skills=detail["missing"],
+            hit_count=detail["hit_count"],
+            job_tag_count=detail["job_tag_count"],
+            relation=relations[position_index],
+            user_direction=direction,
+            job_direction=job["techDirection"],
+            city=city,
+            city_match=bool(city and city == job["city"]),
+            major=major,
+            major_match=bool(len(major) >= 2 and major in text),
+            cf_score=float(cf_mm[position_index]),
+            popular=float(popularity[position_index]) >= 70,
+            variant=len(items) + 1 + int(user_id),
         )
         items.append(
             {
@@ -480,16 +491,19 @@ def _empty(user_id: int, model) -> dict:
     }
 
 
-def _content_one(skills, major, direction, city, education, job, tag_names) -> float:
+def _content_one(skills, major, direction, city, education, job, tag_names, relation: str | None = None) -> float:
+    """口径同 recommend_cf.with_content。"""
     percent, _names = skill_match_percent(skills, set(job["tags"]), tag_names)
-    direction_match = 1.0 if direction and direction == job["techDirection"] else 0.0
+    relation = relation or direction_relation(direction, job["techDirection"])
+    direction_score = DIR_SCORE[relation]
     city_match = 1.0 if city and city == job["city"] else 0.0
     edu_ok = job["education"] == 0 or (education > 0 and job["education"] <= education)
     text = f"{job['title']} {job.get('requirement') or ''}"[:500]
     major_hit = 1.0 if len(major) >= 2 and major in text else 0.0
-    score = 100.0 * (0.50 * (percent / 100.0) + 0.20 * direction_match + 0.16 * city_match + 0.08 * (1.0 if edu_ok else 0.0) + 0.06 * major_hit)
+    score = 100.0 * (0.50 * (percent / 100.0) + 0.20 * direction_score + 0.16 * city_match + 0.08 * (1.0 if edu_ok else 0.0) + 0.06 * major_hit)
     if not edu_ok:
         score *= 0.35
+    score *= DIR_FACTOR[relation]
     return float(max(0.0, min(100.0, score)))
 
 

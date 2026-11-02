@@ -29,6 +29,9 @@ if str(AI_ROOT) not in sys.path:
 
 from app.spark.recommend_eval import (  # noqa: E402
     ALPHAS,
+    DIR_FACTOR,
+    DIR_SCORE,
+    direction_relation,
     EVAL_KS,
     HALF_LIFE_DAYS,
     HALF_LIFE_SECONDS,
@@ -236,11 +239,20 @@ def fuse_scores(
     alpha: float,
     mode: str,
     adaptive: bool,
+    dir_factor: np.ndarray | None = None,
 ) -> np.ndarray:
-    """线性融合或门控融合。没有行为或协同过滤无信号的学生改用内容分与热门分。"""
+    """线性融合或门控融合。没有行为或协同过滤无信号的学生改用内容分与热门分。
+
+    dir_factor（学生×职位方向系数）口径同 recommend_cf.fused_expr：content 已乘过系数，
+    线性融合的协同分和兜底热度分再乘一次；None 表示不做方向加权（旧口径）。"""
     pop = popularity
     if pop.ndim == 1:
         pop = np.broadcast_to(pop, content.shape).copy()
+    if dir_factor is not None:
+        cf_lin = cf_mm * dir_factor
+        pop = pop * dir_factor
+    else:
+        cf_lin = cf_mm
     alpha_u = np.full(content.shape[0], float(alpha), dtype=np.float64)
     if adaptive:
         ramp = np.clip(activity / 8.0, 0.0, 1.0)
@@ -249,7 +261,7 @@ def fuse_scores(
     if mode == "gated":
         mixed = content * ((1.0 - alpha_col) + alpha_col * (cf_mm / 100.0))
     else:
-        mixed = alpha_col * cf_mm + (1.0 - alpha_col) * content
+        mixed = alpha_col * cf_lin + (1.0 - alpha_col) * content
     # 没有行为、或行为全落在无人共同交互的职位上（协同过滤分整行为 0）时，按冷启动处理
     no_cf = np.max(cf_mm, axis=1) <= 0 if cf_mm.shape[1] > 0 else np.ones(cf_mm.shape[0], dtype=bool)
     cold = (activity <= 0) | no_cf
@@ -418,7 +430,7 @@ def _coerce_ids(frame: pd.DataFrame) -> None:
             frame[column] = pd.to_numeric(frame[column], errors="coerce").fillna(0).astype(np.int64)
 
 
-def _content_matrix(profiles, jobs, skills, job_tags, user_index, item_index, edu_penalty: float = EDU_PENALTY):
+def _content_matrix(profiles, jobs, skills, job_tags, user_index, item_index, edu_penalty: float = EDU_PENALTY, direction_weighting: bool = True):
     n_users = len(user_index)
     n_items = len(item_index)
     tag_ids = sorted(
@@ -481,9 +493,28 @@ def _content_matrix(profiles, jobs, skills, job_tags, user_index, item_index, ed
     for index, name in enumerate(job_cities):
         if name:
             by_city[name].append(index)
-    for index, name in enumerate(directions):
-        for col in by_dir.get(name, ()):
-            dir_match[index, col] = 1.0
+    dir_score = np.zeros((n_users, n_items), dtype=np.float64)
+    dir_factor = np.ones((n_users, n_items), dtype=np.float64)
+    if direction_weighting:
+        # 期望方向归一后与职位方向比较（同 recommend_cf.with_content），按 (学生方向, 职位方向) 去重计算
+        job_dirs = np.array(job_directions, dtype=object)
+        for user_dir in set(directions):
+            rows = [i for i, name in enumerate(directions) if name == user_dir]
+            for job_dir in set(job_directions):
+                rel = direction_relation(user_dir, job_dir)
+                cols = np.nonzero(job_dirs == job_dir)[0]
+                if not len(cols):
+                    continue
+                block = np.ix_(rows, cols)
+                dir_score[block] = DIR_SCORE[rel]
+                dir_factor[block] = DIR_FACTOR[rel]
+                if rel == "same":
+                    dir_match[block] = 1.0
+    else:
+        for index, name in enumerate(directions):
+            for col in by_dir.get(name, ()):
+                dir_match[index, col] = 1.0
+        dir_score = dir_match.copy()
     for index, name in enumerate(cities):
         for col in by_city.get(name, ()):
             city_match[index, col] = 1.0
@@ -497,15 +528,16 @@ def _content_matrix(profiles, jobs, skills, job_tags, user_index, item_index, ed
             major_hit[index, hits] = 1.0
     edu_score = edu_ok.astype(np.float64)
     content = 100.0 * (
-        0.50 * tag_cos + 0.20 * dir_match + 0.16 * city_match + 0.08 * edu_score + 0.06 * major_hit
+        0.50 * tag_cos + 0.20 * dir_score + 0.16 * city_match + 0.08 * edu_score + 0.06 * major_hit
     )
-    content = np.where(edu_ok, content, content * float(edu_penalty))
+    content = np.where(edu_ok, content, content * float(edu_penalty)) * dir_factor
     content = np.clip(content, 0.0, 100.0)
     return content, {
         "directions": directions,
         "cities": cities,
         "majors": majors,
         "dir_match": dir_match,
+        "dir_factor": dir_factor if direction_weighting else None,
         "city_match": city_match,
         "major_hit": major_hit,
     }
@@ -615,12 +647,12 @@ def _rank_metrics(scores, banned, user_ids, item_ids, truth, catalog_size) -> li
     return evaluate_rankings(rankings, truth, EVAL_KS, catalog_size)
 
 
-def _tune_hybrid(cf_mm, content, popularity, activity, banned, user_ids, item_ids, truth, catalog_size) -> dict:
+def _tune_hybrid(cf_mm, content, popularity, activity, banned, user_ids, item_ids, truth, catalog_size, dir_factor=None) -> dict:
     best = {"alpha": 0.45, "fusion": "linear", "adaptive": True, "ndcg": -1.0}
     for fusion in ("linear", "gated"):
         for adaptive in (False, True):
             for alpha in ALPHAS:
-                scores = fuse_scores(cf_mm, content, popularity, activity, alpha, fusion, adaptive)
+                scores = fuse_scores(cf_mm, content, popularity, activity, alpha, fusion, adaptive, dir_factor)
                 rows = _rank_metrics(scores, banned, user_ids, item_ids, truth, catalog_size)
                 score = ndcg_at(rows, 10)
                 if score > best["ndcg"] + 1e-9:
@@ -677,7 +709,8 @@ def reference_run(spark) -> dict:
     full_grouped, full_pop = aggregate_frame(events, ref_ts)
     train_ratings = fill_matrix(train_grouped, user_index, item_index, shape)
     full_ratings = fill_matrix(full_grouped, user_index, item_index, shape)
-    content, _ = _content_matrix(profiles, jobs, frames["skills"], frames["job_tags"], user_index, item_index)
+    content, aux = _content_matrix(profiles, jobs, frames["skills"], frames["job_tags"], user_index, item_index)
+    dir_factor = aux["dir_factor"]
     eligible_row = np.array([i in eligible_ids for i in item_ids], dtype=bool)
     eval_banned = (train_ratings > 0) | ~eligible_row
     truth = _truth(held, eligible_ids, user_index)
@@ -689,9 +722,9 @@ def reference_run(spark) -> dict:
     activity_eval = (train_ratings > 0).sum(axis=1).astype(np.float64)
     pop_eval = popularity_scores(train_pop, item_index, shape[1])
     cf_mm_eval = minmax_rows(cosine_eval, eval_banned)
-    best = _tune_hybrid(cf_mm_eval, content, pop_eval, activity_eval, eval_banned, user_ids, item_ids, truth, catalog)
+    best = _tune_hybrid(cf_mm_eval, content, pop_eval, activity_eval, eval_banned, user_ids, item_ids, truth, catalog, dir_factor)
     hybrid_rows = _rank_metrics(
-        fuse_scores(cf_mm_eval, content, pop_eval, activity_eval, best["alpha"], best["fusion"], best["adaptive"]),
+        fuse_scores(cf_mm_eval, content, pop_eval, activity_eval, best["alpha"], best["fusion"], best["adaptive"], dir_factor),
         eval_banned, user_ids, item_ids, truth, catalog,
     )
     content_rows = _rank_metrics(content, eval_banned, user_ids, item_ids, truth, catalog)
@@ -706,7 +739,7 @@ def reference_run(spark) -> dict:
     pop_full = popularity_scores(full_pop, item_index, shape[1])
     cf_mm = minmax_rows(cf_full, prod_banned)
     content_disp = np.clip(content, 0.0, 100.0)
-    hybrid_full = fuse_scores(cf_mm, content_disp, pop_full, activity_full, best["alpha"], best["fusion"], best["adaptive"])
+    hybrid_full = fuse_scores(cf_mm, content_disp, pop_full, activity_full, best["alpha"], best["fusion"], best["adaptive"], dir_factor)
     rows = [user_index[u] for u in profile_ids if u in user_index]
     lists = {}
     for algo, scores in ((1, cf_mm), (2, content_disp), (3, hybrid_full)):

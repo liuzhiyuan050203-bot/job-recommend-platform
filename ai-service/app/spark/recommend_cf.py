@@ -12,6 +12,8 @@
 * Top-N 正相关邻居：Window(partition by user, order by sim desc) + row_number。
 * 预测：邻居相似度 × 邻居评分按 (学生, 职位) 聚合，除以邻居相似度之和。
 * 候选集：学生 × 在架职位，减去屏蔽对（评估时为训练期交互，生产时为已投递）。
+* 求职方向：自由填写的期望方向先按 DIRECTION_RULES 归一，再与职位方向比出同方向 / 相近 / 冲突，
+  冲突时内容分、协同分、热度分统一乘 DIR_FACTOR['far']。
 * 内容分、协同分逐行 min-max、线性/门控融合、学历惩罚、冷启动兜底全部是列表达式。
 * 排序：score - item_idx×1e-9 降序 row_number，与原 numpy 实现的同分规则一致。
 * 评估：Precision/Recall/NDCG@K 与覆盖率用 DataFrame 聚合，只把指标行收回 Driver。
@@ -24,7 +26,16 @@ from __future__ import annotations
 from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
 
-from app.spark.recommend_eval import HALF_LIFE_DAYS, NEIGHBORS, SHRINK
+from app.spark.recommend_eval import (
+    DIR_FACTOR,
+    DIR_SCORE,
+    DIRECTION_NEAR,
+    DIRECTION_RULES,
+    DIRECTIONS,
+    HALF_LIFE_DAYS,
+    NEIGHBORS,
+    SHRINK,
+)
 
 EDU_PENALTY = 0.35
 TIE_EPS = 1e-9
@@ -178,28 +189,72 @@ def tag_cosine(user_tags: DataFrame, job_tags: DataFrame) -> DataFrame:
     )
 
 
-def with_content(cands: DataFrame, tag_cos: DataFrame, edu_penalty: float = EDU_PENALTY) -> DataFrame:
-    """cands 需含学生维度 (u_edu, u_dir, u_city, u_major) 与职位维度 (j_edu, j_dir, j_city, j_text)。"""
+def direction_norm_expr(col: F.Column) -> F.Column:
+    """与 recommend_eval.normalize_direction 等价的 Spark 列表达式（规则顺序一致）。"""
+    value = F.trim(F.coalesce(col, F.lit("")))
+    expr = F.when(value == "", F.lit(""))
+    expr = expr.when(value.isin(*DIRECTIONS), value)
+    for direction, pattern in DIRECTION_RULES:
+        expr = expr.when(value.rlike("(?i)" + pattern), F.lit(direction))
+    return expr.otherwise(F.lit(""))
+
+
+def direction_relation_expr(user_dir: F.Column, job_dir: F.Column) -> F.Column:
+    """same / near / far / none，同 recommend_eval.direction_relation。"""
+    near = F.lit(False)
+    for user, jobs in DIRECTION_NEAR.items():
+        if jobs:
+            near = near | ((user_dir == F.lit(user)) & job_dir.isin(*sorted(jobs)))
+    return (
+        F.when((user_dir == "") | (job_dir == ""), F.lit("none"))
+        .when(user_dir == job_dir, F.lit("same"))
+        .when(near, F.lit("near"))
+        .otherwise(F.lit("far"))
+    )
+
+
+def _lookup(mapping: dict[str, float], col: F.Column) -> F.Column:
+    expr = None
+    for key, value in mapping.items():
+        expr = F.when(col == key, F.lit(float(value))) if expr is None else expr.when(col == key, F.lit(float(value)))
+    return expr.otherwise(F.lit(0.0))
+
+
+def with_content(cands: DataFrame, tag_cos: DataFrame, edu_penalty: float = EDU_PENALTY, direction_weighting: bool = True) -> DataFrame:
+    """cands 需含学生维度 (u_edu, u_dir, u_city, u_major) 与职位维度 (j_edu, j_dir, j_city, j_text)。
+
+    direction_weighting=False 时退回旧口径（方向只看字面相等、无冲突系数），供消融对照。"""
     frame = cands.join(tag_cos, ["user_id", "position_id"], "left").fillna({"tag_cos": 0.0})
-    dir_match = ((F.col("u_dir") != "") & (F.col("u_dir") == F.col("j_dir"))).cast("double")
+    if direction_weighting:
+        u_dir_n = direction_norm_expr(F.col("u_dir"))
+        j_dir_n = direction_norm_expr(F.col("j_dir"))
+        frame = frame.withColumn("dir_rel", direction_relation_expr(u_dir_n, j_dir_n))
+    else:
+        frame = frame.withColumn(
+            "dir_rel", F.when((F.col("u_dir") != "") & (F.col("u_dir") == F.col("j_dir")), F.lit("same")).otherwise(F.lit("none"))
+        )
+    dir_score = _lookup(DIR_SCORE, F.col("dir_rel"))
+    dir_factor = _lookup(DIR_FACTOR, F.col("dir_rel")) if direction_weighting else F.lit(1.0)
     city_match = ((F.col("u_city") != "") & (F.col("u_city") == F.col("j_city"))).cast("double")
     edu_ok = (F.col("j_edu") == 0) | (F.col("j_edu") <= F.col("u_edu"))
     major_hit = ((F.length("u_major") >= 2) & (F.instr(F.col("j_text"), F.col("u_major")) > 0)).cast("double")
+    frame = (
+        frame.withColumn("dir_score", dir_score)
+        .withColumn("dir_factor", dir_factor)
+        .withColumn("dir_match", (F.col("dir_rel") == "same").cast("double"))
+        .withColumn("city_match", city_match)
+        .withColumn("edu_ok", edu_ok)
+        .withColumn("major_hit", major_hit)
+    )
     base = F.lit(100.0) * (
         F.lit(0.50) * F.col("tag_cos")
-        + F.lit(0.20) * F.col("dir_match")
+        + F.lit(0.20) * F.col("dir_score")
         + F.lit(0.16) * F.col("city_match")
         + F.lit(0.08) * F.col("edu_ok").cast("double")
         + F.lit(0.06) * F.col("major_hit")
     )
-    content = F.when(F.col("edu_ok"), base).otherwise(base * F.lit(float(edu_penalty)))
-    return (
-        frame.withColumn("dir_match", dir_match)
-        .withColumn("city_match", city_match)
-        .withColumn("edu_ok", edu_ok)
-        .withColumn("major_hit", major_hit)
-        .withColumn("content", F.least(F.lit(100.0), F.greatest(F.lit(0.0), content)))
-    )
+    content = F.when(F.col("edu_ok"), base).otherwise(base * F.lit(float(edu_penalty))) * F.col("dir_factor")
+    return frame.withColumn("content", F.least(F.lit(100.0), F.greatest(F.lit(0.0), content)))
 
 
 # --------------------------------------------------------------------------- 归一化与融合
@@ -218,18 +273,22 @@ def with_cf_minmax(frame: DataFrame, raw_col: str = "cf_raw") -> DataFrame:
 
 
 def fused_expr(alpha, fusion, adaptive) -> F.Column:
-    """alpha/fusion/adaptive 可以是 Python 常量或列。需要 cf_mm、content、popularity、activity、cf_hi 列。"""
+    """alpha/fusion/adaptive 可以是 Python 常量或列。需要 cf_mm、content、popularity、activity、cf_hi、dir_factor 列。
+
+    content 已经乘过方向系数；线性融合的协同分和兜底的热度分在这里乘同一个系数，融合结果整体只乘一次。"""
     alpha_c = alpha if isinstance(alpha, F.Column) else F.lit(float(alpha))
     fusion_c = fusion if isinstance(fusion, F.Column) else F.lit(str(fusion))
     adaptive_c = adaptive if isinstance(adaptive, F.Column) else F.lit(bool(adaptive))
     ramp = F.least(F.lit(1.0), F.greatest(F.lit(0.0), F.col("activity") / 8.0))
+    factor = F.col("dir_factor")
     alpha_u = F.when(adaptive_c, alpha_c * (F.lit(0.25) + F.lit(0.75) * ramp)).otherwise(alpha_c)
+    # 门控以 content 为底（已含系数），门控项不再乘，避免冲突职位被乘两次
     gated = F.col("content") * ((F.lit(1.0) - alpha_u) + alpha_u * (F.col("cf_mm") / 100.0))
-    linear = alpha_u * F.col("cf_mm") + (F.lit(1.0) - alpha_u) * F.col("content")
+    linear = alpha_u * F.col("cf_mm") * factor + (F.lit(1.0) - alpha_u) * F.col("content")
     mixed = F.when(fusion_c == "gated", gated).otherwise(linear)
     # 没有行为、或协同过滤整行为 0（max cf_mm<=0 ⇔ cf_hi<=1e-8）时按冷启动处理
     cold = (F.col("activity") <= 0) | (F.col("cf_hi") <= 1e-8)
-    mixed = F.when(cold, F.lit(0.75) * F.col("content") + F.lit(0.25) * F.col("popularity")).otherwise(mixed)
+    mixed = F.when(cold, F.lit(0.75) * F.col("content") + F.lit(0.25) * F.col("popularity") * factor).otherwise(mixed)
     return F.least(F.lit(100.0), F.greatest(F.lit(0.0), mixed))
 
 
@@ -291,31 +350,40 @@ def evaluate(spark, ranked: DataFrame, truth: DataFrame, ks, catalog_size: int, 
 
 
 def skill_overlap(pairs: DataFrame, user_tags: DataFrame, job_tags: DataFrame, tag_names: DataFrame) -> DataFrame:
-    """[user_id, position_id, skill_percent, skill_names]，口径同 recommend_eval.skill_match_percent。"""
+    """[user_id, position_id, skill_percent, skill_names, hit_count, job_tag_count, missing_names]。
+
+    skill_percent 口径同 recommend_eval.skill_match_percent；skill_names 为命中技能（熟练度降序前 3），
+    missing_names 为岗位要求但学生没有的技能（按名称排序前 2），口径同 recommend_eval.skill_detail。"""
     jt = job_tags.select("position_id", "tag_id").distinct()
-    jcount = jt.groupBy("position_id").agg(F.count(F.lit(1)).alias("jcount"))
     unorm = user_tags.groupBy("user_id").agg(F.sqrt(F.sum(F.col("prof") * F.col("prof"))).alias("unorm"))
     named = jt.join(tag_names.where(F.col("tag_name") != ""), "tag_id")
-    overlap = (
+    jcount = jt.groupBy("position_id").agg(F.count(F.lit(1)).alias("jcount"))
+    detail = (
         pairs.select("user_id", "position_id")
         .distinct()
-        .join(user_tags, "user_id")
-        .join(named, ["position_id", "tag_id"])
+        .join(named, "position_id")
+        .join(user_tags.select("user_id", "tag_id", "prof"), ["user_id", "tag_id"], "left")
         .groupBy("user_id", "position_id")
         .agg(
-            F.sum("prof").alias("num"),
-            F.sort_array(F.collect_list(F.struct((-F.col("prof")).alias("neg"), F.col("tag_name").alias("name")))).alias("lst"),
+            F.sum(F.coalesce("prof", F.lit(0.0))).alias("num"),
+            F.count(F.lit(1)).alias("named_count"),
+            F.count("prof").alias("hit_count"),
+            F.sort_array(F.collect_list(F.when(F.col("prof").isNotNull(), F.struct((-F.col("prof")).alias("neg"), F.col("tag_name").alias("name"))))).alias("lst"),
+            F.sort_array(F.collect_list(F.when(F.col("prof").isNull(), F.col("tag_name")))).alias("miss"),
         )
-        .join(unorm, "user_id")
+        .join(unorm, "user_id", "left")
         .join(jcount, "position_id")
     )
     percent = F.when(
-        (F.col("unorm") > 0) & (F.col("jcount") > 0),
+        (F.col("hit_count") > 0) & (F.col("unorm") > 0) & (F.col("jcount") > 0),
         F.bround(F.lit(100.0) * F.col("num") / (F.col("unorm") * F.sqrt(F.col("jcount").cast("double"))), 0),
     ).otherwise(F.lit(0.0))
-    return overlap.select(
+    return detail.select(
         "user_id",
         "position_id",
         F.least(F.lit(100), F.greatest(F.lit(0), percent.cast("int"))).alias("skill_percent"),
         F.expr("transform(slice(lst, 1, 3), x -> x.name)").alias("skill_names"),
+        F.col("hit_count").cast("int").alias("hit_count"),
+        F.col("named_count").cast("int").alias("job_tag_count"),
+        F.expr("slice(miss, 1, 2)").alias("missing_names"),
     )

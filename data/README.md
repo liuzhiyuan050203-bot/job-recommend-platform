@@ -90,3 +90,18 @@ UX 审计（`experiments/ux_audit/REPORT.md` P1-1/P1-6/P1-10）发现演示账�
 - 接口测试自身不再遗留数据：`tests/api/lib.sh` 的 `purge_fixtures` 在每个脚本退出时删除本次注册的账号、发布的职位和简历，并恢复演示学生原默认简历；`tests/api/11-demo-data.sh` 在最后检查这些约束。
 
 2026-11-03 执行结果：清理 325 个临时账号、46 个测试职位、82 份测试简历、89 条测试投递；补充投递 29 条；全平台投递 待初筛 339 / 笔试 9 / 面试中 66 / 已录用 65 / 未通过 336。之后重新跑了 Spark 清洗聚合与推荐批次。
+
+## 真实职位技能标签修正（retag_real_jobs.py）
+
+早期导入真实职位时，标题里匹配不到技能的岗位会被塞上默认的 Java / Spring Boot / MySQL，
+导致「游戏体验设计」「产品运营」这类岗位在推荐理由里出现后端技能。`retag_real_jobs.py`
+只处理 `real_*` 企业下、标签里没有任何本方向技能的职位：按标题关键词重新打标签，研发方向
+或标题明确是产品/设计岗位时才补本方向默认技能（产品经理：需求分析/原型设计/Axure；
+UI设计：交互设计/Figma/Sketch），销售、人事、运营类岗位宁可不打标签也不编造技能。
+
+```bash
+.venv/bin/python data/retag_real_jobs.py          # 只预览
+.venv/bin/python data/retag_real_jobs.py --apply  # 写库，幂等，重复执行无变化
+```
+
+`import_real_jobs.py` 新导入时复用同一套规则。改标签后需在管理端重跑一次推荐批次。
