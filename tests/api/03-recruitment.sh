@@ -9,12 +9,17 @@ login admin admin123; T_ADMIN=$TOKEN; expect_ok "管理员登录"
 login student student123; T_STU=$TOKEN; expect_ok "学生登录"
 login company company123; T_COM=$TOKEN; expect_ok "企业登录"
 
+# 本脚本借用演示账号 student / company 走完整招聘流程；退出时由 purge_fixtures 删除本次的职位、简历、投递、
+# 面试与行为日志，并恢复演示学生原来的默认简历，避免演示首页和看板被「已录用」测试数据淹没。
+fixture_keep_default student
 SU="rstu$TS"
+fixture_user "$SU"
 req POST /public/auth/register/student "" "{\"username\":\"$SU\",\"password\":\"pass123\",\"nickname\":\"流程学生$TS\",\"realName\":\"流程同学\",\"gender\":1,\"education\":2,\"graduationYear\":2026,\"school\":\"测试大学\",\"major\":\"软件工程\"}"
 expect_ok "注册第二个学生"
 login "$SU" pass123; T_STU2=$TOKEN; expect_ok "第二个学生登录"
 
 CU="rcom$TS"
+fixture_user "$CU"
 CC=$(printf '91R%013d' "$((TS % 10000000000000))")
 req POST /public/auth/register/company "" "{\"username\":\"$CU\",\"password\":\"pass123\",\"nickname\":\"流程企业$TS\",\"companyName\":\"流程科技$TS\",\"creditCode\":\"$CC\",\"contactName\":\"王招聘\",\"contactPhone\":\"13900000000\",\"industry\":\"互联网\",\"scale\":2,\"province\":\"浙江\",\"city\":\"杭州\"}"
 expect_ok "注册第二个企业"
@@ -38,6 +43,7 @@ req POST /company/jobs "$T_COM" "$BAD_JSON"; expect_fail "薪资区间非法"
 req POST /company/jobs "$T_COM" "$JOB_JSON"
 expect_ok "企业发布职位"
 JOB=$(jqv '.data.id')
+fixture_job "$JOB"
 expect_jq .data.auditStatus 0 "新职位待审核"
 expect_jq .data.techDirection "后端开发" "技术方向取分类名称"
 [ -n "$JOB" ] && [ "$JOB" != null ] && ok "返回职位编号" || bad "返回职位编号"
@@ -94,6 +100,7 @@ RESUME_JSON=$(jq -n --arg title "招聘流程测试简历$TS" '{
 }')
 req POST /student/resumes "$T_STU" "$RESUME_JSON"; expect_ok "创建简历"
 RESUME=$(jqv '.data.id')
+fixture_resume "$RESUME"
 req PUT "/student/resumes/$RESUME/default" "$T_STU"; expect_ok "设为默认简历"
 req GET /student/resumes "$T_STU"; expect_ok "简历列表"
 expect_jq ".data[] | select(.id==$RESUME) | .isDefault" 1 "默认标记"

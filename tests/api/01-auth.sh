@@ -14,6 +14,7 @@ login nobody_xyz abc123; expect_fail "不存在用户登录失败"
 
 # 注册新学生
 SU="stu$TS"
+fixture_user "$SU"
 req POST /public/auth/register/student "" "{\"username\":\"$SU\",\"password\":\"pass123\",\"nickname\":\"测试学生$TS\",\"realName\":\"张测试\",\"gender\":1,\"education\":2,\"graduationYear\":2026,\"school\":\"测试大学\",\"major\":\"软件工程\",\"expectCity\":\"杭州\",\"expectDirection\":\"Java后端\"}"
 expect_ok "学生注册"
 req POST /public/auth/register/student "" "{\"username\":\"$SU\",\"password\":\"pass123\",\"nickname\":\"x\",\"realName\":\"x\",\"education\":2,\"graduationYear\":2026}"
@@ -25,6 +26,7 @@ save_state NEW_STU "$SU"; save_state T_NSTU "$T_NSTU"
 
 # 注册新企业（待审核）
 CU="com$TS"; CC=$(printf '91330%013d' "$TS")
+fixture_user "$CU"
 req POST /public/auth/register/company "" "{\"username\":\"$CU\",\"password\":\"pass123\",\"nickname\":\"测试企业$TS\",\"companyName\":\"测试科技有限公司$TS\",\"creditCode\":\"$CC\",\"contactName\":\"李HR\",\"contactPhone\":\"13800000000\",\"industry\":\"互联网\",\"scale\":2,\"province\":\"浙江\",\"city\":\"杭州\"}"
 expect_ok "企业注册"
 login "$CU" pass123; T_NCOM=$TOKEN; expect_ok "待审核企业可登录"; expect_jq .data.user.companyAuditStatus 0 "companyAuditStatus=0"

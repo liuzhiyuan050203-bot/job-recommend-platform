@@ -12,6 +12,7 @@ AI_STARTED=0
 echo "### 09 简历解析"
 
 cleanup() {
+  purge_fixtures
   if [ "$AI_STARTED" = 1 ] && [ -n "$AI_PID" ]; then
     kill "$AI_PID" 2>/dev/null || true
     for _ in $(seq 1 20); do
@@ -74,6 +75,7 @@ lacks_skill() {
 
 login company company123; T_COM=$TOKEN; expect_ok "企业登录"
 SU="rsm$TS"
+fixture_user "$SU"
 req POST /public/auth/register/student "" "{\"username\":\"$SU\",\"password\":\"pass123\",\"nickname\":\"解析学生$TS\",\"realName\":\"解析同学\",\"gender\":1,\"education\":2,\"graduationYear\":2026,\"school\":\"测试大学\",\"major\":\"软件工程\"}"
 expect_ok "注册解析学生"
 login "$SU" pass123; T_STU=$TOKEN; expect_ok "解析学生登录"

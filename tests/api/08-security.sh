@@ -11,6 +11,7 @@ AI_STARTED=0
 echo "### 08 越权隔离"
 
 cleanup() {
+  purge_fixtures
   if [ "$AI_STARTED" = 1 ] && [ -n "$AI_PID" ]; then
     kill "$AI_PID" 2>/dev/null || true
     for _ in $(seq 1 20); do
@@ -70,7 +71,9 @@ login admin admin123; T_ADMIN=$TOKEN; expect_ok "管理员登录"
 login company company123; T_COM=$TOKEN; expect_ok "企业甲登录"
 
 SUA="secua$TS"
+fixture_user "$SUA"
 SUB="secub$TS"
+fixture_user "$SUB"
 req POST /public/auth/register/student "" "{\"username\":\"$SUA\",\"password\":\"pass123\",\"nickname\":\"安全学生甲$TS\",\"realName\":\"安全甲\",\"gender\":1,\"education\":2,\"graduationYear\":2026,\"school\":\"测试大学\",\"major\":\"软件工程\"}"
 expect_ok "注册学生甲"
 login "$SUA" pass123; T_A=$TOKEN; expect_ok "学生甲登录"
@@ -79,6 +82,7 @@ expect_ok "注册学生乙"
 login "$SUB" pass123; T_B=$TOKEN; expect_ok "学生乙登录"
 
 CU="seccom$TS"
+fixture_user "$CU"
 CC=$(printf '93S%013d' "$((TS % 10000000000000))")
 req POST /public/auth/register/company "" "{\"username\":\"$CU\",\"password\":\"pass123\",\"nickname\":\"安全企业乙$TS\",\"companyName\":\"安全科技$TS\",\"creditCode\":\"$CC\",\"contactName\":\"赵招聘\",\"contactPhone\":\"13900001111\",\"industry\":\"互联网\",\"scale\":2,\"province\":\"浙江\",\"city\":\"杭州\"}"
 expect_ok "注册企业乙"
@@ -95,6 +99,7 @@ JOB_JSON=$(jq -n --arg title "$TITLE" '{
 }')
 req POST /company/jobs "$T_COM" "$JOB_JSON"; expect_ok "企业甲发布职位"
 JOB=$(jqv '.data.id')
+fixture_job "$JOB"
 req PUT "/admin/jobs/$JOB/audit" "$T_ADMIN" '{"auditStatus":1,"auditRemark":"通过"}'; expect_ok "审核职位"
 req PUT "/company/jobs/$JOB/shelf" "$T_COM" '{"shelfStatus":1}'; expect_ok "上架职位"
 

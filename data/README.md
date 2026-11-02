@@ -71,3 +71,22 @@ export PATH="$HOME/.local/bin:$PATH"
 字段：`title, company, city, salary_text, education_text, experience_text, tags, publish_date, direction`。
 
 城市、薪资、学历、经验和日期故意不统一，例如 `上海市`、`深圳 南山区`、`15-25K·14薪`、`8000-12000元/月`、`面议`、`200-300元/天`、`30-50万/年`，以及少量空字段和非法值，供后续 Spark 清洗演示。
+
+## 测试夹具清理与投递漏斗再平衡
+
+UX 审计（`experiments/ux_audit/REPORT.md` P1-1/P1-6/P1-10）发现演示账号被接口测试数据淹没：演示企业下几十个「招聘流程测试*」「越权隔离职位*」职位，演示学生几十条「已录用」测试投递和测试默认简历，而生成器写入的投递又全部停在「待初筛」，看板呈倒漏斗。处理分两步，执行前先备份：
+
+```bash
+/opt/mysql/bin/mysqldump --no-defaults --protocol=tcp -h127.0.0.1 -ujob -pjob123 --single-transaction \
+  --no-tablespaces --routines --triggers --default-character-set=utf8mb4 job_platform | gzip > backup.sql.gz
+.venv/bin/python data/cleanup_test_fixtures.py            # 预览
+.venv/bin/python data/cleanup_test_fixtures.py --apply    # 逻辑删除历史夹具
+.venv/bin/python data/rebalance_demo_funnel.py            # 预览（事务回滚）
+.venv/bin/python data/rebalance_demo_funnel.py --apply    # 写库
+```
+
+- `cleanup_test_fixtures.py`：按账号归属和标题前缀识别测试夹具（非 `admin/student/company/demo_*/real_*` 的学生企业账号；演示企业下「招聘流程测试*」「越权隔离职位*」「UX-IDOR*」等职位；演示学生名下测试简历；「Rust测试」标签和「测试分类」），连带投递、日志、面试、收藏、行为日志一起 `deleted=1`，重算受影响职位的投递 / 收藏数，并把演示学生默认简历恢复为「陈晓-校招简历」。不改任何正常投递的状态。
+- `rebalance_demo_funnel.py`：给演示企业在架职位补 2×12 份投递（选技能重合高的 `demo_stu_*`）、给演示学生补 5 份同方向投递（备注「校园招聘网申（演示补充）」，只补一次）；再把只有「提交投递」一条日志的待初筛投递按投递时长和技能匹配度推进：HR 处理概率随投递天数上升（上限 75%），初筛 / 笔试 / 面试通过率随技能匹配度上升，每一步按状态机写日志、笔试和面试写 `job_interview`，所有时间不晚于锚点 `--anchor`（默认 2026-11-03 00:00），仍在进行中的笔试 / 面试排在锚点之后几天。每条投递用 `random.Random(f"{seed}:{id}")` 抽样，同一库状态、同一种子结果一致；重复执行不会再次推进。预览模式回滚后自增编号会前移，所以预览与正式执行的个别结果可能不同。
+- 接口测试自身不再遗留数据：`tests/api/lib.sh` 的 `purge_fixtures` 在每个脚本退出时删除本次注册的账号、发布的职位和简历，并恢复演示学生原默认简历；`tests/api/11-demo-data.sh` 在最后检查这些约束。
+
+2026-11-03 执行结果：清理 325 个临时账号、46 个测试职位、82 份测试简历、89 条测试投递；补充投递 29 条；全平台投递 待初筛 339 / 笔试 9 / 面试中 66 / 已录用 65 / 未通过 336。之后重新跑了 Spark 清洗聚合与推荐批次。

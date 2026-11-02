@@ -56,3 +56,65 @@ wait_spark_idle() {
   done
   return 1
 }
+
+# ---- 夹具收尾 ----
+# 测试在演示库里建的账号、职位、简历，在脚本退出时逻辑删除，连带投递、日志、面试、收藏、行为日志，
+# 并重算受影响职位的投递 / 收藏数，避免演示账号的首页、看板和推荐被测试数据淹没。
+# 用法：fixture_user 用户名 / fixture_job 职位编号 / fixture_resume 简历编号 /
+#       fixture_keep_default 用户名（先记下当前默认简历，收尾时恢复）。
+# 自带 trap 的脚本要在自己的 cleanup 里调用 purge_fixtures。KEEP_FIXTURES=1 时保留现场便于排查。
+FIXTURE_USERS=(); FIXTURE_JOBS=(); FIXTURE_RESUMES=(); FIXTURE_DEFAULTS=()
+fixture_user()   { [[ "${1:-}" =~ ^[A-Za-z0-9_]+$ ]] && FIXTURE_USERS+=("$1"); return 0; }
+fixture_job()    { [[ "${1:-}" =~ ^[0-9]+$ ]] && FIXTURE_JOBS+=("$1"); return 0; }
+fixture_resume() { [[ "${1:-}" =~ ^[0-9]+$ ]] && FIXTURE_RESUMES+=("$1"); return 0; }
+fixture_keep_default() {
+  [[ "${1:-}" =~ ^[A-Za-z0-9_]+$ ]] || return 0
+  local id
+  id=$(db_sql "SELECT r.id FROM stu_resume r JOIN sys_user u ON u.id = r.user_id WHERE u.username = '$1' AND r.deleted = 0 AND r.is_default = 1 LIMIT 1")
+  FIXTURE_DEFAULTS+=("$1:${id:-0}")
+}
+_ids_sql() { # _ids_sql "SELECT ..." -> 逗号分隔编号，没有时输出 NULL
+  local v
+  v=$(db_sql "SET SESSION group_concat_max_len = 1000000; $1")
+  [ -n "$v" ] && [ "$v" != NULL ] && echo "$v" || echo NULL
+}
+_join_ids() { local IFS=,; local v="$*"; [ -n "$v" ] && echo "$v" || echo NULL; }
+purge_fixtures() {
+  [ "${KEEP_FIXTURES:-0}" = 1 ] && return 0
+  [ "${#FIXTURE_USERS[@]}${#FIXTURE_JOBS[@]}${#FIXTURE_RESUMES[@]}${#FIXTURE_DEFAULTS[@]}" = 0000 ] && return 0
+  db_ping || return 0
+  local names="" u uids cids jobs resumes apps touched entry name rid
+  for u in "${FIXTURE_USERS[@]}"; do names+="'$u',"; done
+  names=${names%,}; [ -n "$names" ] || names="NULL"
+  uids=$(_ids_sql "SELECT GROUP_CONCAT(id) FROM sys_user WHERE username IN ($names) AND username NOT IN ('admin','student','company')")
+  cids=$(_ids_sql "SELECT GROUP_CONCAT(id) FROM ent_company WHERE user_id IN ($uids)")
+  jobs=$(_ids_sql "SELECT GROUP_CONCAT(id) FROM job_position WHERE id IN ($(_join_ids "${FIXTURE_JOBS[@]}")) OR company_id IN ($cids)")
+  resumes=$(_ids_sql "SELECT GROUP_CONCAT(id) FROM stu_resume WHERE id IN ($(_join_ids "${FIXTURE_RESUMES[@]}")) OR user_id IN ($uids)")
+  apps=$(_ids_sql "SELECT GROUP_CONCAT(id) FROM job_application WHERE position_id IN ($jobs) OR user_id IN ($uids) OR resume_id IN ($resumes)")
+  touched=$(_ids_sql "SELECT GROUP_CONCAT(DISTINCT position_id) FROM (SELECT position_id FROM job_application WHERE id IN ($apps) UNION SELECT position_id FROM job_favorite WHERE user_id IN ($uids)) t")
+  db_sql "
+    UPDATE job_interview SET deleted = 1 WHERE deleted = 0 AND (application_id IN ($apps) OR position_id IN ($jobs) OR user_id IN ($uids));
+    UPDATE job_application_log SET deleted = 1 WHERE deleted = 0 AND application_id IN ($apps);
+    UPDATE job_application SET deleted = 1 WHERE deleted = 0 AND id IN ($apps);
+    UPDATE job_favorite SET deleted = 1 WHERE deleted = 0 AND (position_id IN ($jobs) OR user_id IN ($uids));
+    UPDATE user_behavior_log SET deleted = 1 WHERE deleted = 0 AND ((target_type = 1 AND target_id IN ($jobs)) OR user_id IN ($uids));
+    UPDATE job_position SET deleted = 1, shelf_status = 0 WHERE deleted = 0 AND id IN ($jobs);
+    UPDATE stu_resume SET deleted = 1, is_default = 0 WHERE deleted = 0 AND id IN ($resumes);
+    UPDATE stu_skill SET deleted = 1 WHERE deleted = 0 AND user_id IN ($uids);
+    UPDATE stu_profile SET deleted = 1 WHERE deleted = 0 AND user_id IN ($uids);
+    UPDATE com_comment SET deleted = 1 WHERE deleted = 0 AND user_id IN ($uids);
+    UPDATE com_post SET deleted = 1 WHERE deleted = 0 AND (user_id IN ($uids) OR position_id IN ($jobs));
+    UPDATE ai_session SET deleted = 1 WHERE deleted = 0 AND user_id IN ($uids);
+    UPDATE ent_company SET deleted = 1 WHERE deleted = 0 AND id IN ($cids);
+    UPDATE sys_user SET deleted = 1 WHERE deleted = 0 AND id IN ($uids);
+    UPDATE job_position p SET
+      apply_count = (SELECT COUNT(*) FROM job_application a WHERE a.position_id = p.id AND a.deleted = 0),
+      favorite_count = (SELECT COUNT(*) FROM job_favorite f WHERE f.position_id = p.id AND f.deleted = 0)
+    WHERE p.id IN ($touched) AND p.deleted = 0;" || true
+  for entry in "${FIXTURE_DEFAULTS[@]}"; do
+    name=${entry%%:*}; rid=${entry##*:}
+    [ "$rid" != 0 ] && db_sql "UPDATE stu_resume r JOIN sys_user u ON u.id = r.user_id SET r.is_default = (r.id = $rid) WHERE u.username = '$name' AND r.deleted = 0" || true
+  done
+  FIXTURE_USERS=(); FIXTURE_JOBS=(); FIXTURE_RESUMES=(); FIXTURE_DEFAULTS=()
+}
+trap purge_fixtures EXIT

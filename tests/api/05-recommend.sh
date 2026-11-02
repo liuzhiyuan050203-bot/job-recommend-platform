@@ -72,6 +72,7 @@ fi
 
 # ---- 冷启动：新注册学生，无任何行为 ----
 SU="cold$TS"
+fixture_user "$SU"
 req POST /public/auth/register/student "" "{\"username\":\"$SU\",\"password\":\"pass123\",\"nickname\":\"冷启动$TS\",\"realName\":\"冷同学\",\"gender\":1,\"education\":2,\"graduationYear\":2026,\"school\":\"测试大学\",\"major\":\"计算机科学与技术\",\"expectCity\":\"北京\",\"expectDirection\":\"后端开发\"}"
 expect_ok "注册冷启动学生"
 login "$SU" pass123; T_COLD=$TOKEN; expect_ok "冷启动学生登录"

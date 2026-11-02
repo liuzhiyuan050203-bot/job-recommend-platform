@@ -68,6 +68,7 @@ SZ=$(jqv .data.size)
 
 # ---------- 注册测试账号 ----------
 SU1="m1a$TAIL"; SU2="m1b$TAIL"
+fixture_user "$SU1"; fixture_user "$SU2"
 req POST /public/auth/register/student "" "{\"username\":\"$SU1\",\"password\":\"pass123\",\"nickname\":\"模块一学生$TAIL\",\"realName\":\"模块一同学\",\"gender\":1,\"education\":2,\"graduationYear\":2026,\"school\":\"测试大学\",\"major\":\"软件工程\"}"
 expect_ok "注册学生甲"
 login "$SU1" pass123; T_STU1=$TOKEN; expect_ok "学生甲登录"
@@ -77,6 +78,7 @@ STU2_ID=$(jqv .data.id)
 login "$SU2" pass123; T_STU2=$TOKEN; expect_ok "学生乙登录"
 
 CU1="m1c$TAIL"; CU2="m1d$TAIL"
+fixture_user "$CU1"; fixture_user "$CU2"
 CC1="91M1$TAIL"; CC2="91M2$TAIL"
 req POST /public/auth/register/company "" "{\"username\":\"$CU1\",\"password\":\"pass123\",\"nickname\":\"模块一企业$TAIL\",\"companyName\":\"模块一科技$TAIL\",\"creditCode\":\"$CC1\",\"contactName\":\"李HR\",\"contactPhone\":\"138${TAIL: -8}\",\"industry\":\"互联网\",\"scale\":2,\"province\":\"浙江\",\"city\":\"杭州\"}"
 expect_ok "注册待审企业甲"
