@@ -569,7 +569,7 @@ const handleMergeSkills = async () => {
   mergingSkills.value = true
   try {
     await mergeResumeSkills(selectedTagIds.value)
-    ElMessage.success('已合并到我的技能')
+    ElMessage.success('已合并到我的技能，并同步写入默认校招简历的技能概述')
     fetchSkills()
   } catch (err) {
     console.error(err)

@@ -6,16 +6,21 @@ import com.bishe.job.common.BusinessException;
 import com.bishe.job.entity.EntCompany;
 import com.bishe.job.entity.JobApplication;
 import com.bishe.job.entity.SkillTag;
+import com.bishe.job.entity.StuProfile;
 import com.bishe.job.entity.StuResume;
 import com.bishe.job.entity.StuSkill;
+import com.bishe.job.entity.SysUser;
 import com.bishe.job.mapper.JobApplicationMapper;
 import com.bishe.job.mapper.SkillTagMapper;
+import com.bishe.job.mapper.StuProfileMapper;
 import com.bishe.job.mapper.StuResumeMapper;
 import com.bishe.job.mapper.StuSkillMapper;
+import com.bishe.job.mapper.SysUserMapper;
 import com.bishe.job.security.UserContext;
 import com.bishe.job.service.CompanySupport;
 import com.bishe.job.service.ResumeDownload;
 import com.bishe.job.service.ResumeFileService;
+import com.bishe.job.service.ResumeSkillSync;
 import com.bishe.job.vo.ResumeParseVO;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
@@ -33,8 +38,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * 简历原件只落在本机目录，下载必须先核对学生本人或录用该简历的企业。
@@ -50,6 +57,8 @@ public class ResumeFileServiceImpl implements ResumeFileService {
     private final StuResumeMapper stuResumeMapper;
     private final StuSkillMapper stuSkillMapper;
     private final SkillTagMapper skillTagMapper;
+    private final StuProfileMapper stuProfileMapper;
+    private final SysUserMapper sysUserMapper;
     private final JobApplicationMapper jobApplicationMapper;
     private final CompanySupport companySupport;
     private final FastApiClient fastApiClient;
@@ -58,6 +67,8 @@ public class ResumeFileServiceImpl implements ResumeFileService {
     public ResumeFileServiceImpl(StuResumeMapper stuResumeMapper,
                                  StuSkillMapper stuSkillMapper,
                                  SkillTagMapper skillTagMapper,
+                                 StuProfileMapper stuProfileMapper,
+                                 SysUserMapper sysUserMapper,
                                  JobApplicationMapper jobApplicationMapper,
                                  CompanySupport companySupport,
                                  FastApiClient fastApiClient,
@@ -65,6 +76,8 @@ public class ResumeFileServiceImpl implements ResumeFileService {
         this.stuResumeMapper = stuResumeMapper;
         this.stuSkillMapper = stuSkillMapper;
         this.skillTagMapper = skillTagMapper;
+        this.stuProfileMapper = stuProfileMapper;
+        this.sysUserMapper = sysUserMapper;
         this.jobApplicationMapper = jobApplicationMapper;
         this.companySupport = companySupport;
         this.fastApiClient = fastApiClient;
@@ -169,6 +182,12 @@ public class ResumeFileServiceImpl implements ResumeFileService {
                 stuSkillMapper.restoreSkill(existing.getId(), level);
             }
         }
+        // 同步到默认在线简历 skillDesc，投递时企业端看到的技能来自档案，简历正文也要一致
+        List<String> names = skillTagMapper.selectBatchIds(new ArrayList<>(unique)).stream()
+                .map(SkillTag::getName)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        syncSkillsToDefaultResume(userId, names);
     }
 
     @Override
@@ -254,25 +273,46 @@ public class ResumeFileServiceImpl implements ResumeFileService {
         return file;
     }
 
+    /**
+     * 选取或创建一份可投递的默认在线简历：优先非测试标题的默认简历，再任意非测试简历，
+     * 否则新建「姓名-校招简历」。测试/污染标题不会被当作默认同步目标。
+     */
     private StuResume ensureResume(Long userId) {
-        List<StuResume> defaults = stuResumeMapper.selectList(new LambdaQueryWrapper<StuResume>()
+        List<StuResume> all = stuResumeMapper.selectList(new LambdaQueryWrapper<StuResume>()
                 .eq(StuResume::getUserId, userId)
-                .eq(StuResume::getIsDefault, 1)
-                .orderByDesc(StuResume::getId)
-                .last("LIMIT 1"));
-        if (!defaults.isEmpty()) {
-            return defaults.get(0);
+                .orderByDesc(StuResume::getIsDefault)
+                .orderByDesc(StuResume::getUpdateTime)
+                .orderByDesc(StuResume::getId));
+        List<StuResume> usable = all.stream()
+                .filter(r -> !ResumeSkillSync.isTestTitle(r.getTitle()))
+                .toList();
+        if (!usable.isEmpty()) {
+            StuResume pick = usable.get(0);
+            if (!Integer.valueOf(1).equals(pick.getIsDefault())) {
+                for (StuResume row : all) {
+                    if (Integer.valueOf(1).equals(row.getIsDefault())) {
+                        row.setIsDefault(0);
+                        stuResumeMapper.updateById(row);
+                    }
+                }
+                pick.setIsDefault(1);
+                stuResumeMapper.updateById(pick);
+            }
+            return pick;
         }
-        List<StuResume> any = stuResumeMapper.selectList(new LambdaQueryWrapper<StuResume>()
-                .eq(StuResume::getUserId, userId)
-                .orderByDesc(StuResume::getId)
+        return createCampusResume(userId);
+    }
+
+    private StuResume createCampusResume(Long userId) {
+        StuProfile profile = stuProfileMapper.selectOne(new LambdaQueryWrapper<StuProfile>()
+                .eq(StuProfile::getUserId, userId)
                 .last("LIMIT 1"));
-        if (!any.isEmpty()) {
-            return any.get(0);
-        }
+        SysUser user = sysUserMapper.selectById(userId);
+        String realName = profile == null ? null : profile.getRealName();
+        String nickname = user == null ? null : user.getNickname();
         StuResume created = new StuResume();
         created.setUserId(userId);
-        created.setTitle("上传的简历");
+        created.setTitle(ResumeSkillSync.campusResumeTitle(realName, nickname));
         created.setIsDefault(1);
         created.setEducationExp("");
         created.setProjectExp("");
@@ -283,6 +323,19 @@ public class ResumeFileServiceImpl implements ResumeFileService {
         created.setDeleted(0);
         stuResumeMapper.insert(created);
         return created;
+    }
+
+    /** 把合并进档案的技能名写入默认在线简历 skillDesc（没有则创建校招简历）。 */
+    private void syncSkillsToDefaultResume(Long userId, List<String> skillNames) {
+        if (skillNames == null || skillNames.isEmpty()) {
+            return;
+        }
+        StuResume resume = ensureResume(userId);
+        String merged = ResumeSkillSync.mergeSkillDesc(resume.getSkillDesc(), skillNames);
+        if (!Objects.equals(merged, resume.getSkillDesc())) {
+            resume.setSkillDesc(merged);
+            stuResumeMapper.updateById(resume);
+        }
     }
 
     private void deletePrevious(Long userId, String previous, String current) {
