@@ -22,7 +22,7 @@ public interface RecruitmentService {
 
     List<InterviewVO> upcomingInterviews();
 
-    PageResult<ApplicationItemVO> companyPage(Long jobId, Integer status, String keyword, long current, long size);
+    PageResult<ApplicationItemVO> companyPage(Long jobId, Integer status, String keyword, String sort, long current, long size);
 
     ApplicationDetailVO companyDetail(Long id);
 

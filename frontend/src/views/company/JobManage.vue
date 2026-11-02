@@ -64,10 +64,16 @@
         <el-form-item label="职位分类" prop="categoryId">
           <el-cascader v-model="form.categoryId" :options="categories" :props="{ emitPath: false }" clearable style="width: 100%" />
         </el-form-item>
-        <el-form-item label="技能标签">
-          <el-select v-model="form.tagIds" multiple filterable collapse-tags style="width: 100%">
-            <el-option v-for="tag in skillTags" :key="tag.id" :label="`${tag.name}（${tag.direction}）`" :value="tag.id" />
-          </el-select>
+        <el-form-item label="技能标签" prop="tagIds">
+          <div class="tag-field">
+            <el-select v-model="form.tagIds" multiple filterable collapse-tags collapse-tags-tooltip :max-collapse-tags="6"
+              placeholder="至少选择 1 个，推荐与候选人匹配分都依据它" style="flex: 1">
+              <el-option v-for="tag in skillTags" :key="tag.id" :label="`${tag.name}（${tag.direction}）`" :value="tag.id" />
+            </el-select>
+            <el-tooltip content="从职位名称、职责、任职要求里识别技能词表中的技能，追加到已选标签" placement="top">
+              <el-button @click="extractTags">从描述提取</el-button>
+            </el-tooltip>
+          </div>
         </el-form-item>
         <el-form-item label="工作地点" required>
           <div class="place">
@@ -129,6 +135,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getCategories, getSkillTags } from '@/api/public'
 import { createCompanyJob, deleteCompanyJob, getCompanyJob, getCompanyJobs, shelfCompanyJob, updateCompanyJob } from '@/api/company'
+import { extractSkillIds } from '@/utils/jobText'
 import { AUDIT_STATUS, EDUCATION, EXPERIENCE, JOB_TYPE, auditTagType, labelOf, mapCategoryOptions, salaryText } from '@/utils/job'
 
 const loading = ref(false)
@@ -167,7 +174,25 @@ const rules = {
   headcount: [{ required: true, message: '请填写人数', trigger: 'change' }],
   education: [{ required: true, message: '请选择学历', trigger: 'change' }],
   experienceReq: [{ required: true, message: '请选择经验', trigger: 'change' }],
-  jobType: [{ required: true, message: '请选择工作性质', trigger: 'change' }]
+  jobType: [{ required: true, message: '请选择工作性质', trigger: 'change' }],
+  tagIds: [{ type: 'array', required: true, min: 1, message: '请至少选择 1 个技能标签', trigger: 'change' }]
+}
+
+function extractTags() {
+  const text = [form.title, form.description, form.requirement].filter(Boolean).join('\n')
+  const found = extractSkillIds(text, skillTags.value)
+  const added = found.filter((id) => !form.tagIds.includes(id))
+  if (!found.length) {
+    ElMessage.info('没有在职位名称、职责、任职要求里识别到技能词，请手动选择')
+    return
+  }
+  if (form.tagIds.length + added.length > 20) {
+    ElMessage.warning('技能标签最多 20 个，只追加了前面识别到的部分')
+  }
+  form.tagIds = [...form.tagIds, ...added].slice(0, 20)
+  formRef.value?.validateField('tagIds')
+  const names = added.map((id) => skillTags.value.find((t) => t.id === id)?.name).filter(Boolean)
+  ElMessage.success(added.length ? `已追加：${names.join('、')}` : '识别到的技能都已在标签里')
 }
 
 function assignForm(data) {
@@ -248,6 +273,11 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.tag-field {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .title { font-weight: 600; }
 .tag { margin-right: 4px; }

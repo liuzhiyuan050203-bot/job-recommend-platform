@@ -34,16 +34,20 @@ import com.bishe.job.security.UserContext;
 import com.bishe.job.service.ApplicationStateMachine;
 import com.bishe.job.service.BehaviorLogService;
 import com.bishe.job.service.CompanySupport;
+import com.bishe.job.service.PositionTags;
 import com.bishe.job.service.RecruitmentService;
+import com.bishe.job.service.SkillMatch;
 import com.bishe.job.service.VisibleJobSupport;
 import com.bishe.job.vo.AdminOverviewVO;
 import com.bishe.job.vo.ApplicationDetailVO;
 import com.bishe.job.vo.ApplicationItemVO;
 import com.bishe.job.vo.ApplicationLogVO;
 import com.bishe.job.vo.InterviewVO;
+import com.bishe.job.vo.PositionTagVO;
 import com.bishe.job.vo.ResumeVO;
 import com.bishe.job.vo.SkillVO;
 import com.bishe.job.vo.StatusOptionVO;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
@@ -53,7 +57,9 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +84,9 @@ public class RecruitmentServiceImpl implements RecruitmentService {
     private final VisibleJobSupport visibleJobSupport;
     private final CompanySupport companySupport;
     private final BehaviorLogService behaviorLogService;
+    private final PositionTags positionTags;
+
+    private static final int MATCH_SORT_LIMIT = 2000;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -155,7 +164,8 @@ public class RecruitmentServiceImpl implements RecruitmentService {
     }
 
     @Override
-    public PageResult<ApplicationItemVO> companyPage(Long jobId, Integer status, String keyword, long current, long size) {
+    public PageResult<ApplicationItemVO> companyPage(Long jobId, Integer status, String keyword, String sort,
+                                                     long current, long size) {
         EntCompany company = companySupport.requireCurrent();
         Page<JobApplication> page = Pages.of(current, size);
         LambdaQueryWrapper<JobApplication> wrapper = new LambdaQueryWrapper<JobApplication>()
@@ -178,8 +188,60 @@ public class RecruitmentServiceImpl implements RecruitmentService {
             return PageResult.empty(page.getCurrent(), page.getSize());
         }
         wrapper.orderByDesc(JobApplication::getUpdateTime).orderByDesc(JobApplication::getId);
+        if (sort != null && (sort.equals("matchDesc") || sort.equals("matchAsc"))) {
+            // 匹配分不在库里，按匹配分排序时取出本企业筛选后的全部投递（上限 2000）在内存里算分、排序、分页
+            List<ApplicationItemVO> all = toItems(jobApplicationMapper.selectList(wrapper.last("LIMIT " + MATCH_SORT_LIMIT)));
+            fillSkillMatch(all);
+            Comparator<Integer> byScore = sort.equals("matchDesc") ? Comparator.reverseOrder() : Comparator.naturalOrder();
+            List<ApplicationItemVO> sorted = all.stream()
+                    .sorted(Comparator.comparing(ApplicationItemVO::getMatchScore, Comparator.nullsLast(byScore)))
+                    .toList();
+            int from = (int) Math.min(sorted.size(), (page.getCurrent() - 1) * page.getSize());
+            int to = (int) Math.min(sorted.size(), from + page.getSize());
+            return new PageResult<>(sorted.subList(from, to), sorted.size(), page.getCurrent(), page.getSize());
+        }
+        if (sort != null && !sort.isBlank() && !sort.equals("updateTime")) {
+            throw new BusinessException(400, "排序方式只支持 updateTime、matchDesc、matchAsc");
+        }
         jobApplicationMapper.selectPage(page, wrapper);
-        return PageResult.of(page, toItems(page.getRecords()));
+        List<ApplicationItemVO> items = toItems(page.getRecords());
+        fillSkillMatch(items);
+        return PageResult.of(page, items);
+    }
+
+    /** 企业端列表与详情：候选人技能、熟练度、命中职位技能与匹配分。 */
+    private void fillSkillMatch(List<? extends ApplicationItemVO> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        List<Long> userIds = items.stream().map(ApplicationItemVO::getUserId).distinct().toList();
+        List<StuSkill> rows = stuSkillMapper.selectList(new LambdaQueryWrapper<StuSkill>()
+                .in(StuSkill::getUserId, userIds)
+                .orderByAsc(StuSkill::getId));
+        Map<Long, String> tagNames = rows.isEmpty() ? Map.of() : skillTagMapper.selectBatchIds(
+                        rows.stream().map(StuSkill::getTagId).distinct().toList())
+                .stream().collect(Collectors.toMap(SkillTag::getId, SkillTag::getName, (a, b) -> a));
+        Map<Long, Map<Long, Map.Entry<String, Integer>>> byUser = new HashMap<>();
+        for (StuSkill row : rows) {
+            String name = tagNames.get(row.getTagId());
+            if (name != null) {
+                byUser.computeIfAbsent(row.getUserId(), k -> new LinkedHashMap<>())
+                        .putIfAbsent(row.getTagId(), Map.entry(name, row.getProficiency() == null ? 3 : row.getProficiency()));
+            }
+        }
+        Map<Long, List<PositionTagVO>> jobTags = positionTags.of(items.stream().map(ApplicationItemVO::getJobId).toList());
+        for (ApplicationItemVO item : items) {
+            LinkedHashMap<Long, String> tags = new LinkedHashMap<>();
+            for (PositionTagVO tag : jobTags.getOrDefault(item.getJobId(), List.of())) {
+                tags.put(tag.getTagId(), tag.getTagName());
+            }
+            SkillMatch.Result match = SkillMatch.of(byUser.getOrDefault(item.getUserId(), Map.of()), tags);
+            item.setCandidateSkills(match.skills());
+            item.setMissingSkills(match.missing());
+            item.setMatchedSkillCount(match.matched());
+            item.setJobSkillCount(match.jobSkillCount());
+            item.setMatchScore(match.score());
+        }
     }
 
     @Override
@@ -189,7 +251,9 @@ public class RecruitmentServiceImpl implements RecruitmentService {
         if (!company.getId().equals(application.getCompanyId())) {
             throw new BusinessException(403, "无权查看该投递");
         }
-        return buildDetail(application);
+        ApplicationDetailVO detail = buildDetail(application);
+        fillSkillMatch(List.of(detail));
+        return detail;
     }
 
     @Override

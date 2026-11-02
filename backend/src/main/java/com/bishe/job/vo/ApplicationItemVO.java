@@ -34,4 +34,13 @@ public class ApplicationItemVO {
     private LocalDateTime updateTime;
 
     private List<StatusOptionVO> nextStatuses = new ArrayList<>();
+
+    /** 企业端：候选人技能（命中职位技能的排前面） */
+    private List<CandidateSkillVO> candidateSkills = new ArrayList<>();
+    /** 企业端：职位要求但候选人没有的技能 */
+    private List<String> missingSkills = new ArrayList<>();
+    private Integer matchedSkillCount;
+    private Integer jobSkillCount;
+    /** 企业端：技能匹配分 0~100；职位没有技能标签时为 null */
+    private Integer matchScore;
 }

@@ -33,9 +33,10 @@ public class CompanyApplicationController {
             @RequestParam(value = "jobId", required = false) Long jobId,
             @RequestParam(value = "status", required = false) Integer status,
             @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "sort", required = false) String sort,
             @RequestParam(value = "current", defaultValue = "1") long current,
             @RequestParam(value = "size", defaultValue = "10") long size) {
-        return Result.success(recruitmentService.companyPage(jobId, status, keyword, current, size));
+        return Result.success(recruitmentService.companyPage(jobId, status, keyword, sort, current, size));
     }
 
     @GetMapping("/{id}")

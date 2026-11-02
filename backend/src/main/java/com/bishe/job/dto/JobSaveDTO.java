@@ -3,6 +3,7 @@ package com.bishe.job.dto;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -72,6 +73,8 @@ public class JobSaveDTO {
     @Size(max = 500, message = "福利待遇长度不能超过 500")
     private String welfare;
 
+    /** 至少 1 个：推荐、相似职位与候选人匹配分都以职位技能标签为锚点 */
+    @NotEmpty(message = "请至少选择 1 个技能标签")
     @Size(max = 20, message = "技能标签最多选择 20 个")
     private List<Long> tagIds;
 }

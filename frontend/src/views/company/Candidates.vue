@@ -16,11 +16,27 @@
           </div>
         </div>
       </template>
-      <el-table v-loading="loading" :data="rows" stripe>
+      <el-table v-loading="loading" :data="rows" stripe @sort-change="onSortChange">
         <el-table-column prop="studentName" label="姓名" width="100" />
         <el-table-column prop="jobTitle" label="应聘职位" min-width="160" />
         <el-table-column label="学历" width="160">
           <template #default="{ row }">{{ row.educationName || '-' }} / {{ row.school || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="技能（熟练度）" min-width="260">
+          <template #default="{ row }">
+            <SkillChips :skills="row.candidateSkills" :limit="5" />
+          </template>
+        </el-table-column>
+        <el-table-column prop="matchScore" label="匹配分" width="110" sortable="custom">
+          <template #default="{ row }">
+            <el-tooltip v-if="row.matchScore !== null && row.matchScore !== undefined" placement="top"
+              :content="matchTip(row)">
+              <span :class="['score', scoreClass(row.matchScore)]">{{ row.matchScore }}</span>
+            </el-tooltip>
+            <el-tooltip v-else content="该职位没有设置技能标签，无法计算匹配分" placement="top">
+              <span class="muted">—</span>
+            </el-tooltip>
+          </template>
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
@@ -65,12 +81,35 @@
           <el-descriptions-item label="学校">{{ detail.school || '-' }} · {{ detail.major || '-' }}</el-descriptions-item>
           <el-descriptions-item label="学历">{{ detail.educationName || '-' }} / {{ detail.graduationYear || '-' }}届</el-descriptions-item>
           <el-descriptions-item label="职位">{{ detail.jobTitle }}</el-descriptions-item>
-          <el-descriptions-item label="状态">{{ detail.statusName }}</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="appTagType(detail.status)">{{ detail.statusName }}</el-tag>
+          </el-descriptions-item>
         </el-descriptions>
+        <div class="drawer-actions">
+          <el-button
+            v-for="next in detail.nextStatuses || []"
+            :key="next.status"
+            size="small"
+            :type="next.status === 4 ? 'danger' : 'success'"
+            plain
+            @click="move(detail, next)"
+          >{{ next.statusName }}</el-button>
+          <el-button v-if="detail.status === 0 || detail.status === 1" size="small" @click="openNotice(detail, 1)">发笔试</el-button>
+          <el-button v-if="detail.status === 0 || detail.status === 1 || detail.status === 2" size="small" @click="openNotice(detail, 2)">发面试</el-button>
+        </div>
         <div class="block">
-          <h4>技能</h4>
-          <el-tag v-for="skill in detail.skills || []" :key="skill.id" class="tag">{{ skill.tagName }} · {{ skill.proficiency }}</el-tag>
-          <span v-if="!(detail.skills || []).length">暂无</span>
+          <h4>
+            技能匹配
+            <span v-if="detail.matchScore !== null && detail.matchScore !== undefined" :class="['score', scoreClass(detail.matchScore)]">
+              {{ detail.matchScore }} 分
+            </span>
+            <span class="muted small">{{ matchTip(detail) }}</span>
+          </h4>
+          <SkillChips :skills="detail.candidateSkills" />
+          <div v-if="(detail.missingSkills || []).length" class="missing">
+            职位要求但未掌握：
+            <el-tag v-for="name in detail.missingSkills" :key="name" type="info" effect="plain" size="small" class="tag">{{ name }}</el-tag>
+          </div>
         </div>
         <div v-if="detail.resume" class="block">
           <h4>{{ detail.resume.title }}</h4>
@@ -132,6 +171,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getCompanyApplication, getCompanyApplications, getCompanyJobs, sendInterviewNotice, updateApplicationStatus } from '@/api/company'
 import { APP_STATUS, appTagType } from '@/utils/job'
+import SkillChips from '@/components/SkillChips.vue'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -140,7 +180,7 @@ const jobs = ref([])
 const drawer = ref(false)
 const detail = ref(null)
 const noticeVisible = ref(false)
-const query = reactive({ jobId: null, status: null, keyword: '' })
+const query = reactive({ jobId: null, status: null, keyword: '', sort: undefined })
 const page = reactive({ current: 1, size: 10, total: 0 })
 const notice = reactive({
   applicationId: null,
@@ -162,7 +202,8 @@ async function load() {
       size: page.size,
       jobId: query.jobId || undefined,
       status: query.status === null || query.status === '' ? undefined : query.status,
-      keyword: query.keyword.trim() || undefined
+      keyword: query.keyword.trim() || undefined,
+      sort: query.sort
     })
     rows.value = res.records || []
     page.total = res.total || 0
@@ -181,6 +222,32 @@ async function openDetail(row) {
   drawer.value = true
 }
 
+// 列表里改了状态或发了通知后，如果抽屉正开着同一个候选人，就重新拉详情，避免状态和日志停留在旧值
+async function refreshAfterChange(applicationId) {
+  const tasks = [load()]
+  if (drawer.value && detail.value?.id === applicationId) {
+    tasks.push(getCompanyApplication(applicationId).then((res) => { detail.value = res }))
+  }
+  await Promise.all(tasks)
+}
+
+function onSortChange({ prop, order }) {
+  query.sort = prop === 'matchScore' && order ? (order === 'ascending' ? 'matchAsc' : 'matchDesc') : undefined
+  search()
+}
+
+function scoreClass(score) {
+  if (score >= 80) return 'high'
+  if (score >= 50) return 'mid'
+  return 'low'
+}
+
+function matchTip(row) {
+  if (!row || row.jobSkillCount === null || row.jobSkillCount === undefined) return ''
+  if (!row.jobSkillCount) return '该职位没有设置技能标签，不计算匹配分'
+  return `命中职位技能 ${row.matchedSkillCount}/${row.jobSkillCount}，按熟练度加权（入门 0.6 … 精通 1.0）`
+}
+
 async function move(row, next) {
   const { value } = await ElMessageBox.prompt(`将状态变更为「${next.statusName}」`, '状态流转', {
     inputPlaceholder: '备注，可空',
@@ -188,7 +255,7 @@ async function move(row, next) {
   })
   await updateApplicationStatus(row.id, { toStatus: next.status, remark: value || '' })
   ElMessage.success('状态已更新')
-  load()
+  await refreshAfterChange(row.id)
 }
 
 function openNotice(row, noticeType) {
@@ -211,7 +278,7 @@ async function submitNotice() {
     await sendInterviewNotice(notice.applicationId, { ...notice, applicationId: undefined })
     ElMessage.success('通知已发送')
     noticeVisible.value = false
-    load()
+    await refreshAfterChange(notice.applicationId)
   } finally {
     saving.value = false
   }
@@ -232,4 +299,13 @@ onMounted(async () => {
 .block { margin-top: 16px; }
 .block p { white-space: pre-wrap; line-height: 1.6; }
 .tag { margin: 0 6px 6px 0; }
+.drawer-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.block h4 { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.score { font-weight: 600; }
+.score.high { color: var(--el-color-success); }
+.score.mid { color: var(--el-color-warning); }
+.score.low { color: var(--el-color-danger); }
+.muted { color: var(--el-text-color-secondary); }
+.small { font-size: 12px; font-weight: normal; }
+.missing { margin-top: 8px; font-size: 13px; color: var(--el-text-color-secondary); }
 </style>

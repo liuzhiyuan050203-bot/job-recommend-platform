@@ -150,13 +150,11 @@ public class CompanyJobServiceImpl implements CompanyJobService {
         return category;
     }
 
+    /** 职位至少要有 1 个技能标签：推荐、相似职位与候选人匹配分都以它为锚点。 */
     private List<Long> requireTags(List<Long> raw) {
-        if (raw == null || raw.isEmpty()) {
-            return List.of();
-        }
-        List<Long> tagIds = raw.stream().filter(Objects::nonNull).distinct().toList();
+        List<Long> tagIds = raw == null ? List.of() : raw.stream().filter(Objects::nonNull).distinct().toList();
         if (tagIds.isEmpty()) {
-            return List.of();
+            throw new BusinessException(400, "请至少选择 1 个技能标签");
         }
         if (tagIds.size() > 20) {
             throw new BusinessException(400, "技能标签最多选择 20 个");
