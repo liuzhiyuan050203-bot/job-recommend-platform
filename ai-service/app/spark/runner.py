@@ -13,7 +13,7 @@ from app.spark.clean import run_clean
 from app.spark.datasource import clear_source_cache
 from app.spark.recommend import run_recommend
 from app.spark.salary_model import run_salary_regression
-from app.spark.session import stop_spark
+from app.spark.session import spark_info, stop_spark
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +81,9 @@ def _one(batch_no: str, task_code: str) -> dict:
         elapsed = round(time.perf_counter() - started, 3)
         params = dict(outcome.get("params") or {})
         params["elapsedSeconds"] = elapsed
+        info = spark_info()
+        params["sparkMaster"] = info.get("master")
+        params["sparkAppId"] = info.get("appId")
         finish_task(
             task_id,
             1,

@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     MYSQL_USER: str = "job"
     MYSQL_PASSWORD: str = "job123"
 
+    # Spark：local[*] 为单机多线程；spark://127.0.0.1:7077 为 Standalone 伪分布式集群
+    # （scripts/start-spark-cluster.sh 拉起）。集群模式下按下面三项申请 Executor。
+    SPARK_MASTER: str = "local[*]"
+    SPARK_EXECUTOR_MEMORY: str = "1g"
+    SPARK_EXECUTOR_CORES: int = 2
+    SPARK_CORES_MAX: int = 4
+
     # Chroma 向量数据库目录 (解析为 ai-service 下绝对路径)
     CHROMA_DIR: str = "./data/chroma"
 

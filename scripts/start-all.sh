@@ -7,20 +7,25 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 RUN_DIR="$ROOT/.run"
 LOG_DIR="$ROOT/logs"
 NO_FRONTEND=0
+SPARK_CLUSTER=0
 
 usage() {
   cat <<'EOF'
-用法: bash scripts/start-all.sh [--no-frontend]
+用法: bash scripts/start-all.sh [--no-frontend] [--spark-cluster]
 
 启动 MariaDB、Ollama（仅当 LLM_BASE_URL 指向本机且 ollama 存在）、ai-service（8000）、
 Spring Boot（8080）和 Vite（5173）。已在监听的服务会跳过。
 环境变量若已设置则原样传给子进程；否则依次从仓库根目录 .env、ai-service/.env 补齐。
+--spark-cluster：先用 scripts/start-spark-cluster.sh 拉起 Standalone 伪分布式集群
+（Master 7077 / UI 8081，2 个 Worker × 2 核 × 1536m），ai-service 以 SPARK_MASTER=spark://127.0.0.1:7077 启动。
+不加时 SPARK_MASTER 默认 local[*]。
 EOF
 }
 
 for arg in "$@"; do
   case "$arg" in
     --no-frontend) NO_FRONTEND=1 ;;
+    --spark-cluster) SPARK_CLUSTER=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "未知参数: $arg" >&2; usage >&2; exit 1 ;;
   esac
@@ -142,6 +147,15 @@ if [ "${kb_count:-}" = "0" ]; then
   echo "==> rag_document 为空，重建知识库"
   (cd "$ROOT/ai-service" && "$ROOT/.venv/bin/python" -m app.rag.ingest --all)
 fi
+
+if [ "$SPARK_CLUSTER" = 1 ]; then
+  bash "$ROOT/scripts/start-spark-cluster.sh"
+  export SPARK_MASTER="spark://127.0.0.1:${SPARK_MASTER_PORT:-7077}"
+  if curl -sf -m 2 -o /dev/null "http://127.0.0.1:8000/health"; then
+    echo "==> 注意: ai-service 已在运行，沿用它启动时的 SPARK_MASTER；要切到集群请先 stop-all 再加 --spark-cluster 启动"
+  fi
+fi
+echo "==> SPARK_MASTER=${SPARK_MASTER:-local[*]}"
 
 if curl -sf -m 2 -o /dev/null "http://127.0.0.1:8000/health"; then
   echo "==> ai-service 已在运行"

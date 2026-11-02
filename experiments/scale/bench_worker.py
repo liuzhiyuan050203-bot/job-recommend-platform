@@ -78,13 +78,24 @@ def pandas_als(scale, threads):
 
 
 # ------------------------------------------------------------------ spark
-def spark_session(cores, driver_memory):
+def spark_session(cores, driver_memory, master=None, executor_memory="1400m"):
     from pyspark.sql import SparkSession
 
     tmp = TMP / "spark-local"
     tmp.mkdir(parents=True, exist_ok=True)
+    master = master or f"local[{cores}]"
+    builder = SparkSession.builder.appName("scale-bench").master(master)
+    if master.startswith("spark://"):
+        # Standalone 伪分布式：cores 视为 spark.cores.max，每个 Executor 2 核
+        builder = (
+            builder.config("spark.cores.max", str(cores))
+            .config("spark.executor.cores", "2")
+            .config("spark.executor.memory", executor_memory)
+            .config("spark.pyspark.python", sys.executable)
+            .config("spark.executorEnv.PYTHONPATH", os.pathsep.join(p for p in sys.path if p))
+        )
     return (
-        SparkSession.builder.appName("scale-bench").master(f"local[{cores}]")
+        builder
         .config("spark.driver.memory", driver_memory)
         .config("spark.sql.shuffle.partitions", str(max(4, 2 * int(cores))))
         .config("spark.ui.enabled", "false").config("spark.ui.showConsoleProgress", "false")
@@ -153,6 +164,8 @@ def main():
     ap.add_argument("--task", choices=["clean", "aggregate", "als"], required=True)
     ap.add_argument("--scale", type=int, required=True)
     ap.add_argument("--driver-memory", default="3g")
+    ap.add_argument("--master", default=None, help="默认 local[cores]；spark://127.0.0.1:7077 时跑在 Standalone 集群")
+    ap.add_argument("--executor-memory", default="1400m")
     args = ap.parse_args()
     t0 = time.perf_counter()
     startup = 0.0
@@ -166,7 +179,7 @@ def main():
         else:
             info = pandas_als(args.scale, args.cores)
     else:
-        spark = spark_session(args.cores, args.driver_memory)
+        spark = spark_session(args.cores, args.driver_memory, args.master, args.executor_memory)
         spark.sparkContext.setLogLevel("ERROR")
         spark.range(1).count()
         t1 = time.perf_counter()
@@ -174,7 +187,11 @@ def main():
         fn = {"clean": spark_clean, "aggregate": spark_aggregate, "als": spark_als}[args.task]
         info = fn(spark, args.scale)
     task_s = time.perf_counter() - t1
-    print(json.dumps({"task_seconds": round(task_s, 3), "startup_seconds": round(startup, 3), "info": info}, ensure_ascii=False))
+    out = {"task_seconds": round(task_s, 3), "startup_seconds": round(startup, 3), "info": info}
+    if args.engine == "spark":
+        sc = spark.sparkContext
+        out["spark"] = {"master": sc.master, "appId": sc.applicationId, "defaultParallelism": sc.defaultParallelism}
+    print(json.dumps(out, ensure_ascii=False))
 
 
 if __name__ == "__main__":

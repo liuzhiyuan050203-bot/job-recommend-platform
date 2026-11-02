@@ -1,0 +1,435 @@
+{
+  "env": {
+    "python": "3.13.5",
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.41",
+    "cpu_count": 8,
+    "time": "2026-11-02 20:24:19 +0800",
+    "pyspark": "4.2.1",
+    "MemTotal": "16386368 kB",
+    "MemAvailable": "4970172 kB"
+  },
+  "deployment": {
+    "mode": "Spark Standalone 伪分布式（单机 1 Master + 多 Worker，Driver 为 client 模式）",
+    "master": "spark://127.0.0.1:7077",
+    "masterWebUI": "http://127.0.0.1:8081",
+    "scripts": [
+      "scripts/start-spark-cluster.sh",
+      "scripts/stop-spark-cluster.sh",
+      "scripts/start-all.sh --spark-cluster"
+    ],
+    "serviceConfig": "SPARK_MASTER / SPARK_EXECUTOR_MEMORY / SPARK_EXECUTOR_CORES / SPARK_CORES_MAX，集群模式开启动态分配（空闲 60–120s 归还 Executor）"
+  },
+  "masterBefore": {
+    "url": "spark://127.0.0.1:7077",
+    "status": "ALIVE",
+    "aliveworkers": 2,
+    "cores": 4,
+    "memoryMB": 3072,
+    "workers": [
+      {
+        "id": "worker-20261102193831-127.0.0.1-42247",
+        "host": "127.0.0.1",
+        "cores": 2,
+        "memoryMB": 1536,
+        "state": "ALIVE"
+      },
+      {
+        "id": "worker-20261102193829-127.0.0.1-35779",
+        "host": "127.0.0.1",
+        "cores": 2,
+        "memoryMB": 1536,
+        "state": "ALIVE"
+      }
+    ]
+  },
+  "cliRuns": [
+    {
+      "master": "spark://127.0.0.1:7077",
+      "tasks": "clean,aggregate,salary_regression",
+      "returncode": 0,
+      "batchNo": "2026110220101351d2",
+      "waitedForIdleSeconds": 0.0,
+      "wallSeconds": 38.45,
+      "taskResults": [
+        {
+          "task": "clean",
+          "seconds": 16.238,
+          "input": "5076",
+          "output": "4096",
+          "result": "原始5076行，重复200，面议476，异常304，有效4096，主数据职位4967"
+        },
+        {
+          "task": "aggregate",
+          "seconds": 2.596,
+          "input": "4967",
+          "output": "983",
+          "result": "薪资统计247，技术趋势717，地区分布19"
+        },
+        {
+          "task": "salary_regression",
+          "seconds": 17.6,
+          "input": "50165",
+          "output": "3952",
+          "result": "真实薪资 RF R2=0.3605 RMSE=5750.74 MAE=3969.78 训练40314 测试9851 预测3952（data_year=2023）"
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "master": "spark://127.0.0.1:7077",
+      "tasks": "recommend",
+      "returncode": 0,
+      "batchNo": "202611022010513026",
+      "waitedForIdleSeconds": 0.0,
+      "wallSeconds": 150.699,
+      "taskResults": [
+        {
+          "task": "recommend",
+          "seconds": 148.391,
+          "input": "25987",
+          "output": "19500",
+          "result": "Spark 为 325 名学生各生成协同过滤、内容、融合 Top20；协同过滤选用用户余弦，融合为线性 alpha=0.55（固定权重），融合 NDCG@10=0.3602。留出集 NDCG@10：用户余弦 0.3244 高于 ALS 0.1445，采用用户余弦。学生约 200 人且行为按方向和城市聚集，邻居平均比低秩因子更稳"
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "master": "local[*]",
+      "tasks": "clean,aggregate,salary_regression",
+      "returncode": 0,
+      "batchNo": "20261102201322781c",
+      "waitedForIdleSeconds": 0.0,
+      "wallSeconds": 27.161,
+      "taskResults": [
+        {
+          "task": "clean",
+          "seconds": 8.917,
+          "input": "5076",
+          "output": "4096",
+          "result": "原始5076行，重复200，面议476，异常304，有效4096，主数据职位4967"
+        },
+        {
+          "task": "aggregate",
+          "seconds": 1.087,
+          "input": "4967",
+          "output": "983",
+          "result": "薪资统计247，技术趋势717，地区分布19"
+        },
+        {
+          "task": "salary_regression",
+          "seconds": 15.636,
+          "input": "50165",
+          "output": "3952",
+          "result": "真实薪资 RF R2=0.3605 RMSE=5750.74 MAE=3969.78 训练40314 测试9851 预测3952（data_year=2023）"
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "master": "local[*]",
+      "tasks": "recommend",
+      "returncode": 0,
+      "batchNo": "202611022013495408",
+      "waitedForIdleSeconds": 0.0,
+      "wallSeconds": 129.713,
+      "taskResults": [
+        {
+          "task": "recommend",
+          "seconds": 127.798,
+          "input": "25987",
+          "output": "19500",
+          "result": "Spark 为 325 名学生各生成协同过滤、内容、融合 Top20；协同过滤选用用户余弦，融合为线性 alpha=0.55（固定权重），融合 NDCG@10=0.3602。留出集 NDCG@10：用户余弦 0.3244 高于 ALS 0.1445，采用用户余弦。学生约 200 人且行为按方向和城市聚集，邻居平均比低秩因子更稳"
+        }
+      ],
+      "stderrTail": []
+    }
+  ],
+  "clusterVsLocalSameOutput": {
+    "clean,aggregate,salary_regression": {
+      "aggregate": true,
+      "clean": true,
+      "salary_regression": true
+    },
+    "recommend": {
+      "recommend": true
+    }
+  },
+  "scaleRuns": [
+    {
+      "master": "spark://127.0.0.1:7077",
+      "task": "clean",
+      "scale": 1000000,
+      "returncode": 0,
+      "wallSeconds": 17.339,
+      "waitedForIdleSeconds": 0.0,
+      "task_seconds": 10.982,
+      "startup_seconds": 5.816,
+      "info": {
+        "raw": 1000000,
+        "valid": 808362,
+        "status": {
+          "negotiable": 96722,
+          "valid": 808362,
+          "anomaly": 64311
+        }
+      },
+      "spark": {
+        "master": "spark://127.0.0.1:7077",
+        "appId": "app-20261102201600-0008",
+        "defaultParallelism": 4
+      },
+      "stderrTail": []
+    },
+    {
+      "master": "local[4]",
+      "task": "clean",
+      "scale": 1000000,
+      "returncode": 0,
+      "wallSeconds": 20.381,
+      "waitedForIdleSeconds": 0.0,
+      "task_seconds": 11.162,
+      "startup_seconds": 8.636,
+      "info": {
+        "raw": 1000000,
+        "valid": 808362,
+        "status": {
+          "negotiable": 96721,
+          "valid": 808362,
+          "anomaly": 64312
+        }
+      },
+      "spark": {
+        "master": "local[4]",
+        "appId": "local-1793622315215",
+        "defaultParallelism": 4
+      },
+      "stderrTail": [],
+      "note": "首次运行因子进程缺 PYTHONPATH 失败（ModuleNotFoundError: app），修复 run_scale 后单独重跑这一项"
+    },
+    {
+      "master": "spark://127.0.0.1:7077",
+      "task": "aggregate",
+      "scale": 1000000,
+      "returncode": 0,
+      "wallSeconds": 15.667,
+      "waitedForIdleSeconds": 0.0,
+      "task_seconds": 9.181,
+      "startup_seconds": 5.977,
+      "info": {
+        "salary_groups": 237,
+        "tag_month_groups": 1878,
+        "provinces": 16
+      },
+      "spark": {
+        "master": "spark://127.0.0.1:7077",
+        "appId": "app-20261102201628-0009",
+        "defaultParallelism": 4
+      },
+      "stderrTail": []
+    },
+    {
+      "master": "local[4]",
+      "task": "aggregate",
+      "scale": 1000000,
+      "returncode": 0,
+      "wallSeconds": 13.205,
+      "waitedForIdleSeconds": 0.0,
+      "task_seconds": 7.717,
+      "startup_seconds": 4.974,
+      "info": {
+        "salary_groups": 237,
+        "tag_month_groups": 1878,
+        "provinces": 16
+      },
+      "spark": {
+        "master": "local[4]",
+        "appId": "local-1793621803616",
+        "defaultParallelism": 4
+      },
+      "stderrTail": []
+    },
+    {
+      "master": "spark://127.0.0.1:7077",
+      "task": "als",
+      "scale": 1000000,
+      "returncode": 0,
+      "wallSeconds": 33.586,
+      "waitedForIdleSeconds": 0.0,
+      "task_seconds": 27.425,
+      "startup_seconds": 5.6,
+      "info": {
+        "pairs": 6190875,
+        "users": 49999,
+        "items": 561489
+      },
+      "spark": {
+        "master": "spark://127.0.0.1:7077",
+        "appId": "app-20261102201656-0010",
+        "defaultParallelism": 4
+      },
+      "stderrTail": []
+    },
+    {
+      "master": "local[4]",
+      "task": "als",
+      "scale": 1000000,
+      "returncode": 0,
+      "wallSeconds": 47.283,
+      "waitedForIdleSeconds": 0.0,
+      "task_seconds": 33.873,
+      "startup_seconds": 12.317,
+      "info": {
+        "pairs": 6190875,
+        "users": 49999,
+        "items": 561489
+      },
+      "spark": {
+        "master": "local[4]",
+        "appId": "local-1793621850447",
+        "defaultParallelism": 4
+      },
+      "stderrTail": []
+    }
+  ],
+  "serviceTriggered": [
+    {
+      "batchNo": "2026110219491685ad",
+      "task": "clean",
+      "status": 1,
+      "start": "2026-11-02 19:49:16",
+      "end": "2026-11-02 19:49:31",
+      "input": 5076,
+      "output": 4096,
+      "elapsedSeconds": 14.296,
+      "sparkMaster": "spark://127.0.0.1:7077",
+      "sparkAppId": "app-20261102194918-0003"
+    },
+    {
+      "batchNo": "2026110219491685ad",
+      "task": "aggregate",
+      "status": 1,
+      "start": "2026-11-02 19:49:31",
+      "end": "2026-11-02 19:49:33",
+      "input": 4967,
+      "output": 983,
+      "elapsedSeconds": 2.098,
+      "sparkMaster": "spark://127.0.0.1:7077",
+      "sparkAppId": "app-20261102194918-0003"
+    },
+    {
+      "batchNo": "2026110219491685ad",
+      "task": "salary_regression",
+      "status": 1,
+      "start": "2026-11-02 19:49:33",
+      "end": "2026-11-02 19:49:49",
+      "input": 50165,
+      "output": 3952,
+      "elapsedSeconds": 16.833,
+      "sparkMaster": "spark://127.0.0.1:7077",
+      "sparkAppId": "app-20261102194918-0003"
+    },
+    {
+      "batchNo": "20261102195334e8a5",
+      "task": "recommend",
+      "status": 1,
+      "start": "2026-11-02 19:53:34",
+      "end": "2026-11-02 19:55:46",
+      "input": 25987,
+      "output": 19500,
+      "elapsedSeconds": 131.75,
+      "sparkMaster": "spark://127.0.0.1:7077",
+      "sparkAppId": "app-20261102194918-0003"
+    }
+  ],
+  "masterApps": [
+    {
+      "id": "app-20261102193901-0000",
+      "name": "JobPlatform-SparkEngine",
+      "cores": 4,
+      "memoryPerExecutorMB": 1024,
+      "durationMs": 28190,
+      "state": "FINISHED"
+    },
+    {
+      "id": "app-20261102193941-0001",
+      "name": "JobPlatform-SparkEngine",
+      "cores": 4,
+      "memoryPerExecutorMB": 1024,
+      "durationMs": 136943,
+      "state": "FINISHED"
+    },
+    {
+      "id": "app-20261102194532-0002",
+      "name": "JobPlatform-SparkEngine",
+      "cores": 4,
+      "memoryPerExecutorMB": 1024,
+      "durationMs": 218918,
+      "state": "FINISHED"
+    },
+    {
+      "id": "app-20261102195640-0004",
+      "name": "JobPlatform-SparkEngine",
+      "cores": 4,
+      "memoryPerExecutorMB": 1024,
+      "durationMs": 90415,
+      "state": "FINISHED"
+    },
+    {
+      "id": "app-20261102195814-0005",
+      "name": "JobPlatform-SparkEngine",
+      "cores": 4,
+      "memoryPerExecutorMB": 1024,
+      "durationMs": 138282,
+      "state": "FINISHED"
+    },
+    {
+      "id": "app-20261102201015-0006",
+      "name": "JobPlatform-SparkEngine",
+      "cores": 4,
+      "memoryPerExecutorMB": 1024,
+      "durationMs": 34232,
+      "state": "FINISHED"
+    },
+    {
+      "id": "app-20261102201053-0007",
+      "name": "JobPlatform-SparkEngine",
+      "cores": 4,
+      "memoryPerExecutorMB": 1024,
+      "durationMs": 146321,
+      "state": "FINISHED"
+    },
+    {
+      "id": "app-20261102201600-0008",
+      "name": "scale-bench",
+      "cores": 4,
+      "memoryPerExecutorMB": 1400,
+      "durationMs": 14790,
+      "state": "FINISHED"
+    },
+    {
+      "id": "app-20261102201628-0009",
+      "name": "scale-bench",
+      "cores": 4,
+      "memoryPerExecutorMB": 1400,
+      "durationMs": 13156,
+      "state": "FINISHED"
+    },
+    {
+      "id": "app-20261102201656-0010",
+      "name": "scale-bench",
+      "cores": 4,
+      "memoryPerExecutorMB": 1400,
+      "durationMs": 31084,
+      "state": "FINISHED"
+    },
+    {
+      "id": "app-20261102194918-0003",
+      "name": "JobPlatform-SparkEngine",
+      "cores": 0,
+      "memoryPerExecutorMB": 1024,
+      "durationMs": 2100728,
+      "state": "RUNNING"
+    }
+  ],
+  "notes": "同一台 8 vCPU 机器上，集群模式只有 2 Worker × 2 核，local[*] 可用 8 线程，且集群多了 Executor 进程间序列化与调度开销，因此单机伪分布式不以提速为目的，用于验证同一套 PySpark 作业可以不改代码提交到 Standalone 集群。"
+}

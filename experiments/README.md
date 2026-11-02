@@ -11,6 +11,7 @@ export PATH=$HOME/.local/bin:$PATH
 .venv/bin/python experiments/recommend/verify_spark_cf.py   # Spark 协同过滤 vs numpy 参考实现（会真正跑一次推荐任务并写库）
 .venv/bin/python experiments/scale/run_scale_bench.py
 .venv/bin/python experiments/rag_eval/run_rag_eval.py
+bash scripts/start-spark-cluster.sh && .venv/bin/python experiments/spark_cluster/run_cluster_bench.py   # 伪分布式取证（会真正跑生产任务并写库）
 ```
 
 ---
@@ -193,6 +194,49 @@ export PATH=$HOME/.local/bin:$PATH
 ![lat](figures/rag_eval_latency.png)
 
 ---
+
+## 5. 部署架构 / 伪分布式（Spark Standalone）
+
+脚本：`scripts/start-spark-cluster.sh`、`scripts/stop-spark-cluster.sh`（或 `start-all.sh --spark-cluster` / `stop-all.sh --with-spark`）；取证：`experiments/spark_cluster/run_cluster_bench.py` → `results/spark_cluster.json`。
+
+```
+            ┌──────────── 本机 8 vCPU / 16 GB ─────────────┐
+ ai-service │ Driver(client 模式, 2g)  ──►  Master 127.0.0.1:7077 (UI 8081)
+ 或 CLI     │        │                         │
+            │        ├──► Worker 1 (2 核/1536m, UI 8082) ─ Executor 2 核/1g
+            │        └──► Worker 2 (2 核/1536m, UI 8083) ─ Executor 2 核/1g
+            │ MySQL(JDBC 读写)  本地文件系统(parquet/模型, 各进程共享)
+            └──────────────────────────────────────────────┘
+```
+
+- `SPARK_MASTER` 默认 `local[*]`；设为 `spark://127.0.0.1:7077` 即提交到集群，作业代码不变。集群模式下 ai-service 开动态分配（shuffle tracking），空闲 60–120 s 归还 Executor（实测一次批次结束约 2 分钟后 Master 上该应用 cores 从 4 降为 0）。
+- 每个任务在 `spark_task_log.params_json` 记录 `sparkMaster` / `sparkAppId`。
+
+### 5.1 同一数据、两种 master（生产 CLI `app.spark.run_all`，依次各跑一次）
+
+| 任务 | Standalone 集群（4 核） | local[*]（8 线程） | 产出一致 |
+|------|------:|------:|:---:|
+| clean | 16.24 s | 8.92 s | 是（有效 4096） |
+| aggregate | 2.60 s | 1.09 s | 是（983 行） |
+| salary_regression | 17.60 s | 15.64 s | 是（R2 0.3605） |
+| 三项合计墙钟 | 38.45 s | 27.16 s | |
+| recommend | 148.39 s | 127.80 s | 是（19500 行，融合 NDCG@10 0.3602） |
+
+平台接口触发（管理端 `POST /api/admin/spark/run`、`/api/admin/recommend/run`，ai-service 以集群模式运行，应用 `app-20261102194918-0003`）：clean 14.30 s、aggregate 2.10 s、salary_regression 16.83 s、recommend 131.75 s，全部成功。Master `/json` 记录的应用 ID、核数、每 Executor 内存、时长见 `results/spark_cluster.json` 的 `masterApps`。
+
+注意：取证脚本每次提交前等待 Master `coresused=0`。在加这一步之前的一次运行中，ai-service 常驻会话尚未归还 Executor，命令行提交的 clean 排队，耗时 72.9 s，这一次不作为结果。
+
+### 5.2 1e6 行扩展性（`experiments/scale/bench_worker.py --master`，4 核，各 1 次）
+
+| 任务 | 集群 cores.max=4 | local[4] |
+|------|------:|------:|
+| clean（100 万行 → 有效 808362） | 10.98 s | 11.16 s |
+| aggregate | 9.18 s | 7.72 s |
+| ALS（619 万对） | 27.43 s | 33.87 s |
+
+每项只跑一次，且 local[4] 的 ALS 这次启动用了 12.3 s（第 3 节 local[4] ALS 为 23.30 s），说明机器负载有波动，**不据此认为集群更快**。clean 的有效行一致，面议 / 异常各差 1 行（96722/64311 对 96721/64312），推测是 `dropDuplicates` 在重复键里保留哪一行取决于分区顺序（未逐行核实）。local[4] clean 首次因子进程缺 `PYTHONPATH` 失败，修复后单独重跑。
+
+结论：伪分布式在单机上不带来加速（4 核对 8 线程、多了序列化），价值在于验证生产作业不改代码即可跑在 Standalone 集群，以及 Master/Worker/Executor 的部署形态；真正的横向扩展需要多台机器与共享存储（HDFS/对象存储），超出本机演示范围。
 
 ---
 

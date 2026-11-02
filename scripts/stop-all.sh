@@ -5,19 +5,21 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 RUN_DIR="$ROOT/.run"
 WITH_MYSQL=0
+WITH_SPARK=0
 
 usage() {
   cat <<'EOF'
-用法: bash scripts/stop-all.sh [--with-mysql]
+用法: bash scripts/stop-all.sh [--with-mysql] [--with-spark]
 
 按 .run/*.pid 停止前端、后端、ai-service 和由 start-all 拉起的 Ollama。
-没有 PID 文件时直接返回。加上 --with-mysql 时再停止 MariaDB。
+没有 PID 文件时直接返回。加上 --with-mysql 时再停止数据库；--with-spark 时再停止 Spark Standalone 集群。
 EOF
 }
 
 for arg in "$@"; do
   case "$arg" in
     --with-mysql) WITH_MYSQL=1 ;;
+    --with-spark) WITH_SPARK=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "未知参数: $arg" >&2; usage >&2; exit 1 ;;
   esac
@@ -70,6 +72,10 @@ stop_one frontend
 stop_one backend
 stop_one ai-service
 stop_one ollama
+
+if [ "$WITH_SPARK" = 1 ]; then
+  bash "$ROOT/scripts/stop-spark-cluster.sh"
+fi
 
 if [ "$WITH_MYSQL" = 1 ]; then
   echo "==> 停止 MariaDB"

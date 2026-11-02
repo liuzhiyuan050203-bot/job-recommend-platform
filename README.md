@@ -159,7 +159,7 @@ cd ai-service
 ../.venv/bin/python -m app.spark.run_all --tasks aggregate     # 只跑部分任务
 ```
 
-- 运行模式 `local[*]`，通过 `spark.jars` 加载 MySQL JDBC 驱动（环境变量 `SPARK_JDBC_JAR`，默认 `~/.m2/repository/com/mysql/mysql-connector-j/8.3.0/mysql-connector-j-8.3.0.jar`）。
+- 运行模式由 `SPARK_MASTER` 决定：默认 `local[*]`（单机多线程）；设为 `spark://127.0.0.1:7077` 时提交到 Standalone 伪分布式集群（见下文「部署架构」）。通过 `spark.jars` 加载 MySQL JDBC 驱动（环境变量 `SPARK_JDBC_JAR`，默认 `~/.m2/repository/com/mysql/mysql-connector-j/8.3.0/mysql-connector-j-8.3.0.jar`）。
 - clean：解析 `data/raw/jobs_raw.csv` 中的薪资文本、去重、城市/学历/经验规范化、剔除异常值；统计写入 `spark_task_log`。
 - aggregate：从库中已审核职位聚合出 `spark_salary_stat`（省/城市/方向的均值、中位数、P25/P75）、`spark_tech_trend`（月份×技能需求与环比）、`spark_region_dist`（省份职位/企业/投递数与 6 位 adcode）。
 - salary_regression：MLlib 随机森林回归预测平均月薪，模型保存在 `ai-service/data/models/salary_model`，城市×方向×学历×经验网格预测写入 `spark_salary_predict`。
@@ -168,6 +168,20 @@ cd ai-service
 实测（2026-10-31，8 核）：整次运行约 20 秒；CSV 3360 行 → 有效 2409（重复 200、面议 476、异常 275）；薪资统计 239 行、技术趋势 683 行、地区 16 省；模型测试集 RMSE≈1841、MAE≈1031、R2≈0.966。
 
 演示数据中工作经验对薪资的影响较明显（经验系数：应届 1.00、一年以内 1.10、1–3 年 1.40、3–5 年 1.80、5 年以上 2.30）。预测时 2 年及以上经验按社招职位类型计算，否则按校招。例：北京·后端开发·本科，0 年约 1.97 万，3 年约 2.99 万，5 年约 3.74 万。
+
+### 部署架构：Spark Standalone 伪分布式
+
+```bash
+bash scripts/start-spark-cluster.sh        # Master spark://127.0.0.1:7077（UI http://127.0.0.1:8081）+ 2 个 Worker（各 2 核 / 1536m，UI 8082/8083）
+bash scripts/start-all.sh --spark-cluster  # 同上，并以 SPARK_MASTER=spark://127.0.0.1:7077 启动 ai-service
+SPARK_MASTER=spark://127.0.0.1:7077 ../.venv/bin/python -m app.spark.run_all --tasks recommend   # 命令行直接提交到集群
+bash scripts/stop-spark-cluster.sh         # 或 bash scripts/stop-all.sh --with-spark
+```
+
+- 集群直接用 `.venv` 中 pip 安装的 PySpark 4.2.1（`SPARK_HOME` = pyspark 包目录，借用其 `sbin/spark-daemon.sh` 起 Master/Worker 守护进程），不另装 Spark 发行版。Worker 数、核数、内存可用 `SPARK_WORKER_INSTANCES`、`SPARK_WORKER_CORES`、`SPARK_WORKER_MEMORY` 覆盖。PID 在 `.run/spark/`，日志在 `logs/spark/`，Executor 工作目录 `/tmp/bishe-spark-work/`。
+- Driver 在 ai-service 进程（或命令行进程）内，client 模式；Executor 在 Worker 上。集群模式下 ai-service 按 `SPARK_EXECUTOR_MEMORY`（1g）、`SPARK_EXECUTOR_CORES`（2）、`SPARK_CORES_MAX`（4）申请资源，并开启动态分配（shuffle tracking），空闲 60–120 秒后把 Executor 还给集群，常驻会话不会一直占满核数。
+- 每个任务在 `spark_task_log.params_json` 里记录 `sparkMaster` 与 `sparkAppId`，可在 Master UI 对上应用。
+- 清洗、聚合、薪资回归、推荐四类任务在集群上与 `local[*]` 产出一致；取证与耗时对照见 `experiments/results/spark_cluster.json` 和 `experiments/README.md` 第 5 节。本机实测集群反而更慢（命令行同数据：清洗+聚合+薪资回归 38.5 s 对 27.2 s，推荐 148.4 s 对 127.8 s）：伪分布式只有 4 个 Executor 核，还多了进程间序列化与调度；它验证的是同一套作业无需改代码即可提交到集群。
 
 | 接口 | 说明 |
 | :--- | :--- |
