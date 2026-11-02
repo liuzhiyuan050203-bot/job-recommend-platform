@@ -9,6 +9,7 @@ import java.util.List;
 
 /**
  * 公开职位卡片与详情。列表不填 description / requirement。
+ * 详情的 description / requirement / welfare 是整理后的纯文本，原始抓取元数据见 dataSource。
  */
 @Data
 public class PublicJobVO {
@@ -49,4 +50,14 @@ public class PublicJobVO {
     private Boolean favorited = false;
     /** 当前学生是否已投递；匿名为 false */
     private Boolean applied = false;
+
+    /** 详情页：整理后的岗位职责条目（去掉抓取元数据与序号） */
+    private List<String> descriptionItems = new ArrayList<>();
+    /** 详情页：整理后的任职要求条目（爬虫 JSON 已拆开） */
+    private List<String> requirementItems = new ArrayList<>();
+    /** 详情页：数据来源（企业发布 / 校招官网同步） */
+    private JobSourceVO dataSource;
+    /** 薪资是否为平台估算（真实职位官网未公布薪资） */
+    private Boolean salaryEstimated = false;
+    private String salaryNote;
 }

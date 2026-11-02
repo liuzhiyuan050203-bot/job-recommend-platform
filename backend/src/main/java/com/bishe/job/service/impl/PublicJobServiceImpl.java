@@ -16,6 +16,7 @@ import com.bishe.job.security.LoginUser;
 import com.bishe.job.security.RoleCodes;
 import com.bishe.job.security.UserContext;
 import com.bishe.job.service.BehaviorLogService;
+import com.bishe.job.service.JobTextCleaner;
 import com.bishe.job.service.PositionTags;
 import com.bishe.job.service.PublicJobService;
 import com.bishe.job.vo.PositionTagVO;
@@ -63,8 +64,22 @@ public class PublicJobServiceImpl implements PublicJobService {
         vo.setViewCount((vo.getViewCount() == null ? 0 : vo.getViewCount()) + 1);
         fillTags(List.of(vo));
         fillStudentMarks(List.of(vo));
+        applyCleanText(vo);
         behaviorLogService.logJob(BehaviorLogService.VIEW, id);
         return vo;
+    }
+
+    /** 详情展示用：拆出抓取元数据、估算薪资说明，正文整理成条目。库里原文不动。 */
+    static void applyCleanText(PublicJobVO vo) {
+        JobTextCleaner.Cleaned cleaned = JobTextCleaner.clean(vo.getDescription(), vo.getRequirement(), vo.getWelfare());
+        vo.setDescriptionItems(cleaned.descriptionItems());
+        vo.setRequirementItems(cleaned.requirementItems());
+        vo.setDescription(String.join("\n", cleaned.descriptionItems()));
+        vo.setRequirement(String.join("\n", cleaned.requirementItems()));
+        vo.setWelfare(cleaned.welfare());
+        vo.setDataSource(cleaned.source());
+        vo.setSalaryEstimated(cleaned.salaryEstimated());
+        vo.setSalaryNote(cleaned.salaryEstimated() ? JobTextCleaner.ESTIMATE_NOTE : null);
     }
 
     @Override

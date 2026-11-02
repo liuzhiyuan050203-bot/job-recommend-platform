@@ -114,12 +114,18 @@
 
         <div class="job-text-block">
           <h4>岗位职责：</h4>
-          <p>{{ currentJob.description || '暂无描述' }}</p>
+          <ol v-if="parseJobText(currentJob.description).length" class="job-items">
+            <li v-for="(item, idx) in parseJobText(currentJob.description)" :key="idx">{{ item }}</li>
+          </ol>
+          <p v-else>暂无描述</p>
         </div>
 
         <div class="job-text-block">
           <h4>任职要求：</h4>
-          <p>{{ currentJob.requirement || '暂无要求' }}</p>
+          <ol v-if="parseJobText(currentJob.requirement).length" class="job-items">
+            <li v-for="(item, idx) in parseJobText(currentJob.requirement)" :key="idx">{{ item }}</li>
+          </ol>
+          <p v-else>暂无要求</p>
         </div>
 
         <div class="drawer-actions">
@@ -162,6 +168,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getAdminJobs, auditAdminJob } from '@/api/admin'
+import { parseJobText } from '@/utils/jobText'
 
 const loading = ref(false)
 const submittingAudit = ref(false)
@@ -245,6 +252,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.job-items { margin: 0; padding-left: 22px; line-height: 1.8; }
 .page-container {
   padding: 10px 0;
 }
