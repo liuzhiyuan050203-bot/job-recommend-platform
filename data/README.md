@@ -1,10 +1,10 @@
 # 演示数据生成器
 
-`generate_demo_data.py` 用固定随机种子生成校园招聘演示数据，写入 MariaDB 的 `job_platform`，并另存一份带噪声的爬虫原始 CSV。不实现推荐或 RAG。统计时间锚点固定为 **2026-10-31**，同一 `--seed` 重复运行得到同一批数据。
+`generate_demo_data.py` 用固定随机种子生成校园招聘演示数据，写入 MySQL 的 `job_platform`，并另存一份带噪声的爬虫原始 CSV。不实现推荐或 RAG。统计时间锚点固定为 **2026-10-31**，同一 `--seed` 重复运行得到同一批数据。
 
 ## 运行
 
-数据库需已执行 `db/schema.sql` 和 `db/seed.sql`。MariaDB 未启动时先执行 `bash scripts/start-mysql.sh`。
+数据库需已执行 `db/schema.sql` 和 `db/seed.sql`。MySQL 未启动时先执行 `bash scripts/start-mysql.sh`。
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"

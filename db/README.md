@@ -1,6 +1,6 @@
 # job_platform 数据库设计
 
-高校就业推荐平台的 MySQL 库（MariaDB 11.8，MySQL 协议）。业务库由 Spring Boot 读写，PySpark 把离线结果写回本库，RAG 原文放在 `rag_document`，向量放在 Chroma。
+高校就业推荐平台的 MySQL 库（MySQL 8.4.13 LTS；2026-11-02 前为 MariaDB 11.8，迁移与回退见 [mysql8/README.md](mysql8/README.md)）。业务库由 Spring Boot 读写，PySpark 把离线结果写回本库，RAG 原文放在 `rag_document`，向量放在 Chroma。
 
 字符集 `utf8mb4` / `utf8mb4_unicode_ci`，引擎 InnoDB。29 张表都有中文表注释和字段注释，并包含 `create_time`、`update_time`、`deleted`（0 否，1 是）。
 
@@ -9,8 +9,8 @@
 账号 `job` 只有 `job_platform.*` 的权限，不能 `CREATE DATABASE`。库已存在时直接执行：
 
 ```bash
-mariadb -h127.0.0.1 -ujob -pjob123 < schema.sql
-mariadb -h127.0.0.1 -ujob -pjob123 < seed.sql
+/opt/mysql/bin/mysql --no-defaults -h127.0.0.1 -ujob -pjob123 < schema.sql
+/opt/mysql/bin/mysql --no-defaults -h127.0.0.1 -ujob -pjob123 < seed.sql
 ```
 
 `schema.sql` 会按依赖逆序 `DROP TABLE IF EXISTS` 再重建，可重复执行。`seed.sql` 在事务里先清空再插入，也可单独重复执行。已有库只扩展 RAG 字段时执行 `db/migrations/phase5_rag.sql`（可重复执行，不删业务数据）。

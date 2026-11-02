@@ -9,8 +9,9 @@ pydantic==2.14.2
 pydantic-settings==2.16.2
 python-dotenv==1.2.4
 
-# 数据库与 ORM (MariaDB / MySQL)
+# 数据库与 ORM (MySQL 8.4；cryptography 供 PyMySQL 完成 caching_sha2_password 认证)
 PyMySQL==1.2.3
+cryptography==50.0.2
 SQLAlchemy==2.1.6
 
 # PySpark 离线大数据分析与机器学习

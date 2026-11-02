@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Import crawled campus JSONL into MariaDB as real_* companies.
+"""Import crawled campus JSONL into MySQL 8.4 as real_* companies.
 
 Creates:
   - sys_user username=real_<company_key> password=Real@123 (role=企业, status=正常)

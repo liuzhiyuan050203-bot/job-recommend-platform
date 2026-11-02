@@ -177,8 +177,8 @@ req DELETE "/student/favorites/$JOB" "$T_STU"; expect_ok "取消收藏"
 req GET "/public/jobs/$JOB" "not-a-jwt"
 [ "$HTTP" = 404 ] && ok "无效令牌访问不可见职位返回 404" || bad "无效令牌访问不可见职位应 404 实际 HTTP $HTTP"
 
-if command -v mariadb >/dev/null; then
-  CNT=$(mariadb -h127.0.0.1 -ujob -pjob123 job_platform -N -e "select count(*) from user_behavior_log where user_id=2 and target_id=$JOB and behavior_type in (1,2,3) and deleted=0")
+if db_ping; then
+  CNT=$(db_sql "select count(*) from user_behavior_log where user_id=2 and target_id=$JOB and behavior_type in (1,2,3) and deleted=0")
   [ "$CNT" -ge 3 ] && ok "浏览收藏投递写入行为日志" || bad "行为日志条数=$CNT"
 fi
 

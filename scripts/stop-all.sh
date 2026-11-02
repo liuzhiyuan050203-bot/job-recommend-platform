@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 停止 scripts/start-all.sh 记录过 PID 的进程。默认保留 MariaDB。
+# 停止 scripts/start-all.sh 记录过 PID 的进程。默认保留数据库（MySQL 8.4）。
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -78,15 +78,16 @@ if [ "$WITH_SPARK" = 1 ]; then
 fi
 
 if [ "$WITH_MYSQL" = 1 ]; then
-  echo "==> 停止 MariaDB"
-  if sudo service mariadb stop; then
-    echo "==> MariaDB 已停止"
+  source "$ROOT/scripts/db-env.sh"
+  echo "==> 停止 MySQL（服务 $DB_SERVICE）"
+  if sudo service "$DB_SERVICE" stop; then
+    echo "==> MySQL 已停止"
   else
-    echo "错误: MariaDB 停止失败" >&2
+    echo "错误: MySQL 停止失败" >&2
     exit 1
   fi
 else
-  echo "==> 保留 MariaDB（需要停止时加 --with-mysql）"
+  echo "==> 保留 MySQL（需要停止时加 --with-mysql）"
 fi
 
 echo "==> stop-all 完成"

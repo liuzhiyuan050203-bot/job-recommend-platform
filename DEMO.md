@@ -43,8 +43,8 @@
 ## 一键启停
 
 ```bash
-bash scripts/start-all.sh          # MariaDB + Ollama + ai-service + 后端 + 前端
-bash scripts/stop-all.sh           # 停应用，默认保留 MariaDB
+bash scripts/start-all.sh          # MySQL 8.4 + Ollama + ai-service + 后端 + 前端
+bash scripts/stop-all.sh           # 停应用，默认保留 MySQL
 ```
 
 健康检查：`curl -s http://localhost:8080/api/health`

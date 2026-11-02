@@ -58,11 +58,11 @@ req PUT /user/password "$T_NSTU" '{"oldPassword":"newpass1","newPassword":"pass1
 login "$SU" pass123; T_NSTU=$TOKEN; save_state T_NSTU "$T_NSTU"
 
 # 禁用账号：直接改库模拟（管理员接口在 02 中测试）
-if command -v mariadb >/dev/null; then
-  mariadb -h127.0.0.1 -ujob -pjob123 job_platform -e "update sys_user set status=2 where username='$SU'"
+if db_ping; then
+  db_sql "update sys_user set status=2 where username='$SU'"
   req GET /user/me "$T_NSTU"; [ "$HTTP" = 401 ] || [ "$HTTP" = 403 ] && ok "禁用后旧 token 失效" || bad "禁用后旧 token 仍可用"
   login "$SU" pass123; expect_fail "禁用账号不能登录"
-  mariadb -h127.0.0.1 -ujob -pjob123 job_platform -e "update sys_user set status=1 where username='$SU'"
+  db_sql "update sys_user set status=1 where username='$SU'"
   login "$SU" pass123; T_NSTU=$TOKEN; save_state T_NSTU "$T_NSTU"
 fi
 summary

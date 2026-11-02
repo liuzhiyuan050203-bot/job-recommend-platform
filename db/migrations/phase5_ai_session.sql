@@ -1,6 +1,6 @@
 -- 阶段五 AI 会话：ai_message 增加 extra，保存助手消息的来源、工具和耗时。
 -- 可重复执行。不删除已有消息。
--- 用法：mariadb -h127.0.0.1 -ujob -pjob123 job_platform < db/migrations/phase5_ai_session.sql
+-- 用法：mysql -h127.0.0.1 -ujob -pjob123 job_platform < db/migrations/phase5_ai_session.sql
 
 SET NAMES utf8mb4;
 

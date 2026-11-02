@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 按依赖顺序启动 MariaDB、本地 Ollama（若 LLM 指向本机）、ai-service、后端和前端。
+# 按依赖顺序启动 MySQL 8.4、本地 Ollama（若 LLM 指向本机）、ai-service、后端和前端。
 # 已经健康的服务不会重复启动。PID 写在 .run/，日志写在 logs/。
 set -euo pipefail
 
@@ -13,7 +13,7 @@ usage() {
   cat <<'EOF'
 用法: bash scripts/start-all.sh [--no-frontend] [--spark-cluster]
 
-启动 MariaDB、Ollama（仅当 LLM_BASE_URL 指向本机且 ollama 存在）、ai-service（8000）、
+启动 MySQL 8.4、Ollama（仅当 LLM_BASE_URL 指向本机且 ollama 存在）、ai-service（8000）、
 Spring Boot（8080）和 Vite（5173）。已在监听的服务会跳过。
 环境变量若已设置则原样传给子进程；否则依次从仓库根目录 .env、ai-service/.env 补齐。
 --spark-cluster：先用 scripts/start-spark-cluster.sh 拉起 Standalone 伪分布式集群
@@ -106,16 +106,14 @@ wait_http() {
   return 1
 }
 
-mysql_ok() {
-  mariadb-admin --protocol=tcp -h127.0.0.1 -P3306 -ujob -pjob123 ping --silent 2>/dev/null
-}
+source "$ROOT/scripts/db-env.sh"
 
-if mysql_ok; then
-  echo "==> MariaDB 已在运行"
+if db_ping; then
+  echo "==> MySQL $(db_version) 已在运行"
 else
-  echo "==> 启动 MariaDB"
+  echo "==> 启动 MySQL"
   bash "$ROOT/scripts/start-mysql.sh"
-  mysql_ok
+  db_ping
 fi
 
 llm_base=${LLM_BASE_URL:-http://127.0.0.1:11434/v1}
@@ -141,8 +139,7 @@ else
   bash "$ROOT/scripts/start-ollama.sh"
 fi
 
-kb_count=$(mariadb -N --protocol=tcp -h127.0.0.1 -P3306 -ujob -pjob123 job_platform \
-  -e "SELECT COUNT(*) FROM rag_document WHERE deleted=0" 2>/dev/null || true)
+kb_count=$(db_sql "SELECT COUNT(*) FROM rag_document WHERE deleted=0" || true)
 if [ "${kb_count:-}" = "0" ]; then
   echo "==> rag_document 为空，重建知识库"
   (cd "$ROOT/ai-service" && "$ROOT/.venv/bin/python" -m app.rag.ingest --all)
@@ -224,7 +221,7 @@ echo "  前端     http://127.0.0.1:5173"
 echo "  后端     http://127.0.0.1:8080/api/health"
 echo "  AI 服务  http://127.0.0.1:8000/health"
 echo "  Ollama   http://127.0.0.1:11434"
-echo "  MariaDB  127.0.0.1:3306  库 job_platform"
+echo "  MySQL    127.0.0.1:3306  库 job_platform（$(db_version)）"
 echo
 echo "演示账号"
 echo "  admin / admin123"

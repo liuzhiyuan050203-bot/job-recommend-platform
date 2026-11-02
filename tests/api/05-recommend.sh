@@ -7,7 +7,7 @@ echo "### 05 混合推荐"
 
 skip() { echo "  [SKIP] $1"; }
 ai_up() { curl -sf -m 2 -o /dev/null "http://127.0.0.1:8000/health"; }
-DB() { mariadb -N --protocol=tcp -h127.0.0.1 -P3306 -ujob -pjob123 job_platform -e "$1" 2>/dev/null; }
+DB() { db_sql "$1"; }
 
 login admin admin123; T_ADMIN=$TOKEN; expect_ok "管理员登录"
 login student student123; T_STU=$TOKEN; expect_ok "学生登录"

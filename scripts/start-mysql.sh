@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# Start MariaDB (MySQL-compatible) without systemd, if not already running.
+# 启动 MySQL 8.4（服务 mysql8，无 systemd 时走 /etc/init.d 脚本），已在运行则直接返回。
 set -e
-if sudo mariadb-admin ping --silent 2>/dev/null; then
-  echo "MariaDB already running."; exit 0
+source "$(cd "$(dirname "$0")" && pwd)/db-env.sh"
+if db_ping; then
+  echo "MySQL $(db_version) 已在运行。"; exit 0
 fi
-sudo mkdir -p /run/mysqld && sudo chown mysql:mysql /run/mysqld
-sudo service mariadb start || (sudo -u mysql nohup mysqld_safe >/dev/null 2>&1 &)
+if [ ! -x "/etc/init.d/$DB_SERVICE" ]; then
+  echo "未找到 /etc/init.d/$DB_SERVICE，请先按 db/README.md 安装 MySQL 8.4。" >&2; exit 1
+fi
+sudo service "$DB_SERVICE" start
 for i in $(seq 1 30); do
-  sudo mariadb-admin ping --silent 2>/dev/null && { echo "MariaDB started."; exit 0; }
+  db_ping && { echo "MySQL $(db_version) 已启动。"; exit 0; }
   sleep 1
 done
-echo "MariaDB failed to start; check /var/log/mysql or journal output." >&2; exit 1
+echo "MySQL 启动失败，查看 /var/log/mysql8/error.log。" >&2; exit 1

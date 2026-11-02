@@ -3,6 +3,8 @@
 BASE=${BASE:-http://localhost:8080/api}
 PASS=${PASS:-0}; FAIL=${FAIL:-0}
 STATE_FILE=${STATE_FILE:-/tmp/job-api-test-state.env}
+# 数据库辅助函数 db_sql / db_ping（MySQL 8.4 客户端）
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../scripts" && pwd)/db-env.sh"
 [ -f "$STATE_FILE" ] && source "$STATE_FILE"
 
 save_state() { # save_state KEY VALUE —— 在脚本之间共享变量

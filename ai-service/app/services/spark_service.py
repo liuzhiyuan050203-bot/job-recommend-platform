@@ -4,7 +4,7 @@
 1. 招聘数据离线清洗与聚合
 2. 薪资预测/回归模型训练与推断
 3. User-CF (基于协同过滤) 与基于内容的推荐特征计算
-4. 计算结果回写 MariaDB / MySQL (job_platform)
+4. 计算结果回写 MySQL 8.4 (job_platform)
 """
 
 import logging

@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
-    # MariaDB / MySQL 数据库连接配置 (兼容 MySQL 协议)
+    # MySQL 8.4 数据库连接配置
     MYSQL_HOST: str = "127.0.0.1"
     MYSQL_PORT: int = 3306
     MYSQL_DB: str = "job_platform"

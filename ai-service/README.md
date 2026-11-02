@@ -9,7 +9,7 @@ cd /workspace/bishe/ai-service
 ../.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-依赖见 `requirements.txt`。虚拟环境为仓库根目录的 `.venv`。MariaDB `job_platform`（`job` / `job123`）和本地 Ollama（`http://127.0.0.1:11434/v1`，模型 `qwen2.5:3b`）需已启动。默认模型大约 19 token/s 生成、150 token/s 处理提示词，因此提示词控制在约 1500 字，回答 `max_tokens` 为 500，检索默认 4 个切片、每段最多 300 字。
+依赖见 `requirements.txt`。虚拟环境为仓库根目录的 `.venv`。MySQL 8.4 `job_platform`（`job` / `job123`）和本地 Ollama（`http://127.0.0.1:11434/v1`，模型 `qwen2.5:3b`）需已启动。默认模型大约 19 token/s 生成、150 token/s 处理提示词，因此提示词控制在约 1500 字，回答 `max_tokens` 为 500，检索默认 4 个切片、每段最多 300 字。
 
 重建知识库（会清空 Chroma 集合和 `rag_document` 后全量写入）：
 
@@ -116,5 +116,5 @@ data/knowledge/   仓库根目录下的策展 Markdown
 已有库升级表结构（不删业务数据）：
 
 ```bash
-mariadb -h127.0.0.1 -ujob -pjob123 job_platform < /workspace/bishe/db/migrations/phase5_rag.sql
+/opt/mysql/bin/mysql --no-defaults -h127.0.0.1 -ujob -pjob123 job_platform < /workspace/bishe/db/migrations/phase5_rag.sql
 ```

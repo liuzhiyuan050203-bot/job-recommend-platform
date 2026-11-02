@@ -33,7 +33,7 @@
 | 前端 | Vue 3、Vite、Pinia、Vue Router、Element Plus、ECharts、Axios，包管理 pnpm，端口 5173 |
 | 业务后端 | Java 21、Spring Boot 3.3.5、MyBatis-Plus 3.5.7、JWT，端口 8080，上下文前缀 `/api` |
 | AI 服务 | Python 3.12、FastAPI、Uvicorn，虚拟环境 `/workspace/bishe/.venv`，端口 8000 |
-| 数据库 | MariaDB / MySQL，库 `job_platform`，`127.0.0.1:3306`，账号 `job` / `job123` |
+| 数据库 | MySQL 8.4.13 LTS（Community Server），库 `job_platform`，`127.0.0.1:3306`，账号 `job` / `job123`，部署见 [db/mysql8/README.md](db/mysql8/README.md) |
 
 统一响应为 `Result`：`code`、`msg`、`data`。分页为 `{records, total, current, size}`，单页 `size` 最大 100。
 
@@ -57,7 +57,7 @@
 
 - OpenJDK 21，`JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64`
 - Maven 3.9+（可使用本地 `~/.m2`）
-- MariaDB 11.8+ 或 MySQL 8.0+，字符集 `utf8mb4`。应用账号不能 `CREATE DATABASE`，库需事先存在
+- MySQL 8.4（本机 8.4.13 LTS，服务名 `mysql8`，安装与从 MariaDB 迁移见 `db/mysql8/README.md`），字符集 `utf8mb4`。应用账号不能 `CREATE DATABASE`，库需事先存在
 - Node.js 与 pnpm
 - Python 3.12 虚拟环境 `/workspace/bishe/.venv`
 
@@ -70,8 +70,8 @@ export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 
 ```bash
 bash scripts/start-mysql.sh
-mariadb -h127.0.0.1 -ujob -pjob123 job_platform < db/schema.sql
-mariadb -h127.0.0.1 -ujob -pjob123 job_platform < db/seed.sql
+/opt/mysql/bin/mysql --no-defaults -h127.0.0.1 -ujob -pjob123 job_platform < db/schema.sql
+/opt/mysql/bin/mysql --no-defaults -h127.0.0.1 -ujob -pjob123 job_platform < db/seed.sql
 ```
 
 `schema.sql` 会重建全部表，`seed.sql` 会清空后重灌演示数据，都可以重复执行。表结构以 `db/schema.sql` 为准。
@@ -94,9 +94,9 @@ mariadb -h127.0.0.1 -ujob -pjob123 job_platform < db/seed.sql
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-bash scripts/start-all.sh          # MariaDB、Ollama、ai-service、后端 8080、前端 5173
+bash scripts/start-all.sh          # MySQL 8.4、Ollama、ai-service、后端 8080、前端 5173
 # 浏览器打开 http://localhost:5173
-# 演示结束后：bash scripts/stop-all.sh   # 默认保留 MariaDB
+# 演示结束后：bash scripts/stop-all.sh   # 默认保留 MySQL
 ```
 
 | 角色 | 用户名 | 密码 | 建议点击 |
@@ -110,7 +110,7 @@ bash scripts/start-all.sh          # MariaDB、Ollama、ai-service、后端 8080
 ## 启动
 
 ```bash
-# MariaDB
+# MySQL 8.4（sudo service mysql8 start 的封装）
 bash scripts/start-mysql.sh
 
 # 后端
@@ -262,9 +262,9 @@ Vue fetch（Authorization: Bearer JWT）
 ### 启动与停止
 
 ```bash
-bash scripts/start-all.sh              # MariaDB、本机 Ollama、ai-service、后端、前端
+bash scripts/start-all.sh              # MySQL 8.4、本机 Ollama、ai-service、后端、前端
 bash scripts/start-all.sh --no-frontend
-bash scripts/stop-all.sh               # 停掉本次拉起的进程，默认保留 MariaDB
+bash scripts/stop-all.sh               # 停掉本次拉起的进程，默认保留 MySQL
 bash scripts/stop-all.sh --with-mysql
 ```
 
@@ -338,7 +338,7 @@ cd ai-service
 已有库增加助手消息的 `extra` 列（JSON 文本，含 `sources`、`tools`、`latency_ms`、`first_token_ms`）：
 
 ```bash
-mariadb -h127.0.0.1 -ujob -pjob123 job_platform < db/migrations/phase5_ai_session.sql
+/opt/mysql/bin/mysql --no-defaults -h127.0.0.1 -ujob -pjob123 job_platform < db/migrations/phase5_ai_session.sql
 ```
 
 | 接口 | 说明 |
@@ -383,9 +383,9 @@ ai-service 侧：没有资料切片时提示词禁止 `[1]`、`[2]`，流式输�
 bash tests/run-all.sh
 ```
 
-脚本在 MariaDB 未运行时调用 `scripts/start-mysql.sh`；8080 没有健康检查时会打包并后台启动后端（日志 `/tmp/job-backend-test.log`），结束时关掉自己启动的进程。`tests/api/06-rag.sh` 在 ai-service 的 `/health` 不可达时打印 SKIP、记 0 失败并以 0 退出，其余脚本照常汇总。ai-service 在、但大模型不可达时，06 仍应通过（离线模式）。流式断言的 `curl --max-time` 为 180 秒。任一断言失败则退出码非 0。
+脚本在 MySQL 未运行时调用 `scripts/start-mysql.sh`；8080 没有健康检查时会打包并后台启动后端（日志 `/tmp/job-backend-test.log`），结束时关掉自己启动的进程。`tests/api/06-rag.sh` 在 ai-service 的 `/health` 不可达时打印 SKIP、记 0 失败并以 0 退出，其余脚本照常汇总。ai-service 在、但大模型不可达时，06 仍应通过（离线模式）。流式断言的 `curl --max-time` 为 180 秒。任一断言失败则退出码非 0。
 
-当前结果（`bash tests/run-all.sh`，2026-10-31，ai-service 已启动；未启动时 04/05 中依赖 FastAPI 的断言记为 SKIP，05 的冷启动走数据库兜底，06 整段 SKIP）：
+当前结果（`bash tests/run-all.sh`，2026-11-02，数据库 MySQL 8.4.13，ai-service 已启动；未启动时 04/05 中依赖 FastAPI 的断言记为 SKIP，05 的冷启动走数据库兜底，06 整段 SKIP）：
 
 | 脚本 | PASS | FAIL |
 | :--- | ---: | ---: |
@@ -393,9 +393,13 @@ bash tests/run-all.sh
 | 02-module1.sh | 165 | 0 |
 | 03-recruitment.sh | 89 | 0 |
 | 04-spark.sh | 55 | 0 |
-| 05-recommend.sh | 56 | 0 |
+| 05-recommend.sh | 51 | 0 |
 | 06-rag.sh | 92 | 0 |
 | 07-dashboard.sh | 49 | 0 |
-| 合计 | 541 | 0 |
+| 08-security.sh | 77 | 0 |
+| 09-resume.sh | 48 | 0 |
+| 合计 | 661 | 0 |
 
-同一轮还通过了 `cd backend && mvn -q -DskipTests package` 和 `cd frontend && pnpm build`。ai-service 停掉后再跑一遍：06 打印 SKIP，记 PASS=0 FAIL=0；01–03 仍是 35 / 165 / 89；04 为 49（跳过分析触发、实时预测和 FastAPI 任务列表）；05 为 54（冷启动走数据库兜底，跳过推荐任务触发与 FastAPI 相似职位）。合计约 441（含 07 仪表盘；06 整段 SKIP），失败 0。
+切换到 MySQL 8.4 后另有端到端冒烟 `bash tests/e2e/smoke-mysql8.sh`（学生、企业、管理员三种角色主流程，管理员经接口触发清洗、聚合、薪资回归、推荐四个 Spark 任务并确认写入 MySQL），16 项全部通过。
+
+同一轮还通过了 `cd backend && mvn -q -DskipTests package` 和 `cd frontend && pnpm build`。（以下为 2026-10-31 只有 01–07 时的记录）ai-service 停掉后再跑一遍：06 打印 SKIP，记 PASS=0 FAIL=0；01–03 仍是 35 / 165 / 89；04 为 49（跳过分析触发、实时预测和 FastAPI 任务列表）；05 为 54（冷启动走数据库兜底，跳过推荐任务触发与 FastAPI 相似职位）。合计约 441（含 07 仪表盘；06 整段 SKIP），失败 0。

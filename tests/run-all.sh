@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 准备 MariaDB 与后端，依次执行 tests/api 下的接口脚本并打印汇总。
+# 准备 MySQL 8.4 与后端，依次执行 tests/api 下的接口脚本并打印汇总。
 set -u
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
@@ -23,16 +23,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mysql_ok() {
-  mariadb-admin --protocol=tcp -h127.0.0.1 -P3306 -ujob -pjob123 ping --silent 2>/dev/null
-}
+source "$ROOT/scripts/db-env.sh"
 
-if mysql_ok; then
-  echo "MariaDB 已在运行"
+if db_ping; then
+  echo "MySQL $(db_version) 已在运行"
 else
-  echo "MariaDB 未响应，尝试启动..."
+  echo "MySQL 未响应，尝试启动..."
   bash "$ROOT/scripts/start-mysql.sh" || exit 1
-  mysql_ok || { echo "MariaDB 启动失败"; exit 1; }
+  db_ping || { echo "MySQL 启动失败"; exit 1; }
 fi
 
 export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}"

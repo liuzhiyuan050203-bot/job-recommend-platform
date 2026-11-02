@@ -1,6 +1,6 @@
 -- 阶段五 RAG：扩展 rag_document 类型，并增加 doc_key / section。
 -- 可重复执行。不删除已有切片，不改 seed 插入列。
--- 用法：mariadb -h127.0.0.1 -ujob -pjob123 job_platform < db/migrations/phase5_rag.sql
+-- 用法：mysql -h127.0.0.1 -ujob -pjob123 job_platform < db/migrations/phase5_rag.sql
 
 SET NAMES utf8mb4;
 
@@ -46,10 +46,26 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
-ALTER TABLE rag_document DROP CONSTRAINT IF EXISTS chk_rag_doc_type;
+-- chk_rag_doc_type：MySQL 8 不支持 DROP CONSTRAINT IF EXISTS，先查 information_schema 再删
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rag_document' AND CONSTRAINT_NAME = 'chk_rag_doc_type'
+);
+SET @sql := IF(@exists > 0, 'ALTER TABLE rag_document DROP CHECK chk_rag_doc_type', 'DO 0');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 ALTER TABLE rag_document ADD CONSTRAINT chk_rag_doc_type CHECK (doc_type IN (1, 2, 3, 4, 5, 6, 7));
 
-ALTER TABLE rag_document DROP CONSTRAINT IF EXISTS chk_rag_doc_source;
+-- chk_rag_doc_source：MySQL 8 不支持 DROP CONSTRAINT IF EXISTS，先查 information_schema 再删
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rag_document' AND CONSTRAINT_NAME = 'chk_rag_doc_source'
+);
+SET @sql := IF(@exists > 0, 'ALTER TABLE rag_document DROP CHECK chk_rag_doc_source', 'DO 0');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 ALTER TABLE rag_document ADD CONSTRAINT chk_rag_doc_source CHECK (source_type IN (1, 2, 3, 4, 5, 6));
 
 UPDATE rag_document

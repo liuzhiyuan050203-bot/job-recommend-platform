@@ -1,4 +1,4 @@
-"""从 MariaDB 读取已审核职位，作为聚合和回归的主数据。"""
+"""从 MySQL 读取已审核职位，作为聚合和回归的主数据。"""
 
 from __future__ import annotations
 
