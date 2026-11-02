@@ -1,7 +1,10 @@
-"""学生、企业、管理员三类助手的对话编排与 SSE 输出。
+"""学生、企业、管理员三类助手的对话编排与 SSE 输出（LangChain 组件见 lc_chain.py）。
 
-本地小模型默认走关键词路由；LLM_TOOL_CALLING=true 时先尝试 LangChain 工具调用，
-没有合法调用再退回路由。工具结果和知识库切片一起交给模型生成最终回答。
+流程：SessionHistory 取会话记忆 → build_router（RunnableBranch：确定性规则路由先行；
+在线且允许工具调用时由 create_agent 建的角色 Agent 选择并执行工具，失败退回规则）→
+build_context（RunnableParallel：知识库混合检索与工具并行）→ build_answer_chain
+（ChatPromptTemplate | ChatOpenAI | StrOutputParser，.astream 逐段推送）。
+本地小模型（auto 模式下 8B 及以下或本机地址）不走 Agent，直接用规则路由；大模型不可用时走离线摘录。
 """
 
 from __future__ import annotations
@@ -14,8 +17,9 @@ import time
 from collections.abc import AsyncIterator
 from typing import Any
 
-from app.agent.router import Route, ToolRequest, allowed_tool_names, route, wants_skill_list
-from app.agent.tools import Caller, execute, render
+from app.agent.lc_chain import SessionHistory, build_answer_chain, build_context, build_router, doc_types_for_tools
+from app.agent.router import Route, ToolRequest, wants_skill_list
+from app.agent.tools import Caller, render
 from app.core.config import settings
 from app.core.llm import OfflineGenerator, get_llm, is_available
 from app.rag.retrieve import fetch_chunks
@@ -50,18 +54,6 @@ def use_model_tools() -> bool:
 
 def _sse(payload: dict[str, Any]) -> str:
     return "data: " + json.dumps(payload, ensure_ascii=False) + "\n\n"
-
-
-def _history(items: list[dict] | None) -> list[dict[str, str]]:
-    cleaned = []
-    for item in items or []:
-        role = str(item.get("role") or "")
-        if role not in {"user", "assistant"}:
-            continue
-        content = str(item.get("content") or "").strip()
-        if content:
-            cleaned.append({"role": role, "content": content[:200]})
-    return cleaned[-4:]
 
 
 def _source_items(chunks: list[dict]) -> list[dict]:
@@ -312,119 +304,6 @@ def _offline_text(question: str, chunks: list[dict], tool_text: str) -> str:
     return "\n\n".join(parts)
 
 
-def _model_tool_requests(question: str, caller: Caller) -> list[ToolRequest] | None:
-    """让大模型选择工具。失败或没有合法调用时返回 None，由路由接管。"""
-    from langchain_core.messages import HumanMessage, SystemMessage
-    from langchain_core.tools import StructuredTool
-    from pydantic import BaseModel, Field
-
-    class SearchArgs(BaseModel):
-        keyword: str = ""
-        city: str = ""
-        direction: str = ""
-        education: int | None = None
-        salary_min: int | None = None
-        limit: int = 5
-
-    class LimitArgs(BaseModel):
-        limit: int = 5
-
-    class PredictArgs(BaseModel):
-        city: str = ""
-        direction: str = ""
-        education: int | None = None
-        experience_years: float | None = None
-
-    class GapArgs(BaseModel):
-        job_id: int | None = None
-        keyword: str = ""
-
-    class JdArgs(BaseModel):
-        title: str = ""
-        direction: str = ""
-        city: str = ""
-        skills: str = ""
-        highlights: str = ""
-
-    class PolishArgs(BaseModel):
-        text: str = ""
-
-    class ScreenArgs(BaseModel):
-        job_id: int | None = None
-
-    class SalaryArgs(BaseModel):
-        city: str = ""
-        direction: str = ""
-
-    class TrendArgs(BaseModel):
-        skill: str = ""
-        top_n: int = 5
-
-    class TopArgs(BaseModel):
-        top_n: int = 8
-
-    class EmptyArgs(BaseModel):
-        note: str = Field(default="", description="留空")
-
-    catalog = {
-        "search_jobs": ("按城市、方向和关键词检索在架职位", SearchArgs),
-        "get_my_recommendations": ("读取当前学生的职位推荐", LimitArgs),
-        "predict_salary": ("按城市、方向、学历和年限预测月薪", PredictArgs),
-        "analyze_resume_gap": ("对照职位看当前学生缺哪些技能", GapArgs),
-        "generate_job_description": ("整理生成职位描述所需的要点", JdArgs),
-        "polish_job_description": ("接收需要润色的职位描述", PolishArgs),
-        "screen_applicants": ("按技能匹配排序本公司某职位的候选人", ScreenArgs),
-        "list_my_jobs": ("列出当前企业发布的职位", LimitArgs),
-        "salary_stats": ("查询城市或方向的平均月薪", SalaryArgs),
-        "tech_trend": ("查询需求环比增长最快的技术", TrendArgs),
-        "region_distribution": ("查询职位数最多的省份", TopArgs),
-        "city_distribution": ("查询在架职位数最多的城市", TopArgs),
-        "recommend_eval": ("读取推荐离线评估指标", EmptyArgs),
-        "platform_overview": ("读取用户、企业和职位数量", EmptyArgs),
-    }
-    allowed = allowed_tool_names(caller.role)
-    tools = []
-    for name, (desc, schema) in catalog.items():
-        if name not in allowed:
-            continue
-
-        def _noop(**kwargs: Any) -> str:
-            return ""
-
-        tools.append(StructuredTool.from_function(_noop, name=name, description=desc, args_schema=schema))
-    if not tools:
-        return None
-    llm = get_llm(streaming=False, max_tokens=120)
-    bound = llm.bind_tools(tools)
-    response = bound.invoke(
-        [
-            SystemMessage(content="需要查数据时只调用一个工具，不要编造参数里的用户身份，不要直接回答。"),
-            HumanMessage(content=question[:400]),
-        ]
-    )
-    calls = getattr(response, "tool_calls", None) or []
-    requests: list[ToolRequest] = []
-    for call in calls:
-        name = str(call.get("name") or "")
-        if name not in allowed:
-            continue
-        args = call.get("args") or {}
-        if isinstance(args, str):
-            try:
-                args = json.loads(args)
-            except json.JSONDecodeError:
-                args = {}
-        if not isinstance(args, dict):
-            args = {}
-        args.pop("user_id", None)
-        args.pop("role", None)
-        args.pop("note", None)
-        requests.append(ToolRequest(name=name, args=args))
-        if len(requests) >= 2:
-            break
-    return requests or None
-
-
 async def iter_events(
     question: str,
     caller: Caller,
@@ -488,19 +367,10 @@ async def iter_events(
         yield "data: [DONE]\n\n"
 
     try:
-        decided: Route | None = None
-        if online and use_model_tools():
-            yield _sse({"type": "status", "text": "正在识别意图…"})
-            try:
-                picked = await asyncio.to_thread(_model_tool_requests, question, caller)
-            except Exception:
-                logger.exception("工具调用失败，改用规则路由")
-                picked = None
-            if picked:
-                decided = Route(tools=picked, doc_types=_doc_types_for_tools(picked), instruction="")
-        if decided is None:
-            yield _sse({"type": "status", "text": "正在识别意图…"})
-            decided = await asyncio.to_thread(route, question, caller.role)
+        yield _sse({"type": "status", "text": "正在识别意图…"})
+        router = build_router(caller, use_agent=online and use_model_tools())
+        decided: Route = await asyncio.to_thread(router.invoke, question)
+        recent = SessionHistory(session_id, caller.user_id, history, question).recent()
 
         if decided.refusal:
             async for piece in emit_text(decided.refusal):
@@ -518,29 +388,25 @@ async def iter_events(
                 decided.instruction = "结合平台概况中的数字和资料回答。没有直接依据时说明知识库没有相关内容，不要编造统计数字。"
 
         doc_types = decided.doc_types if decided.doc_types is not None else []
-        chunk_list: list[dict] = []
         if doc_types:
             yield _sse({"type": "status", "text": "正在检索知识库…"})
-            async for item in _to_thread_stream(fetch_chunks, question, doc_types):
-                if item == "__hb__":
-                    yield ": ping\n\n"
-                elif isinstance(item, list):
-                    chunk_list = item
+        for request in decided.tools:
+            yield _sse({"type": "status", "text": f"正在调用工具 {request.name}…"})
+        context = build_context(caller, fetch_chunks)
+        gathered: dict = {}
+        async for item in _to_thread_stream(context.invoke, {"question": question, "doc_types": doc_types, "tools": decided.tools}):
+            if item == "__hb__":
+                yield ": ping\n\n"
+            else:
+                gathered = item
+        chunk_list: list[dict] = gathered.get("chunks") or []
         chunks = chunk_list
         source_items = _source_items(chunk_list)
         gate.set_limit(len(chunk_list))
         yield _sse({"type": "sources", "items": source_items})
 
         tool_text_parts: list[str] = []
-        for request in decided.tools:
-            yield _sse({"type": "status", "text": f"正在调用工具 {request.name}…"})
-            result_holder: list[dict] = []
-            async for item in _to_thread_stream(execute, request.name, request.args, caller):
-                if item == "__hb__":
-                    yield ": ping\n\n"
-                else:
-                    result_holder.append(item)
-            result = result_holder[0] if result_holder else {"ok": False, "message": "工具无结果"}
+        for request, result in gathered.get("tool_results") or []:
             prompt_text, summary = render(request.name, result)
             tool_events.append({"name": request.name, "args": request.args, "summary": summary})
             yield _sse({"type": "tool", "name": request.name, "args": request.args, "summary": summary})
@@ -593,17 +459,20 @@ async def iter_events(
                 ).strip()
             if not chunk_list:
                 instruction = (instruction + " 不要使用[1]、[2]这类引用标记。").strip()
-            prompt = _fit_prompt(question, _history(history), chunk_list, tool_text, instruction)
-            messages = [
-                {"role": "system", "content": _system_prompt(agent, bool(chunk_list))},
-                {"role": "user", "content": prompt},
-            ]
+            answer_inputs = {
+                "agent": agent,
+                "question": question,
+                "history": recent,
+                "chunks": chunk_list,
+                "tool_text": tool_text,
+                "instruction": instruction,
+            }
             yield _sse({"type": "status", "text": "正在生成回答…"})
             held: list[str] = []
             hold_jobs = decided.answer_shape == "job_list"
             try:
                 token_limit = 120 if hold_jobs else ANSWER_TOKENS
-                async for delta in _stream_tokens(messages, token_limit):
+                async for delta in _stream_tokens(answer_inputs, token_limit):
                     if delta == "__hb__":
                         yield ": ping\n\n"
                         continue
@@ -650,15 +519,6 @@ async def iter_events(
             yield piece
 
 
-def _doc_types_for_tools(tools: list[ToolRequest]) -> list[int]:
-    names = {item.name for item in tools}
-    if "search_jobs" in names:
-        return [7]
-    if "analyze_resume_gap" in names or "polish_job_description" in names or "generate_job_description" in names:
-        return [5, 4]
-    return []
-
-
 def _finish(parts: list[str], sources: list[dict], tools: list[dict], latency_ms: int, first_token_ms: int | None) -> str:
     return _sse(
         {
@@ -682,22 +542,17 @@ async def _to_thread_stream(func, *args):
     yield task.result()
 
 
-async def _stream_tokens(messages: list[dict], max_tokens: int | None = None) -> AsyncIterator[str]:
+async def _stream_tokens(inputs: dict, max_tokens: int | None = None) -> AsyncIterator[str]:
+    """LCEL 回答链 .astream；8 秒没有新片段时插一条心跳。"""
     queue: asyncio.Queue = asyncio.Queue()
     llm = get_llm(streaming=True, max_tokens=max_tokens or ANSWER_TOKENS)
+    chain = build_answer_chain(_system_prompt, _fit_prompt, llm)
 
     async def pump() -> None:
         try:
-            async for chunk in llm.astream(messages):
-                delta = chunk.content
+            async for delta in chain.astream(inputs):
                 if isinstance(delta, str) and delta:
                     await queue.put(delta)
-                elif isinstance(delta, list):
-                    for part in delta:
-                        if isinstance(part, str) and part:
-                            await queue.put(part)
-                        elif isinstance(part, dict) and part.get("text"):
-                            await queue.put(part["text"])
         except Exception as exc:
             await queue.put(exc)
         await queue.put(None)
@@ -719,4 +574,3 @@ async def _stream_tokens(messages: list[dict], max_tokens: int | None = None) ->
     finally:
         if not task.done():
             task.cancel()
-

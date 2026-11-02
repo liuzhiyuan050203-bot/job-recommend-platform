@@ -234,9 +234,14 @@ cd ai-service
 Vue fetch（Authorization: Bearer JWT）
   → Spring Boot SSE 代理（校验角色，/api/{role}/ai/chat/stream）
     → ai-service（请求头 X-Internal-Token、X-User-Id、X-User-Role）
-      → RAG（Chroma 集合 job_knowledge，嵌入 BAAI/bge-small-zh-v1.5）或角色工具
-        → LLM（Ollama 或任意 OpenAI 兼容接口）
+      → RunnableBranch 路由：规则路由先行（越权确定性拒答）→ 可选 create_agent 角色 Agent（StructuredTool + 角色白名单）
+      → RunnableParallel：RAG 检索（langchain_chroma Chroma + jieba BM25Retriever → RRF 融合与阈值，
+        可选 ContextualCompressionRetriever 交叉编码重排；集合 job_knowledge，嵌入 BAAI/bge-small-zh-v1.5）‖ 角色工具
+      → LCEL：ChatPromptTemplate | ChatOpenAI（Ollama 或任意 OpenAI 兼容接口）| StrOutputParser，.astream 推 SSE
+      → 会话记忆：BaseChatMessageHistory 读 ai_message（最近 4 条）
 ```
+
+代码：`ai-service/app/agent/lc_chain.py`（路由、Agent、上下文、回答链、会话记忆）、`ai-service/app/rag/lc_retrievers.py`（检索器）。检索评测与改造前逐题一致，见 `experiments/README.md` 第 4 节。
 
 前端不直连 8000。后端在转发前补一条 `data: {"type":"session","session_id":...,"title":"..."}`，随后原样转发 `meta`、`status`、`tool`、`sources`、`delta`、`error`、`done`，最后是 `data: [DONE]`。`meta.mode` 为 `online` 或 `offline`。
 
@@ -279,7 +284,7 @@ LLM_TOOL_CALLING=auto
 
 | 值 | 行为 |
 | :--- | :--- |
-| `true` / `1` / `yes` / `on` | 先让模型用 LangChain 选工具，没有合法调用再走关键词路由 |
+| `true` / `1` / `yes` / `on` | 规则路由先判越权；未拒答时由 LangChain `create_agent` 角色 Agent 选择并执行工具（仅限本角色白名单），没有合法调用再走关键词路由 |
 | `false` / `0` / `no` / `off` | 只用关键词和槽位路由 |
 | `auto`（默认） | 基址在本机，或模型名里的参数量不超过 8B 时，只用关键词路由；否则同 `true` |
 

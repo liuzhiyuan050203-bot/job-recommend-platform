@@ -24,6 +24,13 @@ langchain==1.4.7
 langchain-core==1.7.3
 langchain-community==0.4.2
 langchain-openai==1.7.3
+# Chroma 向量库适配、ContextualCompressionRetriever、create_agent 底层图
+langchain-chroma==1.1.0
+langchain-classic==1.0.8
+langgraph==1.2.18
+# BM25 关键词检索（中文 jieba 分词）
+jieba==0.42.1
+rank-bm25==0.2.2
 openai==3.42.0
 fastembed==0.9.1
 chromadb==1.5.9

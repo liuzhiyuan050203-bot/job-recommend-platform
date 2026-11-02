@@ -23,6 +23,8 @@ _TTL = 300.0
 class ToolRequest:
     name: str
     args: dict = field(default_factory=dict)
+    # Agent 已经执行过的工具把结果带在这里，避免重复执行
+    result: dict | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass

@@ -7,7 +7,9 @@
 
 语料 = data/knowledge 下 11 个 Markdown + 数据库在招职位（默认最多 1000 条）。
 职位文本用 ingest.load_job_texts，拼接方式与 load_jobs / _job_text 相同。
-索引只建在内存（numpy 余弦 + BM25），不写入生产 Chroma。
+检索走与线上相同的 LangChain 组件：内存 Chroma（chromadb.EphemeralClient + langchain_chroma，
+余弦空间，ef_search 与线上相同）上的 ChromaDenseRetriever、JiebaBM25Retriever、HybridRRFRetriever，
+hybrid_rerank 再套 ContextualCompressionRetriever + CrossEncoderCompressor。不写入生产 Chroma。
 嵌入模型与重排模型的首次加载不计入单查询延迟。
 
 命中：切片在源文件中的字符区间与 gold 节区间重叠不少于 50 字，或切片完全落在该节内。
@@ -37,13 +39,10 @@ from validate_questions import QUESTIONS, check  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
 from app.core.embedding import embed_documents, embed_query  # noqa: E402
-from app.rag.bm25 import (  # noqa: E402
-    Bm25Index,
-    bm25_document_text,
-    candidate_pool_size,
-    fuse_order,
-    keep_candidate,
-)
+from app.core.embedding import get_embedding_model  # noqa: E402
+from app.rag.bm25 import bm25_document_text, candidate_pool_size  # noqa: E402
+from app.rag.store import COLLECTION_METADATA  # noqa: E402
+from app.rag.lc_retrievers import ChromaDenseRetriever, JiebaBM25Retriever, build_retriever  # noqa: E402
 from app.rag.chunking import embed_input, split_fixed, split_markdown  # noqa: E402
 from app.rag.ingest import doc_type_for_filename, load_job_texts  # noqa: E402
 from app.rag.rerank import load_reranker, rerank_scores  # noqa: E402
@@ -229,7 +228,7 @@ def assert_markdown_spans(chunks: list[dict], gold_spans: dict[str, dict[str, li
         raise SystemExit(f"标题切片与章节区间对不上，共 {len(bad)} 条：\n{preview}")
 
 
-def embed_matrix(chunks: list[dict]) -> np.ndarray:
+def embed_vectors(chunks: list[dict]) -> list[list[float]]:
     texts = [embed_input(chunk["title"], chunk["index_section"], chunk["content"]) for chunk in chunks]
     vectors: list[list[float]] = []
     batch = 64
@@ -238,23 +237,7 @@ def embed_matrix(chunks: list[dict]) -> np.ndarray:
         done = min(offset + batch, len(texts))
         if done == len(texts) or done % 256 == 0:
             print(f"  嵌入进度 {done}/{len(texts)}", flush=True)
-    matrix = np.asarray(vectors, dtype=np.float32)
-    norms = np.linalg.norm(matrix, axis=1, keepdims=True)
-    norms[norms == 0] = 1.0
-    return matrix / norms
-
-
-def dense_top(query_vec: np.ndarray, matrix: np.ndarray, k: int) -> list[tuple[int, float]]:
-    sims = matrix @ query_vec
-    k = min(k, int(sims.shape[0]))
-    if k <= 0:
-        return []
-    if k == sims.shape[0]:
-        chosen = np.argsort(-sims)
-    else:
-        part = np.argpartition(-sims, k - 1)[:k]
-        chosen = part[np.argsort(-sims[part])]
-    return [(int(index), float(sims[index])) for index in chosen]
+    return [[float(v) for v in vector] for vector in vectors]
 
 
 def question_hit(chunk: dict, gold: list[dict], gold_spans: dict[str, dict[str, list[tuple[int, int]]]]) -> bool:
@@ -269,60 +252,66 @@ def question_hit(chunk: dict, gold: list[dict], gold_spans: dict[str, dict[str, 
     return False
 
 
-def search_once(
-    question: str,
-    retriever: str,
-    chunks: list[dict],
-    matrix: np.ndarray,
-    bm25: Bm25Index,
-    pool: int,
-    rerank_cache: dict,
-    row_of: dict[str, int],
-) -> tuple[list[str], dict[str, float], dict[str, float], dict[str, float], str]:
-    query_vec = np.asarray(embed_query(question), dtype=np.float32)
-    norm = float(np.linalg.norm(query_vec))
-    if norm > 0:
-        query_vec = query_vec / norm
-    cosine: dict[str, float] = {}
-    bm25_scores: dict[str, float] = {}
-    bm25_terms: dict[str, int] = {}
-    dense_ids: list[str] = []
-    bm25_ids: list[str] = []
-    if retriever in {"dense", "hybrid", "hybrid_rerank"}:
-        for index, score in dense_top(query_vec, matrix, pool):
-            chunk_id = chunks[index]["id"]
-            dense_ids.append(chunk_id)
-            cosine[chunk_id] = score
-    if retriever in {"bm25", "hybrid", "hybrid_rerank"}:
-        for hit in bm25.search(question, pool, None, None):
-            bm25_ids.append(hit["id"])
-            bm25_scores[hit["id"]] = float(hit["bm25"])
-            bm25_terms[hit["id"]] = int(hit.get("terms") or 0)
-            if hit["id"] not in cosine:
-                cosine[hit["id"]] = float(np.dot(matrix[row_of[hit["id"]]], query_vec))
-    by_id = {chunk["id"]: chunk for chunk in chunks}
+class LcIndex:
+    """一种切分方式下的 LangChain 检索组件：内存 Chroma 稠密 + jieba BM25。"""
 
-    def passage_of(chunk_id: str) -> str:
-        chunk = by_id[chunk_id]
-        return embed_input(chunk["title"], chunk["index_section"], chunk["content"])
+    def __init__(self, name: str, chunks: list[dict], vectors: list[list[float]]):
+        import chromadb
+        from langchain_chroma import Chroma
 
-    def rerank_fn(query: str, passages: list[str]):
-        key = (query, tuple(passages))
-        if key not in rerank_cache:
-            rerank_cache[key] = rerank_scores(query, passages)
-        return rerank_cache[key]
+        self.client = chromadb.EphemeralClient()
+        self.name = f"rag_eval_{name}"
+        try:
+            self.client.delete_collection(self.name)
+        except Exception:
+            pass
+        self.store = Chroma(
+            client=self.client,
+            collection_name=self.name,
+            embedding_function=get_embedding_model(),
+            collection_metadata=dict(COLLECTION_METADATA),
+        )
+        collection = self.store._collection
+        for offset in range(0, len(chunks), 500):
+            part = chunks[offset : offset + 500]
+            collection.add(
+                ids=[chunk["id"] for chunk in part],
+                embeddings=vectors[offset : offset + 500],
+                documents=[chunk["content"] for chunk in part],
+                metadatas=[
+                    {"doc_type": chunk["doc_type"], "title": chunk["title"], "section": chunk["index_section"]}
+                    for chunk in part
+                ],
+            )
+        records = [
+            {
+                "id": chunk["id"],
+                "document": chunk["content"],
+                "metadata": {"doc_type": chunk["doc_type"], "title": chunk["title"], "section": chunk["index_section"]},
+                "text": bm25_document_text(chunk["title"], chunk["index_section"], chunk["content"]),
+            }
+            for chunk in chunks
+        ]
+        self.bm25 = JiebaBM25Retriever.from_records(records)
+        self.dense = ChromaDenseRetriever(vectorstore=self.store)
 
-    ordered, rrf, used = fuse_order(
-        retriever,
-        dense_ids,
-        bm25_ids,
-        cosine=cosine,
-        bm25=bm25_scores,
-        query=question,
-        passage_of=passage_of,
-        rerank_fn=rerank_fn,
-    )
-    return ordered, cosine, bm25_scores, rrf, used, bm25_terms
+    def retriever(self, mode: str, top_k: int, apply_threshold: bool, rerank_fn):
+        return build_retriever(
+            dense=self.dense,
+            bm25=self.bm25,
+            mode=mode,
+            top_k=top_k,
+            threshold=float(settings.RAG_SCORE_THRESHOLD),
+            pool=candidate_pool_size(top_k),
+            apply_threshold=apply_threshold,
+            rerank_scorer=rerank_fn,
+        )
+
+    def close(self) -> None:
+        try:
+            self.client.delete_collection(self.name)
+        except Exception:
+            pass
 
 
 def percentile(values: list[float], q: float) -> float:
@@ -334,17 +323,21 @@ def percentile(values: list[float], q: float) -> float:
 def evaluate_config(
     retriever: str,
     chunks: list[dict],
-    matrix: np.ndarray,
-    bm25: Bm25Index,
+    index: LcIndex,
     questions: list[dict],
     gold_spans: dict,
     rerank_cache: dict,
 ) -> dict:
-    pool = candidate_pool_size(METRIC_TOP_K)
-    prod_pool = candidate_pool_size(int(settings.RAG_TOP_K))
-    threshold = float(settings.RAG_SCORE_THRESHOLD)
+    def rerank_fn(query: str, passages: list[str]):
+        key = (query, tuple(passages))
+        if key not in rerank_cache:
+            rerank_cache[key] = rerank_scores(query, passages)
+        return rerank_cache[key]
+
+    # 排序指标：阈值前、top_k=10；无关题：生产 top_k + 生产阈值，返回空即拒答
+    metric = index.retriever(retriever, METRIC_TOP_K, False, rerank_fn)
+    prod = index.retriever(retriever, int(settings.RAG_TOP_K), True, rerank_fn)
     by_id = {chunk["id"]: chunk for chunk in chunks}
-    row_of = {chunk["id"]: index for index, chunk in enumerate(chunks)}
     details = []
     latencies = []
     irrelevant = []
@@ -352,30 +345,28 @@ def evaluate_config(
     for row in questions:
         if row["gold"]:
             started = time.perf_counter()
-            ordered, cosine, bm25_scores, rrf, used, _terms = search_once(
-                row["question"], retriever, chunks, matrix, bm25, pool, rerank_cache, row_of
-            )
+            docs = metric.invoke(row["question"])
             elapsed = (time.perf_counter() - started) * 1000.0
-            if retriever == "hybrid_rerank" and used != "hybrid_rerank":
+            if retriever == "hybrid_rerank" and docs and docs[0].metadata.get("retrieval_mode") != "hybrid_rerank":
                 fallback += 1
             ranked = []
             hit_rank = None
-            for rank, chunk_id in enumerate(ordered[:METRIC_TOP_K], start=1):
-                chunk = by_id[chunk_id]
+            for rank, doc in enumerate(docs[:METRIC_TOP_K], start=1):
+                chunk = by_id[doc.id]
                 hit = question_hit(chunk, row["gold"], gold_spans)
                 if hit and hit_rank is None:
                     hit_rank = rank
                 ranked.append(
                     {
                         "rank": rank,
-                        "id": chunk_id,
+                        "id": doc.id,
                         "file": chunk["file"],
                         "section": chunk["section"],
                         "start": chunk["start"],
                         "end": chunk["end"],
-                        "score": round(float(cosine.get(chunk_id, 0.0)), 4),
-                        "bm25": round(float(bm25_scores.get(chunk_id, 0.0)), 4),
-                        "rrf": round(float(rrf.get(chunk_id, 0.0)), 6),
+                        "score": round(float(doc.metadata.get("cosine") or 0.0), 4),
+                        "bm25": round(float(doc.metadata.get("bm25") or 0.0), 4),
+                        "rrf": round(float(doc.metadata.get("rrf") or 0.0), 6),
                         "hit": hit,
                     }
                 )
@@ -393,31 +384,18 @@ def evaluate_config(
                 }
             )
             continue
-        # 无关题按生产 top_k 的候选池和 keep_candidate 判断是否返回空，不计入排序延迟。
-        ordered, cosine, bm25_scores, _rrf, used, bm25_terms = search_once(
-            row["question"], retriever, chunks, matrix, bm25, prod_pool, rerank_cache, row_of
-        )
-        if retriever == "hybrid_rerank" and used != "hybrid_rerank":
+        kept = prod.invoke(row["question"])
+        if retriever == "hybrid_rerank" and kept and kept[0].metadata.get("retrieval_mode") != "hybrid_rerank":
             fallback += 1
-        kept = [
-            chunk_id
-            for chunk_id in ordered
-            if keep_candidate(
-                cosine.get(chunk_id, 0.0),
-                bm25_scores.get(chunk_id, 0.0),
-                threshold,
-                bm25_terms.get(chunk_id, 0),
-            )
-        ]
         irrelevant.append(
             {
                 "id": row["id"],
                 "question": row["question"],
                 "rejected": len(kept) == 0,
                 "kept": len(kept),
-                "top_score": round(float(cosine.get(ordered[0], 0.0)), 4) if ordered else None,
-                "top_bm25": round(float(bm25_scores.get(ordered[0], 0.0)), 4) if ordered else None,
-                "mode": used,
+                "top_score": round(float(kept[0].metadata.get("cosine") or 0.0), 4) if kept else None,
+                "top_bm25": round(float(kept[0].metadata.get("bm25") or 0.0), 4) if kept else None,
+                "mode": kept[0].metadata.get("retrieval_mode") if kept else retriever,
             }
         )
     answered = details
@@ -535,22 +513,10 @@ def main() -> None:
         job_n = sum(1 for chunk in chunks if chunk["source"] == "job")
         chunk_counts[chunking] = {"total": len(chunks), "knowledge": knowledge_n, "jobs": job_n}
         print(f"  切片 {len(chunks)}（知识库 {knowledge_n}，职位 {job_n}）", flush=True)
-        matrix = embed_matrix(chunks)
-        records = []
-        for chunk in chunks:
-            records.append(
-                {
-                    "id": chunk["id"],
-                    "document": chunk["content"],
-                    "metadata": {"doc_type": chunk["doc_type"], "title": chunk["title"], "section": chunk["index_section"]},
-                    "text": bm25_document_text(chunk["title"], chunk["index_section"], chunk["content"]),
-                }
-            )
-        bm25 = Bm25Index()
-        bm25.build(records)
+        index = LcIndex(chunking, chunks, embed_vectors(chunks))
         for retriever in RETRIEVERS:
             print(f"  检索 {retriever}", flush=True)
-            result = evaluate_config(retriever, chunks, matrix, bm25, questions, gold_spans, rerank_cache)
+            result = evaluate_config(retriever, chunks, index, questions, gold_spans, rerank_cache)
             row = {
                 "chunking": chunking,
                 "retriever": retriever,
@@ -577,7 +543,7 @@ def main() -> None:
                 f"拒答 {row['irrelevant_reject_rate']:.2f}",
                 flush=True,
             )
-        del matrix
+        index.close()
 
     payload = {
         "env": env_info(),
@@ -596,6 +562,8 @@ def main() -> None:
         "notes": (
             "Hit/MRR 在阈值过滤前、按 top_k=10 的候选池计算。"
             "无关题拒答使用生产 RAG_TOP_K 对应的候选池和生产 keep_candidate 规则。"
+            "检索经 LangChain 组件（内存 Chroma + JiebaBM25Retriever + HybridRRFRetriever"
+            " + 可选 ContextualCompressionRetriever 重排），与线上 get_retriever 同一实现。"
             "职位只作干扰项。首次模型加载不计入延迟。"
         ),
         "summary": summary,

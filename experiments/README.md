@@ -157,20 +157,37 @@ export PATH=$HOME/.local/bin:$PATH
 ## 4. RAG 混合检索与评测
 
 脚本：`experiments/rag_eval/run_rag_eval.py`；题集 `questions.jsonl`（50+5）；校验 `validate_questions.py`。  
-生产：`ai-service/app/rag/{bm25,rerank,store,chunking}.py`，默认 `RAG_RETRIEVAL_MODE=hybrid`（Markdown 标题切分仍为生产入库方式）。
+生产：`ai-service/app/rag/lc_retrievers.py`（LangChain 检索组件）+ `{bm25,rerank,store,chunking}.py`，默认 `RAG_RETRIEVAL_MODE=hybrid`（Markdown 标题切分仍为生产入库方式）。
 
-| 切分 | 检索 | Hit@1 | Hit@3 | Hit@5 | MRR@10 | 平均 ms | P95 ms | 无关拒答 |
-|------|------|------:|------:|------:|-------:|--------:|-------:|---------:|
-| 定长 | dense | 0.72 | 0.86 | 0.94 | 0.804 | 11.2 | 20.0 | 1.0 |
-| 定长 | bm25 | 0.84 | 0.96 | 0.96 | 0.900 | 7.7 | 20.6 | 1.0 |
-| 定长 | hybrid | 0.86 | 0.96 | 0.98 | 0.913 | 17.1 | 29.2 | 1.0 |
-| 定长 | hybrid+rerank | 0.92 | 1.00 | 1.00 | 0.960 | 1863 | 2371 | 1.0 |
-| **标题** | dense | 0.80 | 0.92 | 0.96 | 0.870 | 13.9 | 24.8 | 1.0 |
-| 标题 | bm25 | 0.82 | 0.94 | 0.98 | 0.886 | 4.9 | 14.3 | 1.0 |
-| **标题** | **hybrid** | **0.92** | 0.96 | **1.00** | **0.947** | **15.0** | 25.0 | 1.0 |
-| 标题 | hybrid+rerank | 0.92 | 1.00 | 1.00 | 0.957 | 1861 | 2060 | 1.0 |
+### 4.1 LangChain 组件化（线上与评测同一实现）
 
-默认选标题切分 + hybrid：与 rerank 同级 Hit@1，延迟约 15ms；rerank 平均 1.86s > 1.5s 阈值，不作默认。`tests/api/06-rag.sh` PASS=92。
+| 环节 | 组件 |
+|------|------|
+| 稠密 | `ChromaDenseRetriever`（BaseRetriever，包 `langchain_chroma.Chroma`，同一持久集合 `job_knowledge`，余弦空间，`hnsw:search_ef=200`） |
+| 关键词 | `JiebaBM25Retriever`（继承 `langchain_community` 的 `BM25Retriever`，jieba 分词，附带原始 BM25 分与命中词数） |
+| 融合 | `HybridRRFRetriever`（自定义 BaseRetriever：RRF k=60 + 生产阈值 `keep_candidate`；未用 `EnsembleRetriever`，因为它拿不到逐条余弦/BM25 显著性，无法实现拒答阈值） |
+| 重排（可选，默认关） | `ContextualCompressionRetriever` + `CrossEncoderCompressor`（bge-reranker-base），`RAG_RETRIEVAL_MODE=hybrid_rerank` 时启用 |
+| 生成 | LCEL：`RunnableParallel(system, prompt) | ChatPromptTemplate | ChatOpenAI | StrOutputParser`，`.astream` 推 SSE |
+| 路由 / Agent | `RunnableBranch`：规则路由永远先跑（越权拒答确定性），允许工具调用时由 `create_agent` 建的角色 Agent（`StructuredTool` + 角色白名单）选工具，失败退回规则 |
+| 记忆 | `SessionHistory(BaseChatMessageHistory)`，读 `ai_message`（按会话 + 用户） |
+
+评测改为在内存 Chroma（`chromadb.EphemeralClient`）上直接调用上述检索器（之前是脚本自带的 numpy 精确余弦 + 自写 BM25）。改造前后同一命令、同一题集、`--job-limit 1000`：
+
+- 第一次改造后运行时，Chroma 默认 `ef_search=100` 的 HNSW 近似检索漏掉了个别真实 Top-10（q41、q45），定长/hybrid Hit@1 0.86→0.84、标题/dense 0.80→0.78。对同一语料实测 HNSW 与精确余弦的 Top-10 召回：默认参数均值 0.992（最低 0.6），`ef_search=200` 为 1.0。生产集合与评测集合因此都设 `hnsw:search_ef=200`（已有集合启动时 `modify` 调整，不重建）。
+- 调整后 8 个配置的 Hit@1/3/5、MRR@10、无关拒答率与改造前**完全一致**，50 题逐题命中名次 0 处差异（对比记录见运行日志）。
+
+| 切分 | 检索 | Hit@1 | Hit@3 | Hit@5 | MRR@10 | 平均 ms | P95 ms | 无关拒答 | 改造前平均 ms |
+|------|------|------:|------:|------:|-------:|--------:|-------:|---------:|------:|
+| 定长 | dense | 0.72 | 0.86 | 0.94 | 0.804 | 5.2 | 4.4 | 1.0 | 11.2 |
+| 定长 | bm25 | 0.84 | 0.96 | 0.96 | 0.899 | 7.8 | 9.6 | 1.0 | 7.7 |
+| 定长 | hybrid | 0.86 | 0.96 | 0.98 | 0.913 | 6.6 | 9.4 | 1.0 | 17.1 |
+| 定长 | hybrid+rerank | 0.92 | 1.00 | 1.00 | 0.960 | 841.9 | 950.1 | 1.0 | 1862.9 |
+| 标题 | dense | 0.80 | 0.92 | 0.96 | 0.870 | 4.4 | 4.4 | 1.0 | 13.8 |
+| 标题 | bm25 | 0.82 | 0.94 | 0.98 | 0.886 | 5.8 | 8.8 | 1.0 | 4.9 |
+| 标题 | hybrid | 0.92 | 0.96 | 1.00 | 0.947 | 6.5 | 9.7 | 1.0 | 14.9 |
+| 标题 | hybrid+rerank | 0.92 | 1.00 | 1.00 | 0.957 | 968.6 | 1099.1 | 1.0 | 1861.5 |
+
+延迟两次运行没有在受控的相同负载下对照，只作量级参考，不据此宣称改造带来加速（rerank 两次分别约 1.86 s 与 0.84–0.97 s）。默认仍选标题切分 + hybrid：Hit@1 与 rerank 相同，延迟低两个数量级。`tests/api/06-rag.sh` PASS=92。
 
 ![hit](figures/rag_eval_hit.png)
 ![lat](figures/rag_eval_latency.png)

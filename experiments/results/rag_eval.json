@@ -3,10 +3,10 @@
     "python": "3.13.5",
     "platform": "Linux-6.12.94+-x86_64-with-glibc2.41",
     "cpu_count": 8,
-    "time": "2026-11-01 10:23:29 +0800",
+    "time": "2026-11-02 19:32:49 +0800",
     "pyspark": "4.2.1",
     "MemTotal": "16386368 kB",
-    "MemAvailable": "7182360 kB"
+    "MemAvailable": "5299672 kB"
   },
   "job_limit": 1000,
   "jobs_loaded": 1000,
@@ -28,10 +28,10 @@
   "production_pool": 20,
   "score_threshold": 0.5,
   "overlap_chars": 50,
-  "embed_warmup_ms": 560.1,
-  "rerank_warmup_ms": 19314.3,
+  "embed_warmup_ms": 167.4,
+  "rerank_warmup_ms": 5426.5,
   "rerank_loaded": true,
-  "notes": "Hit/MRR 在阈值过滤前、按 top_k=10 的候选池计算。无关题拒答使用生产 RAG_TOP_K 对应的候选池和生产 keep_candidate 规则。职位只作干扰项。首次模型加载不计入延迟。",
+  "notes": "Hit/MRR 在阈值过滤前、按 top_k=10 的候选池计算。无关题拒答使用生产 RAG_TOP_K 对应的候选池和生产 keep_candidate 规则。检索经 LangChain 组件（内存 Chroma + JiebaBM25Retriever + HybridRRFRetriever + 可选 ContextualCompressionRetriever 重排），与线上 get_retriever 同一实现。职位只作干扰项。首次模型加载不计入延迟。",
   "summary": [
     {
       "chunking": "fixed",
@@ -40,8 +40,8 @@
       "hit_at_3": 0.86,
       "hit_at_5": 0.94,
       "mrr_at_10": 0.8042,
-      "latency_mean_ms": 11.18,
-      "latency_p95_ms": 19.97,
+      "latency_mean_ms": 5.22,
+      "latency_p95_ms": 4.4,
       "irrelevant_reject_rate": 1.0,
       "questions": 50,
       "irrelevant_questions": 5,
@@ -54,8 +54,8 @@
       "hit_at_3": 0.96,
       "hit_at_5": 0.96,
       "mrr_at_10": 0.8995,
-      "latency_mean_ms": 7.68,
-      "latency_p95_ms": 20.62,
+      "latency_mean_ms": 7.84,
+      "latency_p95_ms": 9.56,
       "irrelevant_reject_rate": 1.0,
       "questions": 50,
       "irrelevant_questions": 5,
@@ -68,8 +68,8 @@
       "hit_at_3": 0.96,
       "hit_at_5": 0.98,
       "mrr_at_10": 0.9127,
-      "latency_mean_ms": 17.05,
-      "latency_p95_ms": 29.2,
+      "latency_mean_ms": 6.6,
+      "latency_p95_ms": 9.36,
       "irrelevant_reject_rate": 1.0,
       "questions": 50,
       "irrelevant_questions": 5,
@@ -82,8 +82,8 @@
       "hit_at_3": 1.0,
       "hit_at_5": 1.0,
       "mrr_at_10": 0.96,
-      "latency_mean_ms": 1862.88,
-      "latency_p95_ms": 2370.95,
+      "latency_mean_ms": 841.91,
+      "latency_p95_ms": 950.15,
       "irrelevant_reject_rate": 1.0,
       "questions": 50,
       "irrelevant_questions": 5,
@@ -96,8 +96,8 @@
       "hit_at_3": 0.92,
       "hit_at_5": 0.96,
       "mrr_at_10": 0.87,
-      "latency_mean_ms": 13.85,
-      "latency_p95_ms": 24.82,
+      "latency_mean_ms": 4.41,
+      "latency_p95_ms": 4.37,
       "irrelevant_reject_rate": 1.0,
       "questions": 50,
       "irrelevant_questions": 5,
@@ -110,8 +110,8 @@
       "hit_at_3": 0.94,
       "hit_at_5": 0.98,
       "mrr_at_10": 0.8857,
-      "latency_mean_ms": 4.88,
-      "latency_p95_ms": 14.25,
+      "latency_mean_ms": 5.83,
+      "latency_p95_ms": 8.79,
       "irrelevant_reject_rate": 1.0,
       "questions": 50,
       "irrelevant_questions": 5,
@@ -124,8 +124,8 @@
       "hit_at_3": 0.96,
       "hit_at_5": 1.0,
       "mrr_at_10": 0.9467,
-      "latency_mean_ms": 14.95,
-      "latency_p95_ms": 24.98,
+      "latency_mean_ms": 6.53,
+      "latency_p95_ms": 9.74,
       "irrelevant_reject_rate": 1.0,
       "questions": 50,
       "irrelevant_questions": 5,
@@ -138,8 +138,8 @@
       "hit_at_3": 1.0,
       "hit_at_5": 1.0,
       "mrr_at_10": 0.9567,
-      "latency_mean_ms": 1861.45,
-      "latency_p95_ms": 2059.86,
+      "latency_mean_ms": 968.61,
+      "latency_p95_ms": 1099.1,
       "irrelevant_reject_rate": 1.0,
       "questions": 50,
       "irrelevant_questions": 5,
@@ -161,7 +161,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 13.145,
+          "latency_ms": 72.485,
           "topk": [
             {
               "rank": 1,
@@ -297,7 +297,7 @@
           ],
           "hit_rank": 5,
           "reciprocal_rank": 0.2,
-          "latency_ms": 15.768,
+          "latency_ms": 6.242,
           "topk": [
             {
               "rank": 1,
@@ -433,7 +433,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.925,
+          "latency_ms": 4.278,
           "topk": [
             {
               "rank": 1,
@@ -526,7 +526,7 @@
               "section": "社保、工时与加班",
               "start": 661,
               "end": 987,
-              "score": 0.4502,
+              "score": 0.4501,
               "bm25": 0.0,
               "rrf": 0.014706,
               "hit": false
@@ -569,7 +569,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 19.963,
+          "latency_ms": 4.266,
           "topk": [
             {
               "rank": 1,
@@ -705,7 +705,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.973,
+          "latency_ms": 3.943,
           "topk": [
             {
               "rank": 1,
@@ -841,7 +841,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 11.922,
+          "latency_ms": 4.142,
           "topk": [
             {
               "rank": 1,
@@ -977,7 +977,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 11.963,
+          "latency_ms": 3.898,
           "topk": [
             {
               "rank": 1,
@@ -1113,7 +1113,7 @@
           ],
           "hit_rank": 3,
           "reciprocal_rank": 0.3333333333333333,
-          "latency_ms": 4.605,
+          "latency_ms": 3.38,
           "topk": [
             {
               "rank": 1,
@@ -1249,7 +1249,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 12.56,
+          "latency_ms": 3.692,
           "topk": [
             {
               "rank": 1,
@@ -1385,7 +1385,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 10.728,
+          "latency_ms": 3.674,
           "topk": [
             {
               "rank": 1,
@@ -1521,7 +1521,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.923,
+          "latency_ms": 3.254,
           "topk": [
             {
               "rank": 1,
@@ -1657,7 +1657,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 11.965,
+          "latency_ms": 3.994,
           "topk": [
             {
               "rank": 1,
@@ -1793,7 +1793,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 15.952,
+          "latency_ms": 4.267,
           "topk": [
             {
               "rank": 1,
@@ -1929,7 +1929,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.963,
+          "latency_ms": 3.6,
           "topk": [
             {
               "rank": 1,
@@ -2065,7 +2065,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 15.987,
+          "latency_ms": 4.279,
           "topk": [
             {
               "rank": 1,
@@ -2201,7 +2201,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 15.962,
+          "latency_ms": 3.775,
           "topk": [
             {
               "rank": 1,
@@ -2337,7 +2337,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 15.957,
+          "latency_ms": 3.829,
           "topk": [
             {
               "rank": 1,
@@ -2473,7 +2473,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 11.974,
+          "latency_ms": 3.382,
           "topk": [
             {
               "rank": 1,
@@ -2609,7 +2609,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 11.958,
+          "latency_ms": 4.187,
           "topk": [
             {
               "rank": 1,
@@ -2745,7 +2745,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.975,
+          "latency_ms": 4.503,
           "topk": [
             {
               "rank": 1,
@@ -2881,7 +2881,7 @@
           ],
           "hit_rank": 3,
           "reciprocal_rank": 0.3333333333333333,
-          "latency_ms": 7.98,
+          "latency_ms": 3.568,
           "topk": [
             {
               "rank": 1,
@@ -3017,7 +3017,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 15.967,
+          "latency_ms": 4.042,
           "topk": [
             {
               "rank": 1,
@@ -3153,7 +3153,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.942,
+          "latency_ms": 3.214,
           "topk": [
             {
               "rank": 1,
@@ -3289,7 +3289,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 15.958,
+          "latency_ms": 4.011,
           "topk": [
             {
               "rank": 1,
@@ -3425,7 +3425,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 15.973,
+          "latency_ms": 4.061,
           "topk": [
             {
               "rank": 1,
@@ -3561,7 +3561,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.952,
+          "latency_ms": 3.97,
           "topk": [
             {
               "rank": 1,
@@ -3697,7 +3697,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 15.972,
+          "latency_ms": 3.732,
           "topk": [
             {
               "rank": 1,
@@ -3833,7 +3833,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.966,
+          "latency_ms": 3.725,
           "topk": [
             {
               "rank": 1,
@@ -3969,7 +3969,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.961,
+          "latency_ms": 3.209,
           "topk": [
             {
               "rank": 1,
@@ -4105,7 +4105,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 27.953,
+          "latency_ms": 3.747,
           "topk": [
             {
               "rank": 1,
@@ -4241,7 +4241,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 19.978,
+          "latency_ms": 3.678,
           "topk": [
             {
               "rank": 1,
@@ -4377,7 +4377,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 11.994,
+          "latency_ms": 4.254,
           "topk": [
             {
               "rank": 1,
@@ -4513,7 +4513,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.922,
+          "latency_ms": 3.27,
           "topk": [
             {
               "rank": 1,
@@ -4649,7 +4649,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.991,
+          "latency_ms": 3.966,
           "topk": [
             {
               "rank": 1,
@@ -4785,7 +4785,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 11.911,
+          "latency_ms": 3.672,
           "topk": [
             {
               "rank": 1,
@@ -4921,7 +4921,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.973,
+          "latency_ms": 4.01,
           "topk": [
             {
               "rank": 1,
@@ -5057,7 +5057,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.937,
+          "latency_ms": 3.156,
           "topk": [
             {
               "rank": 1,
@@ -5193,7 +5193,7 @@
           ],
           "hit_rank": 4,
           "reciprocal_rank": 0.25,
-          "latency_ms": 7.958,
+          "latency_ms": 3.862,
           "topk": [
             {
               "rank": 1,
@@ -5329,7 +5329,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 6.375,
+          "latency_ms": 3.622,
           "topk": [
             {
               "rank": 1,
@@ -5465,7 +5465,7 @@
           ],
           "hit_rank": 5,
           "reciprocal_rank": 0.2,
-          "latency_ms": 7.061,
+          "latency_ms": 3.797,
           "topk": [
             {
               "rank": 1,
@@ -5601,7 +5601,7 @@
           ],
           "hit_rank": 7,
           "reciprocal_rank": 0.14285714285714285,
-          "latency_ms": 10.525,
+          "latency_ms": 3.827,
           "topk": [
             {
               "rank": 1,
@@ -5737,7 +5737,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 31.936,
+          "latency_ms": 3.953,
           "topk": [
             {
               "rank": 1,
@@ -5873,7 +5873,7 @@
           ],
           "hit_rank": null,
           "reciprocal_rank": 0.0,
-          "latency_ms": 11.956,
+          "latency_ms": 3.828,
           "topk": [
             {
               "rank": 1,
@@ -6009,7 +6009,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 4.115,
+          "latency_ms": 3.733,
           "topk": [
             {
               "rank": 1,
@@ -6145,7 +6145,7 @@
           ],
           "hit_rank": null,
           "reciprocal_rank": 0.0,
-          "latency_ms": 3.76,
+          "latency_ms": 3.19,
           "topk": [
             {
               "rank": 1,
@@ -6281,7 +6281,7 @@
           ],
           "hit_rank": 4,
           "reciprocal_rank": 0.25,
-          "latency_ms": 12.038,
+          "latency_ms": 3.897,
           "topk": [
             {
               "rank": 1,
@@ -6417,7 +6417,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.916,
+          "latency_ms": 4.009,
           "topk": [
             {
               "rank": 1,
@@ -6553,7 +6553,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 8.233,
+          "latency_ms": 4.101,
           "topk": [
             {
               "rank": 1,
@@ -6689,7 +6689,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2.32,
+          "latency_ms": 3.213,
           "topk": [
             {
               "rank": 1,
@@ -6825,7 +6825,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 5.326,
+          "latency_ms": 3.782,
           "topk": [
             {
               "rank": 1,
@@ -6956,8 +6956,8 @@
           "question": "红烧肉需要放哪些香料？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.3066,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "dense"
         },
         {
@@ -6965,8 +6965,8 @@
           "question": "量子纠缠和隐变量理论有什么关系？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.4346,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "dense"
         },
         {
@@ -6974,8 +6974,8 @@
           "question": "家用轿车的机油一般多久更换一次？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.378,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "dense"
         },
         {
@@ -6983,8 +6983,8 @@
           "question": "贝多芬第九交响曲第四乐章的合唱选自哪首诗？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.2742,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "dense"
         },
         {
@@ -6992,8 +6992,8 @@
           "question": "光合作用中卡尔文循环的主要产物是什么？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.4152,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "dense"
         }
       ]
@@ -7012,7 +7012,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 14.35,
+          "latency_ms": 6.568,
           "topk": [
             {
               "rank": 1,
@@ -7148,7 +7148,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 34.034,
+          "latency_ms": 92.185,
           "topk": [
             {
               "rank": 1,
@@ -7284,7 +7284,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 11.124,
+          "latency_ms": 3.877,
           "topk": [
             {
               "rank": 1,
@@ -7420,7 +7420,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 9.36,
+          "latency_ms": 9.044,
           "topk": [
             {
               "rank": 1,
@@ -7556,7 +7556,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 5.937,
+          "latency_ms": 10.077,
           "topk": [
             {
               "rank": 1,
@@ -7692,7 +7692,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 19.821,
+          "latency_ms": 9.602,
           "topk": [
             {
               "rank": 1,
@@ -7828,7 +7828,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 19.009,
+          "latency_ms": 6.417,
           "topk": [
             {
               "rank": 1,
@@ -7964,7 +7964,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 10.0,
+          "latency_ms": 2.384,
           "topk": [
             {
               "rank": 1,
@@ -7992,7 +7992,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 13.161,
+          "latency_ms": 7.621,
           "topk": [
             {
               "rank": 1,
@@ -8128,7 +8128,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 11.223,
+          "latency_ms": 8.565,
           "topk": [
             {
               "rank": 1,
@@ -8264,7 +8264,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 11.355,
+          "latency_ms": 2.698,
           "topk": [
             {
               "rank": 1,
@@ -8316,7 +8316,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.016,
+          "latency_ms": 4.608,
           "topk": [
             {
               "rank": 1,
@@ -8452,7 +8452,7 @@
           ],
           "hit_rank": 3,
           "reciprocal_rank": 0.3333333333333333,
-          "latency_ms": 16.852,
+          "latency_ms": 7.642,
           "topk": [
             {
               "rank": 1,
@@ -8588,7 +8588,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.322,
+          "latency_ms": 3.637,
           "topk": [
             {
               "rank": 1,
@@ -8724,7 +8724,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.536,
+          "latency_ms": 9.265,
           "topk": [
             {
               "rank": 1,
@@ -8860,7 +8860,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.094,
+          "latency_ms": 4.393,
           "topk": [
             {
               "rank": 1,
@@ -8960,7 +8960,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.268,
+          "latency_ms": 7.79,
           "topk": [
             {
               "rank": 1,
@@ -9096,7 +9096,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.739,
+          "latency_ms": 2.684,
           "topk": [
             {
               "rank": 1,
@@ -9160,7 +9160,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.492,
+          "latency_ms": 8.447,
           "topk": [
             {
               "rank": 1,
@@ -9296,7 +9296,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.541,
+          "latency_ms": 6.234,
           "topk": [
             {
               "rank": 1,
@@ -9432,7 +9432,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.265,
+          "latency_ms": 2.287,
           "topk": [
             {
               "rank": 1,
@@ -9460,7 +9460,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.529,
+          "latency_ms": 6.846,
           "topk": [
             {
               "rank": 1,
@@ -9596,7 +9596,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.269,
+          "latency_ms": 2.235,
           "topk": [
             {
               "rank": 1,
@@ -9660,7 +9660,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 12.165,
+          "latency_ms": 9.091,
           "topk": [
             {
               "rank": 1,
@@ -9796,7 +9796,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 12.911,
+          "latency_ms": 7.235,
           "topk": [
             {
               "rank": 1,
@@ -9932,7 +9932,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 21.278,
+          "latency_ms": 5.052,
           "topk": [
             {
               "rank": 1,
@@ -10068,7 +10068,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 6.57,
+          "latency_ms": 8.652,
           "topk": [
             {
               "rank": 1,
@@ -10204,7 +10204,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.212,
+          "latency_ms": 8.41,
           "topk": [
             {
               "rank": 1,
@@ -10340,7 +10340,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.335,
+          "latency_ms": 2.114,
           "topk": [
             {
               "rank": 1,
@@ -10380,7 +10380,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2.655,
+          "latency_ms": 6.441,
           "topk": [
             {
               "rank": 1,
@@ -10516,7 +10516,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2.613,
+          "latency_ms": 5.727,
           "topk": [
             {
               "rank": 1,
@@ -10652,7 +10652,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.92,
+          "latency_ms": 8.535,
           "topk": [
             {
               "rank": 1,
@@ -10788,7 +10788,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.453,
+          "latency_ms": 2.108,
           "topk": [
             {
               "rank": 1,
@@ -10816,7 +10816,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 4.313,
+          "latency_ms": 8.856,
           "topk": [
             {
               "rank": 1,
@@ -10952,7 +10952,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 21.435,
+          "latency_ms": 8.394,
           "topk": [
             {
               "rank": 1,
@@ -11088,7 +11088,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 12.262,
+          "latency_ms": 9.503,
           "topk": [
             {
               "rank": 1,
@@ -11224,7 +11224,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 10.928,
+          "latency_ms": 7.091,
           "topk": [
             {
               "rank": 1,
@@ -11360,7 +11360,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.436,
+          "latency_ms": 7.216,
           "topk": [
             {
               "rank": 1,
@@ -11496,7 +11496,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 17.552,
+          "latency_ms": 3.552,
           "topk": [
             {
               "rank": 1,
@@ -11572,7 +11572,7 @@
           ],
           "hit_rank": 6,
           "reciprocal_rank": 0.16666666666666666,
-          "latency_ms": 3.719,
+          "latency_ms": 8.508,
           "topk": [
             {
               "rank": 1,
@@ -11708,7 +11708,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.614,
+          "latency_ms": 2.222,
           "topk": [
             {
               "rank": 1,
@@ -11736,7 +11736,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2.759,
+          "latency_ms": 5.396,
           "topk": [
             {
               "rank": 1,
@@ -11872,7 +11872,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.201,
+          "latency_ms": 5.444,
           "topk": [
             {
               "rank": 1,
@@ -12008,7 +12008,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2.504,
+          "latency_ms": 6.077,
           "topk": [
             {
               "rank": 1,
@@ -12144,7 +12144,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.245,
+          "latency_ms": 1.885,
           "topk": [
             {
               "rank": 1,
@@ -12172,7 +12172,7 @@
           ],
           "hit_rank": 7,
           "reciprocal_rank": 0.14285714285714285,
-          "latency_ms": 3.175,
+          "latency_ms": 7.794,
           "topk": [
             {
               "rank": 1,
@@ -12308,7 +12308,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2.947,
+          "latency_ms": 7.81,
           "topk": [
             {
               "rank": 1,
@@ -12444,7 +12444,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 3.483,
+          "latency_ms": 4.699,
           "topk": [
             {
               "rank": 1,
@@ -12580,7 +12580,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.136,
+          "latency_ms": 1.982,
           "topk": [
             {
               "rank": 1,
@@ -12620,7 +12620,7 @@
           ],
           "hit_rank": 3,
           "reciprocal_rank": 0.3333333333333333,
-          "latency_ms": 11.074,
+          "latency_ms": 7.241,
           "topk": [
             {
               "rank": 1,
@@ -12760,8 +12760,8 @@
           "question": "量子纠缠和隐变量理论有什么关系？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.2773,
-          "top_bm25": 8.6185,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "bm25"
         },
         {
@@ -12769,8 +12769,8 @@
           "question": "家用轿车的机油一般多久更换一次？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.2782,
-          "top_bm25": 5.8472,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "bm25"
         },
         {
@@ -12787,8 +12787,8 @@
           "question": "光合作用中卡尔文循环的主要产物是什么？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.2336,
-          "top_bm25": 5.8588,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "bm25"
         }
       ]
@@ -12807,7 +12807,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 20.726,
+          "latency_ms": 6.738,
           "topk": [
             {
               "rank": 1,
@@ -12943,7 +12943,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 18.748,
+          "latency_ms": 9.13,
           "topk": [
             {
               "rank": 1,
@@ -13079,7 +13079,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 5.111,
+          "latency_ms": 4.922,
           "topk": [
             {
               "rank": 1,
@@ -13148,7 +13148,7 @@
               "section": "社保、工时与加班",
               "start": 661,
               "end": 987,
-              "score": 0.4502,
+              "score": 0.4501,
               "bm25": 5.2173,
               "rrf": 0.029412,
               "hit": false
@@ -13215,7 +13215,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 30.038,
+          "latency_ms": 8.507,
           "topk": [
             {
               "rank": 1,
@@ -13351,7 +13351,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 8.339,
+          "latency_ms": 7.536,
           "topk": [
             {
               "rank": 1,
@@ -13487,7 +13487,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 8.891,
+          "latency_ms": 7.096,
           "topk": [
             {
               "rank": 1,
@@ -13623,7 +13623,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 14.522,
+          "latency_ms": 6.653,
           "topk": [
             {
               "rank": 1,
@@ -13759,7 +13759,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.233,
+          "latency_ms": 3.782,
           "topk": [
             {
               "rank": 1,
@@ -13895,7 +13895,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 8.461,
+          "latency_ms": 6.25,
           "topk": [
             {
               "rank": 1,
@@ -14031,7 +14031,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.983,
+          "latency_ms": 5.904,
           "topk": [
             {
               "rank": 1,
@@ -14167,7 +14167,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.337,
+          "latency_ms": 4.832,
           "topk": [
             {
               "rank": 1,
@@ -14303,7 +14303,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 10.627,
+          "latency_ms": 5.602,
           "topk": [
             {
               "rank": 1,
@@ -14439,7 +14439,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 21.928,
+          "latency_ms": 6.262,
           "topk": [
             {
               "rank": 1,
@@ -14575,7 +14575,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.252,
+          "latency_ms": 3.964,
           "topk": [
             {
               "rank": 1,
@@ -14711,7 +14711,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 17.322,
+          "latency_ms": 9.09,
           "topk": [
             {
               "rank": 1,
@@ -14847,7 +14847,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 23.359,
+          "latency_ms": 5.509,
           "topk": [
             {
               "rank": 1,
@@ -14983,7 +14983,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 16.17,
+          "latency_ms": 9.088,
           "topk": [
             {
               "rank": 1,
@@ -15119,7 +15119,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 23.222,
+          "latency_ms": 4.427,
           "topk": [
             {
               "rank": 1,
@@ -15255,7 +15255,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 16.95,
+          "latency_ms": 7.039,
           "topk": [
             {
               "rank": 1,
@@ -15391,7 +15391,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 16.094,
+          "latency_ms": 6.221,
           "topk": [
             {
               "rank": 1,
@@ -15527,7 +15527,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 14.736,
+          "latency_ms": 4.097,
           "topk": [
             {
               "rank": 1,
@@ -15663,7 +15663,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 17.323,
+          "latency_ms": 6.951,
           "topk": [
             {
               "rank": 1,
@@ -15799,7 +15799,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 14.556,
+          "latency_ms": 3.853,
           "topk": [
             {
               "rank": 1,
@@ -15935,7 +15935,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 17.626,
+          "latency_ms": 8.493,
           "topk": [
             {
               "rank": 1,
@@ -16071,7 +16071,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 15.877,
+          "latency_ms": 7.241,
           "topk": [
             {
               "rank": 1,
@@ -16207,7 +16207,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 14.924,
+          "latency_ms": 6.347,
           "topk": [
             {
               "rank": 1,
@@ -16343,7 +16343,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 24.985,
+          "latency_ms": 7.484,
           "topk": [
             {
               "rank": 1,
@@ -16479,7 +16479,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 19.578,
+          "latency_ms": 8.969,
           "topk": [
             {
               "rank": 1,
@@ -16615,7 +16615,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 11.092,
+          "latency_ms": 3.81,
           "topk": [
             {
               "rank": 1,
@@ -16751,7 +16751,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 24.587,
+          "latency_ms": 6.851,
           "topk": [
             {
               "rank": 1,
@@ -16887,7 +16887,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 23.521,
+          "latency_ms": 7.005,
           "topk": [
             {
               "rank": 1,
@@ -17023,7 +17023,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 24.979,
+          "latency_ms": 9.146,
           "topk": [
             {
               "rank": 1,
@@ -17159,7 +17159,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 18.478,
+          "latency_ms": 4.006,
           "topk": [
             {
               "rank": 1,
@@ -17295,7 +17295,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 21.53,
+          "latency_ms": 8.955,
           "topk": [
             {
               "rank": 1,
@@ -17431,7 +17431,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 19.846,
+          "latency_ms": 10.613,
           "topk": [
             {
               "rank": 1,
@@ -17567,7 +17567,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 8.129,
+          "latency_ms": 10.367,
           "topk": [
             {
               "rank": 1,
@@ -17703,7 +17703,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 6.527,
+          "latency_ms": 6.022,
           "topk": [
             {
               "rank": 1,
@@ -17839,7 +17839,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 8.958,
+          "latency_ms": 6.121,
           "topk": [
             {
               "rank": 1,
@@ -17975,7 +17975,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 12.331,
+          "latency_ms": 5.031,
           "topk": [
             {
               "rank": 1,
@@ -18111,7 +18111,7 @@
           ],
           "hit_rank": 5,
           "reciprocal_rank": 0.2,
-          "latency_ms": 15.733,
+          "latency_ms": 7.606,
           "topk": [
             {
               "rank": 1,
@@ -18247,7 +18247,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 14.877,
+          "latency_ms": 4.158,
           "topk": [
             {
               "rank": 1,
@@ -18383,7 +18383,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 40.871,
+          "latency_ms": 5.999,
           "topk": [
             {
               "rank": 1,
@@ -18519,7 +18519,7 @@
           ],
           "hit_rank": 10,
           "reciprocal_rank": 0.1,
-          "latency_ms": 23.868,
+          "latency_ms": 6.916,
           "topk": [
             {
               "rank": 1,
@@ -18655,7 +18655,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 23.857,
+          "latency_ms": 6.306,
           "topk": [
             {
               "rank": 1,
@@ -18791,7 +18791,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 11.051,
+          "latency_ms": 3.902,
           "topk": [
             {
               "rank": 1,
@@ -18927,7 +18927,7 @@
           ],
           "hit_rank": 3,
           "reciprocal_rank": 0.3333333333333333,
-          "latency_ms": 25.001,
+          "latency_ms": 7.787,
           "topk": [
             {
               "rank": 1,
@@ -19063,7 +19063,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 12.129,
+          "latency_ms": 9.542,
           "topk": [
             {
               "rank": 1,
@@ -19199,7 +19199,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 28.165,
+          "latency_ms": 6.065,
           "topk": [
             {
               "rank": 1,
@@ -19335,7 +19335,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 10.454,
+          "latency_ms": 3.98,
           "topk": [
             {
               "rank": 1,
@@ -19471,7 +19471,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 36.384,
+          "latency_ms": 8.033,
           "topk": [
             {
               "rank": 1,
@@ -19602,8 +19602,8 @@
           "question": "红烧肉需要放哪些香料？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.3066,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid"
         },
         {
@@ -19611,8 +19611,8 @@
           "question": "量子纠缠和隐变量理论有什么关系？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.4346,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid"
         },
         {
@@ -19620,8 +19620,8 @@
           "question": "家用轿车的机油一般多久更换一次？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.3579,
-          "top_bm25": 4.8671,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid"
         },
         {
@@ -19629,8 +19629,8 @@
           "question": "贝多芬第九交响曲第四乐章的合唱选自哪首诗？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.2742,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid"
         },
         {
@@ -19638,8 +19638,8 @@
           "question": "光合作用中卡尔文循环的主要产物是什么？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.4152,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid"
         }
       ]
@@ -19658,7 +19658,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2836.774,
+          "latency_ms": 700.163,
           "topk": [
             {
               "rank": 1,
@@ -19794,7 +19794,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3533.915,
+          "latency_ms": 823.99,
           "topk": [
             {
               "rank": 1,
@@ -19930,7 +19930,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 2586.886,
+          "latency_ms": 701.023,
           "topk": [
             {
               "rank": 1,
@@ -19999,7 +19999,7 @@
               "section": "社保、工时与加班",
               "start": 661,
               "end": 987,
-              "score": 0.4502,
+              "score": 0.4501,
               "bm25": 5.2173,
               "rrf": 0.029412,
               "hit": false
@@ -20066,7 +20066,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1841.197,
+          "latency_ms": 775.262,
           "topk": [
             {
               "rank": 1,
@@ -20202,7 +20202,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2049.322,
+          "latency_ms": 871.264,
           "topk": [
             {
               "rank": 1,
@@ -20338,7 +20338,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2107.025,
+          "latency_ms": 850.686,
           "topk": [
             {
               "rank": 1,
@@ -20474,7 +20474,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1844.596,
+          "latency_ms": 779.914,
           "topk": [
             {
               "rank": 1,
@@ -20610,7 +20610,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1729.777,
+          "latency_ms": 827.502,
           "topk": [
             {
               "rank": 1,
@@ -20746,7 +20746,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1652.143,
+          "latency_ms": 835.096,
           "topk": [
             {
               "rank": 1,
@@ -20882,7 +20882,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1840.971,
+          "latency_ms": 840.203,
           "topk": [
             {
               "rank": 1,
@@ -21018,7 +21018,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1787.323,
+          "latency_ms": 810.759,
           "topk": [
             {
               "rank": 1,
@@ -21154,7 +21154,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1711.983,
+          "latency_ms": 798.287,
           "topk": [
             {
               "rank": 1,
@@ -21290,7 +21290,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1918.872,
+          "latency_ms": 856.523,
           "topk": [
             {
               "rank": 1,
@@ -21426,7 +21426,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1711.64,
+          "latency_ms": 802.984,
           "topk": [
             {
               "rank": 1,
@@ -21562,7 +21562,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1871.621,
+          "latency_ms": 866.131,
           "topk": [
             {
               "rank": 1,
@@ -21698,7 +21698,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1832.265,
+          "latency_ms": 755.028,
           "topk": [
             {
               "rank": 1,
@@ -21834,7 +21834,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1960.521,
+          "latency_ms": 901.762,
           "topk": [
             {
               "rank": 1,
@@ -21970,7 +21970,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1762.052,
+          "latency_ms": 886.292,
           "topk": [
             {
               "rank": 1,
@@ -22106,7 +22106,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1745.6,
+          "latency_ms": 915.531,
           "topk": [
             {
               "rank": 1,
@@ -22242,7 +22242,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1729.999,
+          "latency_ms": 831.711,
           "topk": [
             {
               "rank": 1,
@@ -22378,7 +22378,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1606.617,
+          "latency_ms": 780.832,
           "topk": [
             {
               "rank": 1,
@@ -22514,7 +22514,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1662.91,
+          "latency_ms": 823.182,
           "topk": [
             {
               "rank": 1,
@@ -22650,7 +22650,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 1753.538,
+          "latency_ms": 886.356,
           "topk": [
             {
               "rank": 1,
@@ -22786,7 +22786,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1853.116,
+          "latency_ms": 893.412,
           "topk": [
             {
               "rank": 1,
@@ -22922,7 +22922,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1718.19,
+          "latency_ms": 956.931,
           "topk": [
             {
               "rank": 1,
@@ -23058,7 +23058,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1703.718,
+          "latency_ms": 804.604,
           "topk": [
             {
               "rank": 1,
@@ -23194,7 +23194,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1928.206,
+          "latency_ms": 961.344,
           "topk": [
             {
               "rank": 1,
@@ -23330,7 +23330,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2004.827,
+          "latency_ms": 886.248,
           "topk": [
             {
               "rank": 1,
@@ -23466,7 +23466,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1793.11,
+          "latency_ms": 831.405,
           "topk": [
             {
               "rank": 1,
@@ -23602,7 +23602,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1820.584,
+          "latency_ms": 822.166,
           "topk": [
             {
               "rank": 1,
@@ -23738,7 +23738,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1678.947,
+          "latency_ms": 853.684,
           "topk": [
             {
               "rank": 1,
@@ -23874,7 +23874,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1806.935,
+          "latency_ms": 866.141,
           "topk": [
             {
               "rank": 1,
@@ -24010,7 +24010,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1894.248,
+          "latency_ms": 831.672,
           "topk": [
             {
               "rank": 1,
@@ -24146,7 +24146,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1987.364,
+          "latency_ms": 861.059,
           "topk": [
             {
               "rank": 1,
@@ -24282,7 +24282,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1716.636,
+          "latency_ms": 754.447,
           "topk": [
             {
               "rank": 1,
@@ -24418,7 +24418,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1850.714,
+          "latency_ms": 949.0,
           "topk": [
             {
               "rank": 1,
@@ -24554,7 +24554,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1552.549,
+          "latency_ms": 756.72,
           "topk": [
             {
               "rank": 1,
@@ -24690,7 +24690,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1970.708,
+          "latency_ms": 879.162,
           "topk": [
             {
               "rank": 1,
@@ -24826,7 +24826,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 1566.785,
+          "latency_ms": 800.267,
           "topk": [
             {
               "rank": 1,
@@ -24962,7 +24962,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1729.7,
+          "latency_ms": 882.386,
           "topk": [
             {
               "rank": 1,
@@ -25098,7 +25098,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1588.615,
+          "latency_ms": 799.764,
           "topk": [
             {
               "rank": 1,
@@ -25234,7 +25234,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1792.189,
+          "latency_ms": 871.457,
           "topk": [
             {
               "rank": 1,
@@ -25370,7 +25370,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1725.898,
+          "latency_ms": 885.207,
           "topk": [
             {
               "rank": 1,
@@ -25506,7 +25506,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1628.46,
+          "latency_ms": 850.424,
           "topk": [
             {
               "rank": 1,
@@ -25642,7 +25642,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1517.217,
+          "latency_ms": 701.389,
           "topk": [
             {
               "rank": 1,
@@ -25778,7 +25778,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 1824.686,
+          "latency_ms": 877.607,
           "topk": [
             {
               "rank": 1,
@@ -25914,7 +25914,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1776.07,
+          "latency_ms": 951.091,
           "topk": [
             {
               "rank": 1,
@@ -26050,7 +26050,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1822.841,
+          "latency_ms": 911.084,
           "topk": [
             {
               "rank": 1,
@@ -26186,7 +26186,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1818.523,
+          "latency_ms": 821.522,
           "topk": [
             {
               "rank": 1,
@@ -26322,7 +26322,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1995.863,
+          "latency_ms": 914.917,
           "topk": [
             {
               "rank": 1,
@@ -26453,8 +26453,8 @@
           "question": "红烧肉需要放哪些香料？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.2868,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid_rerank"
         },
         {
@@ -26462,8 +26462,8 @@
           "question": "量子纠缠和隐变量理论有什么关系？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.3804,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid_rerank"
         },
         {
@@ -26471,8 +26471,8 @@
           "question": "家用轿车的机油一般多久更换一次？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.3566,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid_rerank"
         },
         {
@@ -26480,8 +26480,8 @@
           "question": "贝多芬第九交响曲第四乐章的合唱选自哪首诗？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.2513,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid_rerank"
         },
         {
@@ -26489,8 +26489,8 @@
           "question": "光合作用中卡尔文循环的主要产物是什么？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.356,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid_rerank"
         }
       ]
@@ -26509,7 +26509,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 10.241,
+          "latency_ms": 31.938,
           "topk": [
             {
               "rank": 1,
@@ -26645,7 +26645,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 15.865,
+          "latency_ms": 5.8,
           "topk": [
             {
               "rank": 1,
@@ -26781,7 +26781,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.892,
+          "latency_ms": 3.985,
           "topk": [
             {
               "rank": 1,
@@ -26917,7 +26917,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 7.95,
+          "latency_ms": 3.995,
           "topk": [
             {
               "rank": 1,
@@ -27053,7 +27053,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.949,
+          "latency_ms": 4.41,
           "topk": [
             {
               "rank": 1,
@@ -27189,7 +27189,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.966,
+          "latency_ms": 4.056,
           "topk": [
             {
               "rank": 1,
@@ -27325,7 +27325,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.996,
+          "latency_ms": 3.733,
           "topk": [
             {
               "rank": 1,
@@ -27461,7 +27461,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 12.015,
+          "latency_ms": 3.611,
           "topk": [
             {
               "rank": 1,
@@ -27597,7 +27597,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 19.906,
+          "latency_ms": 3.688,
           "topk": [
             {
               "rank": 1,
@@ -27733,7 +27733,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 8.02,
+          "latency_ms": 3.744,
           "topk": [
             {
               "rank": 1,
@@ -27869,7 +27869,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.923,
+          "latency_ms": 3.658,
           "topk": [
             {
               "rank": 1,
@@ -28005,7 +28005,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 11.972,
+          "latency_ms": 3.556,
           "topk": [
             {
               "rank": 1,
@@ -28141,7 +28141,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 23.955,
+          "latency_ms": 3.732,
           "topk": [
             {
               "rank": 1,
@@ -28277,7 +28277,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 5.278,
+          "latency_ms": 3.307,
           "topk": [
             {
               "rank": 1,
@@ -28413,7 +28413,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 30.789,
+          "latency_ms": 4.217,
           "topk": [
             {
               "rank": 1,
@@ -28549,7 +28549,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 23.189,
+          "latency_ms": 3.834,
           "topk": [
             {
               "rank": 1,
@@ -28685,7 +28685,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 20.651,
+          "latency_ms": 4.123,
           "topk": [
             {
               "rank": 1,
@@ -28821,7 +28821,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.887,
+          "latency_ms": 3.509,
           "topk": [
             {
               "rank": 1,
@@ -28957,7 +28957,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 32.223,
+          "latency_ms": 3.85,
           "topk": [
             {
               "rank": 1,
@@ -29093,7 +29093,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.711,
+          "latency_ms": 3.912,
           "topk": [
             {
               "rank": 1,
@@ -29229,7 +29229,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 16.015,
+          "latency_ms": 3.69,
           "topk": [
             {
               "rank": 1,
@@ -29365,7 +29365,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 22.638,
+          "latency_ms": 3.957,
           "topk": [
             {
               "rank": 1,
@@ -29501,7 +29501,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 9.271,
+          "latency_ms": 3.68,
           "topk": [
             {
               "rank": 1,
@@ -29637,7 +29637,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 19.959,
+          "latency_ms": 4.27,
           "topk": [
             {
               "rank": 1,
@@ -29773,7 +29773,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.902,
+          "latency_ms": 3.922,
           "topk": [
             {
               "rank": 1,
@@ -29909,7 +29909,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.986,
+          "latency_ms": 4.149,
           "topk": [
             {
               "rank": 1,
@@ -30045,7 +30045,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 7.964,
+          "latency_ms": 4.067,
           "topk": [
             {
               "rank": 1,
@@ -30181,7 +30181,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.957,
+          "latency_ms": 3.714,
           "topk": [
             {
               "rank": 1,
@@ -30317,7 +30317,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 16.064,
+          "latency_ms": 3.428,
           "topk": [
             {
               "rank": 1,
@@ -30453,7 +30453,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 23.898,
+          "latency_ms": 3.762,
           "topk": [
             {
               "rank": 1,
@@ -30589,7 +30589,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 23.965,
+          "latency_ms": 3.736,
           "topk": [
             {
               "rank": 1,
@@ -30725,7 +30725,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 15.955,
+          "latency_ms": 3.82,
           "topk": [
             {
               "rank": 1,
@@ -30861,7 +30861,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 10.287,
+          "latency_ms": 3.372,
           "topk": [
             {
               "rank": 1,
@@ -30997,7 +30997,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 13.652,
+          "latency_ms": 4.331,
           "topk": [
             {
               "rank": 1,
@@ -31133,7 +31133,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.978,
+          "latency_ms": 3.722,
           "topk": [
             {
               "rank": 1,
@@ -31142,7 +31142,7 @@
               "section": "Java 后端一面",
               "start": 63,
               "end": 270,
-              "score": 0.7241,
+              "score": 0.7242,
               "bm25": 0.0,
               "rrf": 0.016393,
               "hit": true
@@ -31269,7 +31269,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.951,
+          "latency_ms": 3.978,
           "topk": [
             {
               "rank": 1,
@@ -31405,7 +31405,7 @@
           ],
           "hit_rank": null,
           "reciprocal_rank": 0.0,
-          "latency_ms": 15.97,
+          "latency_ms": 3.314,
           "topk": [
             {
               "rank": 1,
@@ -31541,7 +31541,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.958,
+          "latency_ms": 4.094,
           "topk": [
             {
               "rank": 1,
@@ -31677,7 +31677,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 16.452,
+          "latency_ms": 3.572,
           "topk": [
             {
               "rank": 1,
@@ -31813,7 +31813,7 @@
           ],
           "hit_rank": 4,
           "reciprocal_rank": 0.25,
-          "latency_ms": 11.504,
+          "latency_ms": 4.14,
           "topk": [
             {
               "rank": 1,
@@ -31949,7 +31949,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 18.723,
+          "latency_ms": 3.313,
           "topk": [
             {
               "rank": 1,
@@ -32085,7 +32085,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 9.25,
+          "latency_ms": 3.757,
           "topk": [
             {
               "rank": 1,
@@ -32221,7 +32221,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 5.352,
+          "latency_ms": 4.151,
           "topk": [
             {
               "rank": 1,
@@ -32357,7 +32357,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 19.269,
+          "latency_ms": 3.642,
           "topk": [
             {
               "rank": 1,
@@ -32493,7 +32493,7 @@
           ],
           "hit_rank": null,
           "reciprocal_rank": 0.0,
-          "latency_ms": 8.251,
+          "latency_ms": 3.288,
           "topk": [
             {
               "rank": 1,
@@ -32629,7 +32629,7 @@
           ],
           "hit_rank": 4,
           "reciprocal_rank": 0.25,
-          "latency_ms": 25.524,
+          "latency_ms": 3.896,
           "topk": [
             {
               "rank": 1,
@@ -32765,7 +32765,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 13.528,
+          "latency_ms": 3.821,
           "topk": [
             {
               "rank": 1,
@@ -32901,7 +32901,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 19.855,
+          "latency_ms": 3.922,
           "topk": [
             {
               "rank": 1,
@@ -33037,7 +33037,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 7.999,
+          "latency_ms": 3.258,
           "topk": [
             {
               "rank": 1,
@@ -33173,7 +33173,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 15.938,
+          "latency_ms": 3.981,
           "topk": [
             {
               "rank": 1,
@@ -33304,8 +33304,8 @@
           "question": "红烧肉需要放哪些香料？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.3264,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "dense"
         },
         {
@@ -33313,8 +33313,8 @@
           "question": "量子纠缠和隐变量理论有什么关系？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.3965,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "dense"
         },
         {
@@ -33322,8 +33322,8 @@
           "question": "家用轿车的机油一般多久更换一次？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.4213,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "dense"
         },
         {
@@ -33331,8 +33331,8 @@
           "question": "贝多芬第九交响曲第四乐章的合唱选自哪首诗？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.2834,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "dense"
         },
         {
@@ -33340,8 +33340,8 @@
           "question": "光合作用中卡尔文循环的主要产物是什么？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.3654,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "dense"
         }
       ]
@@ -33360,7 +33360,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.306,
+          "latency_ms": 6.117,
           "topk": [
             {
               "rank": 1,
@@ -33496,7 +33496,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 9.126,
+          "latency_ms": 9.97,
           "topk": [
             {
               "rank": 1,
@@ -33632,7 +33632,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 1.771,
+          "latency_ms": 3.388,
           "topk": [
             {
               "rank": 1,
@@ -33768,7 +33768,7 @@
           ],
           "hit_rank": 4,
           "reciprocal_rank": 0.25,
-          "latency_ms": 7.647,
+          "latency_ms": 8.384,
           "topk": [
             {
               "rank": 1,
@@ -33904,7 +33904,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 15.916,
+          "latency_ms": 8.69,
           "topk": [
             {
               "rank": 1,
@@ -34040,7 +34040,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 9.292,
+          "latency_ms": 8.869,
           "topk": [
             {
               "rank": 1,
@@ -34176,7 +34176,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.134,
+          "latency_ms": 5.446,
           "topk": [
             {
               "rank": 1,
@@ -34312,7 +34312,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 5.869,
+          "latency_ms": 2.223,
           "topk": [
             {
               "rank": 1,
@@ -34340,7 +34340,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2.711,
+          "latency_ms": 6.745,
           "topk": [
             {
               "rank": 1,
@@ -34476,7 +34476,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 14.929,
+          "latency_ms": 7.03,
           "topk": [
             {
               "rank": 1,
@@ -34612,7 +34612,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 1.483,
+          "latency_ms": 2.449,
           "topk": [
             {
               "rank": 1,
@@ -34652,7 +34652,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 9.712,
+          "latency_ms": 3.933,
           "topk": [
             {
               "rank": 1,
@@ -34788,7 +34788,7 @@
           ],
           "hit_rank": 3,
           "reciprocal_rank": 0.3333333333333333,
-          "latency_ms": 12.43,
+          "latency_ms": 6.318,
           "topk": [
             {
               "rank": 1,
@@ -34924,7 +34924,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.419,
+          "latency_ms": 2.629,
           "topk": [
             {
               "rank": 1,
@@ -35036,7 +35036,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.05,
+          "latency_ms": 8.387,
           "topk": [
             {
               "rank": 1,
@@ -35172,7 +35172,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 4.936,
+          "latency_ms": 6.202,
           "topk": [
             {
               "rank": 1,
@@ -35260,7 +35260,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 6.522,
+          "latency_ms": 7.737,
           "topk": [
             {
               "rank": 1,
@@ -35396,7 +35396,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.598,
+          "latency_ms": 2.563,
           "topk": [
             {
               "rank": 1,
@@ -35448,7 +35448,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.026,
+          "latency_ms": 8.395,
           "topk": [
             {
               "rank": 1,
@@ -35584,7 +35584,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.818,
+          "latency_ms": 5.965,
           "topk": [
             {
               "rank": 1,
@@ -35720,7 +35720,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.272,
+          "latency_ms": 2.013,
           "topk": [
             {
               "rank": 1,
@@ -35748,7 +35748,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.351,
+          "latency_ms": 6.484,
           "topk": [
             {
               "rank": 1,
@@ -35884,7 +35884,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 13.41,
+          "latency_ms": 2.17,
           "topk": [
             {
               "rank": 1,
@@ -35936,7 +35936,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.638,
+          "latency_ms": 8.693,
           "topk": [
             {
               "rank": 1,
@@ -36072,7 +36072,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.705,
+          "latency_ms": 6.405,
           "topk": [
             {
               "rank": 1,
@@ -36208,7 +36208,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2.17,
+          "latency_ms": 4.497,
           "topk": [
             {
               "rank": 1,
@@ -36344,7 +36344,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2.699,
+          "latency_ms": 8.04,
           "topk": [
             {
               "rank": 1,
@@ -36480,7 +36480,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.123,
+          "latency_ms": 8.042,
           "topk": [
             {
               "rank": 1,
@@ -36616,7 +36616,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.289,
+          "latency_ms": 2.084,
           "topk": [
             {
               "rank": 1,
@@ -36656,7 +36656,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2.858,
+          "latency_ms": 6.106,
           "topk": [
             {
               "rank": 1,
@@ -36792,7 +36792,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.917,
+          "latency_ms": 5.199,
           "topk": [
             {
               "rank": 1,
@@ -36928,7 +36928,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.253,
+          "latency_ms": 8.433,
           "topk": [
             {
               "rank": 1,
@@ -37064,7 +37064,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.293,
+          "latency_ms": 2.182,
           "topk": [
             {
               "rank": 1,
@@ -37092,7 +37092,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 5.001,
+          "latency_ms": 8.508,
           "topk": [
             {
               "rank": 1,
@@ -37228,7 +37228,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.132,
+          "latency_ms": 8.263,
           "topk": [
             {
               "rank": 1,
@@ -37364,7 +37364,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.4,
+          "latency_ms": 9.09,
           "topk": [
             {
               "rank": 1,
@@ -37500,7 +37500,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.4,
+          "latency_ms": 6.732,
           "topk": [
             {
               "rank": 1,
@@ -37636,7 +37636,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 3.043,
+          "latency_ms": 6.626,
           "topk": [
             {
               "rank": 1,
@@ -37772,7 +37772,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2.312,
+          "latency_ms": 3.517,
           "topk": [
             {
               "rank": 1,
@@ -37860,7 +37860,7 @@
           ],
           "hit_rank": 5,
           "reciprocal_rank": 0.2,
-          "latency_ms": 2.746,
+          "latency_ms": 8.31,
           "topk": [
             {
               "rank": 1,
@@ -37996,7 +37996,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.574,
+          "latency_ms": 2.236,
           "topk": [
             {
               "rank": 1,
@@ -38024,7 +38024,7 @@
           ],
           "hit_rank": 3,
           "reciprocal_rank": 0.3333333333333333,
-          "latency_ms": 8.851,
+          "latency_ms": 5.053,
           "topk": [
             {
               "rank": 1,
@@ -38160,7 +38160,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.144,
+          "latency_ms": 5.368,
           "topk": [
             {
               "rank": 1,
@@ -38296,7 +38296,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 5.285,
+          "latency_ms": 5.663,
           "topk": [
             {
               "rank": 1,
@@ -38432,7 +38432,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.341,
+          "latency_ms": 1.879,
           "topk": [
             {
               "rank": 1,
@@ -38460,7 +38460,7 @@
           ],
           "hit_rank": 6,
           "reciprocal_rank": 0.16666666666666666,
-          "latency_ms": 2.964,
+          "latency_ms": 7.316,
           "topk": [
             {
               "rank": 1,
@@ -38596,7 +38596,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 15.017,
+          "latency_ms": 7.741,
           "topk": [
             {
               "rank": 1,
@@ -38732,7 +38732,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 2.954,
+          "latency_ms": 4.777,
           "topk": [
             {
               "rank": 1,
@@ -38868,7 +38868,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1.214,
+          "latency_ms": 1.889,
           "topk": [
             {
               "rank": 1,
@@ -38896,7 +38896,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2.791,
+          "latency_ms": 6.952,
           "topk": [
             {
               "rank": 1,
@@ -39036,8 +39036,8 @@
           "question": "量子纠缠和隐变量理论有什么关系？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.2913,
-          "top_bm25": 9.0977,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "bm25"
         },
         {
@@ -39045,8 +39045,8 @@
           "question": "家用轿车的机油一般多久更换一次？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.3037,
-          "top_bm25": 6.6558,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "bm25"
         },
         {
@@ -39063,8 +39063,8 @@
           "question": "光合作用中卡尔文循环的主要产物是什么？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.2175,
-          "top_bm25": 6.3481,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "bm25"
         }
       ]
@@ -39083,7 +39083,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 24.02,
+          "latency_ms": 6.124,
           "topk": [
             {
               "rank": 1,
@@ -39219,7 +39219,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 17.716,
+          "latency_ms": 9.601,
           "topk": [
             {
               "rank": 1,
@@ -39355,7 +39355,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 6.605,
+          "latency_ms": 6.38,
           "topk": [
             {
               "rank": 1,
@@ -39491,7 +39491,7 @@
           ],
           "hit_rank": 3,
           "reciprocal_rank": 0.3333333333333333,
-          "latency_ms": 24.371,
+          "latency_ms": 8.816,
           "topk": [
             {
               "rank": 1,
@@ -39627,7 +39627,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 20.69,
+          "latency_ms": 7.973,
           "topk": [
             {
               "rank": 1,
@@ -39763,7 +39763,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 36.476,
+          "latency_ms": 7.459,
           "topk": [
             {
               "rank": 1,
@@ -39899,7 +39899,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 14.969,
+          "latency_ms": 5.786,
           "topk": [
             {
               "rank": 1,
@@ -40035,7 +40035,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 19.248,
+          "latency_ms": 4.29,
           "topk": [
             {
               "rank": 1,
@@ -40171,7 +40171,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 11.843,
+          "latency_ms": 6.099,
           "topk": [
             {
               "rank": 1,
@@ -40307,7 +40307,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 16.561,
+          "latency_ms": 5.957,
           "topk": [
             {
               "rank": 1,
@@ -40443,7 +40443,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 5.82,
+          "latency_ms": 4.665,
           "topk": [
             {
               "rank": 1,
@@ -40579,7 +40579,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 13.449,
+          "latency_ms": 5.297,
           "topk": [
             {
               "rank": 1,
@@ -40715,7 +40715,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 20.663,
+          "latency_ms": 6.352,
           "topk": [
             {
               "rank": 1,
@@ -40851,7 +40851,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.355,
+          "latency_ms": 3.577,
           "topk": [
             {
               "rank": 1,
@@ -40987,7 +40987,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 25.479,
+          "latency_ms": 9.097,
           "topk": [
             {
               "rank": 1,
@@ -41123,7 +41123,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 19.088,
+          "latency_ms": 5.386,
           "topk": [
             {
               "rank": 1,
@@ -41259,7 +41259,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 12.262,
+          "latency_ms": 8.626,
           "topk": [
             {
               "rank": 1,
@@ -41395,7 +41395,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.253,
+          "latency_ms": 4.469,
           "topk": [
             {
               "rank": 1,
@@ -41531,7 +41531,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 19.446,
+          "latency_ms": 6.829,
           "topk": [
             {
               "rank": 1,
@@ -41667,7 +41667,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 21.728,
+          "latency_ms": 6.4,
           "topk": [
             {
               "rank": 1,
@@ -41803,7 +41803,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 10.743,
+          "latency_ms": 4.025,
           "topk": [
             {
               "rank": 1,
@@ -41939,7 +41939,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 13.181,
+          "latency_ms": 7.411,
           "topk": [
             {
               "rank": 1,
@@ -42075,7 +42075,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 14.519,
+          "latency_ms": 3.903,
           "topk": [
             {
               "rank": 1,
@@ -42211,7 +42211,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 17.079,
+          "latency_ms": 10.335,
           "topk": [
             {
               "rank": 1,
@@ -42347,7 +42347,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 22.79,
+          "latency_ms": 6.554,
           "topk": [
             {
               "rank": 1,
@@ -42483,7 +42483,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 8.478,
+          "latency_ms": 6.019,
           "topk": [
             {
               "rank": 1,
@@ -42619,7 +42619,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 15.551,
+          "latency_ms": 7.429,
           "topk": [
             {
               "rank": 1,
@@ -42755,7 +42755,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 8.973,
+          "latency_ms": 8.42,
           "topk": [
             {
               "rank": 1,
@@ -42891,7 +42891,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 10.706,
+          "latency_ms": 4.251,
           "topk": [
             {
               "rank": 1,
@@ -43027,7 +43027,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 15.352,
+          "latency_ms": 5.988,
           "topk": [
             {
               "rank": 1,
@@ -43163,7 +43163,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 17.291,
+          "latency_ms": 6.782,
           "topk": [
             {
               "rank": 1,
@@ -43299,7 +43299,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 17.348,
+          "latency_ms": 7.977,
           "topk": [
             {
               "rank": 1,
@@ -43435,7 +43435,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.659,
+          "latency_ms": 3.742,
           "topk": [
             {
               "rank": 1,
@@ -43571,7 +43571,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 16.139,
+          "latency_ms": 9.6,
           "topk": [
             {
               "rank": 1,
@@ -43707,7 +43707,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.709,
+          "latency_ms": 10.444,
           "topk": [
             {
               "rank": 1,
@@ -43716,7 +43716,7 @@
               "section": "Java 后端一面",
               "start": 63,
               "end": 270,
-              "score": 0.7241,
+              "score": 0.7242,
               "bm25": 14.9329,
               "rrf": 0.032787,
               "hit": true
@@ -43843,7 +43843,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 32.085,
+          "latency_ms": 9.848,
           "topk": [
             {
               "rank": 1,
@@ -43979,7 +43979,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 6.474,
+          "latency_ms": 6.51,
           "topk": [
             {
               "rank": 1,
@@ -44115,7 +44115,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 8.945,
+          "latency_ms": 5.973,
           "topk": [
             {
               "rank": 1,
@@ -44251,7 +44251,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 15.486,
+          "latency_ms": 4.999,
           "topk": [
             {
               "rank": 1,
@@ -44387,7 +44387,7 @@
           ],
           "hit_rank": 4,
           "reciprocal_rank": 0.25,
-          "latency_ms": 8.547,
+          "latency_ms": 7.283,
           "topk": [
             {
               "rank": 1,
@@ -44523,7 +44523,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 19.047,
+          "latency_ms": 4.197,
           "topk": [
             {
               "rank": 1,
@@ -44659,7 +44659,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 12.69,
+          "latency_ms": 6.316,
           "topk": [
             {
               "rank": 1,
@@ -44795,7 +44795,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 23.865,
+          "latency_ms": 5.333,
           "topk": [
             {
               "rank": 1,
@@ -44931,7 +44931,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 11.909,
+          "latency_ms": 6.188,
           "topk": [
             {
               "rank": 1,
@@ -45067,7 +45067,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 11.085,
+          "latency_ms": 4.486,
           "topk": [
             {
               "rank": 1,
@@ -45203,7 +45203,7 @@
           ],
           "hit_rank": 4,
           "reciprocal_rank": 0.25,
-          "latency_ms": 9.073,
+          "latency_ms": 6.926,
           "topk": [
             {
               "rank": 1,
@@ -45339,7 +45339,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 7.917,
+          "latency_ms": 9.187,
           "topk": [
             {
               "rank": 1,
@@ -45475,7 +45475,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 16.114,
+          "latency_ms": 6.196,
           "topk": [
             {
               "rank": 1,
@@ -45611,7 +45611,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 6.697,
+          "latency_ms": 3.625,
           "topk": [
             {
               "rank": 1,
@@ -45747,7 +45747,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 9.229,
+          "latency_ms": 7.373,
           "topk": [
             {
               "rank": 1,
@@ -45878,8 +45878,8 @@
           "question": "红烧肉需要放哪些香料？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.3264,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid"
         },
         {
@@ -45887,8 +45887,8 @@
           "question": "量子纠缠和隐变量理论有什么关系？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.3965,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid"
         },
         {
@@ -45896,8 +45896,8 @@
           "question": "家用轿车的机油一般多久更换一次？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.3303,
-          "top_bm25": 5.5028,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid"
         },
         {
@@ -45905,8 +45905,8 @@
           "question": "贝多芬第九交响曲第四乐章的合唱选自哪首诗？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.2834,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid"
         },
         {
@@ -45914,8 +45914,8 @@
           "question": "光合作用中卡尔文循环的主要产物是什么？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.3654,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid"
         }
       ]
@@ -45934,7 +45934,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2015.165,
+          "latency_ms": 939.728,
           "topk": [
             {
               "rank": 1,
@@ -46070,7 +46070,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2013.612,
+          "latency_ms": 1010.781,
           "topk": [
             {
               "rank": 1,
@@ -46206,7 +46206,7 @@
           ],
           "hit_rank": 3,
           "reciprocal_rank": 0.3333333333333333,
-          "latency_ms": 2050.384,
+          "latency_ms": 921.773,
           "topk": [
             {
               "rank": 1,
@@ -46342,7 +46342,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1841.75,
+          "latency_ms": 963.223,
           "topk": [
             {
               "rank": 1,
@@ -46478,7 +46478,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1790.947,
+          "latency_ms": 987.596,
           "topk": [
             {
               "rank": 1,
@@ -46614,7 +46614,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1864.39,
+          "latency_ms": 955.671,
           "topk": [
             {
               "rank": 1,
@@ -46750,7 +46750,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1912.928,
+          "latency_ms": 927.6,
           "topk": [
             {
               "rank": 1,
@@ -46886,7 +46886,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1846.971,
+          "latency_ms": 890.683,
           "topk": [
             {
               "rank": 1,
@@ -47022,7 +47022,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1850.85,
+          "latency_ms": 991.266,
           "topk": [
             {
               "rank": 1,
@@ -47158,7 +47158,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2011.787,
+          "latency_ms": 1055.141,
           "topk": [
             {
               "rank": 1,
@@ -47294,7 +47294,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1874.822,
+          "latency_ms": 983.985,
           "topk": [
             {
               "rank": 1,
@@ -47430,7 +47430,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1849.682,
+          "latency_ms": 973.714,
           "topk": [
             {
               "rank": 1,
@@ -47566,7 +47566,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2279.175,
+          "latency_ms": 1068.375,
           "topk": [
             {
               "rank": 1,
@@ -47702,7 +47702,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1510.492,
+          "latency_ms": 786.59,
           "topk": [
             {
               "rank": 1,
@@ -47838,7 +47838,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1906.05,
+          "latency_ms": 988.34,
           "topk": [
             {
               "rank": 1,
@@ -47974,7 +47974,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2130.997,
+          "latency_ms": 1036.417,
           "topk": [
             {
               "rank": 1,
@@ -48110,7 +48110,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1985.374,
+          "latency_ms": 903.6,
           "topk": [
             {
               "rank": 1,
@@ -48246,7 +48246,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1941.97,
+          "latency_ms": 1000.654,
           "topk": [
             {
               "rank": 1,
@@ -48382,7 +48382,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2067.604,
+          "latency_ms": 1060.656,
           "topk": [
             {
               "rank": 1,
@@ -48518,7 +48518,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2039.8,
+          "latency_ms": 1035.781,
           "topk": [
             {
               "rank": 1,
@@ -48654,7 +48654,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1631.681,
+          "latency_ms": 750.857,
           "topk": [
             {
               "rank": 1,
@@ -48790,7 +48790,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2027.798,
+          "latency_ms": 1168.069,
           "topk": [
             {
               "rank": 1,
@@ -48926,7 +48926,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 1763.128,
+          "latency_ms": 861.716,
           "topk": [
             {
               "rank": 1,
@@ -49062,7 +49062,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 2033.929,
+          "latency_ms": 1062.214,
           "topk": [
             {
               "rank": 1,
@@ -49198,7 +49198,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1995.698,
+          "latency_ms": 1037.179,
           "topk": [
             {
               "rank": 1,
@@ -49334,7 +49334,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1779.241,
+          "latency_ms": 987.061,
           "topk": [
             {
               "rank": 1,
@@ -49470,7 +49470,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1753.764,
+          "latency_ms": 944.71,
           "topk": [
             {
               "rank": 1,
@@ -49606,7 +49606,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1737.515,
+          "latency_ms": 979.603,
           "topk": [
             {
               "rank": 1,
@@ -49742,7 +49742,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1710.061,
+          "latency_ms": 968.091,
           "topk": [
             {
               "rank": 1,
@@ -49878,7 +49878,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1920.641,
+          "latency_ms": 967.507,
           "topk": [
             {
               "rank": 1,
@@ -50014,7 +50014,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1645.66,
+          "latency_ms": 997.841,
           "topk": [
             {
               "rank": 1,
@@ -50150,7 +50150,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1984.516,
+          "latency_ms": 1124.237,
           "topk": [
             {
               "rank": 1,
@@ -50286,7 +50286,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1941.041,
+          "latency_ms": 863.673,
           "topk": [
             {
               "rank": 1,
@@ -50309,7 +50309,7 @@
               "end": 0,
               "score": 0.4337,
               "bm25": 0.0,
-              "rrf": 0.012821,
+              "rrf": 0.012987,
               "hit": false
             },
             {
@@ -50345,7 +50345,7 @@
               "end": 0,
               "score": 0.4317,
               "bm25": 0.0,
-              "rrf": 0.0125,
+              "rrf": 0.012658,
               "hit": false
             },
             {
@@ -50381,7 +50381,7 @@
               "end": 0,
               "score": 0.4364,
               "bm25": 0.0,
-              "rrf": 0.013514,
+              "rrf": 0.013699,
               "hit": false
             },
             {
@@ -50393,19 +50393,19 @@
               "end": 0,
               "score": 0.4338,
               "bm25": 0.0,
-              "rrf": 0.012987,
+              "rrf": 0.013158,
               "hit": false
             },
             {
               "rank": 10,
-              "id": "kb:三方协议FAQ.md:6",
-              "file": "三方协议FAQ.md",
-              "section": "网签状态怎么读",
-              "start": 1103,
-              "end": 1497,
-              "score": 0.4375,
+              "id": "job:7341:0",
+              "file": "",
+              "section": "",
+              "start": 0,
+              "end": 0,
+              "score": 0.4342,
               "bm25": 0.0,
-              "rrf": 0.013699,
+              "rrf": 0.013514,
               "hit": false
             }
           ]
@@ -50422,7 +50422,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1919.834,
+          "latency_ms": 1017.452,
           "topk": [
             {
               "rank": 1,
@@ -50558,7 +50558,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1929.574,
+          "latency_ms": 981.246,
           "topk": [
             {
               "rank": 1,
@@ -50567,7 +50567,7 @@
               "section": "Java 后端一面",
               "start": 63,
               "end": 270,
-              "score": 0.7241,
+              "score": 0.7242,
               "bm25": 14.9329,
               "rrf": 0.032787,
               "hit": true
@@ -50694,7 +50694,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1939.692,
+          "latency_ms": 1158.892,
           "topk": [
             {
               "rank": 1,
@@ -50830,7 +50830,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1495.831,
+          "latency_ms": 775.41,
           "topk": [
             {
               "rank": 1,
@@ -50966,7 +50966,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1917.404,
+          "latency_ms": 1061.355,
           "topk": [
             {
               "rank": 1,
@@ -51102,7 +51102,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 1821.574,
+          "latency_ms": 915.051,
           "topk": [
             {
               "rank": 1,
@@ -51238,7 +51238,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1749.388,
+          "latency_ms": 1019.925,
           "topk": [
             {
               "rank": 1,
@@ -51374,7 +51374,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1540.491,
+          "latency_ms": 768.586,
           "topk": [
             {
               "rank": 1,
@@ -51510,7 +51510,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1809.96,
+          "latency_ms": 951.144,
           "topk": [
             {
               "rank": 1,
@@ -51646,7 +51646,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1729.718,
+          "latency_ms": 1037.069,
           "topk": [
             {
               "rank": 1,
@@ -51782,7 +51782,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1800.432,
+          "latency_ms": 983.912,
           "topk": [
             {
               "rank": 1,
@@ -51918,7 +51918,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1503.486,
+          "latency_ms": 701.427,
           "topk": [
             {
               "rank": 1,
@@ -52054,7 +52054,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1908.261,
+          "latency_ms": 1026.716,
           "topk": [
             {
               "rank": 1,
@@ -52190,7 +52190,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1876.811,
+          "latency_ms": 979.154,
           "topk": [
             {
               "rank": 1,
@@ -52326,7 +52326,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1875.026,
+          "latency_ms": 1035.996,
           "topk": [
             {
               "rank": 1,
@@ -52462,7 +52462,7 @@
           ],
           "hit_rank": 1,
           "reciprocal_rank": 1.0,
-          "latency_ms": 1687.857,
+          "latency_ms": 917.736,
           "topk": [
             {
               "rank": 1,
@@ -52598,7 +52598,7 @@
           ],
           "hit_rank": 2,
           "reciprocal_rank": 0.5,
-          "latency_ms": 1857.893,
+          "latency_ms": 905.036,
           "topk": [
             {
               "rank": 1,
@@ -52729,8 +52729,8 @@
           "question": "红烧肉需要放哪些香料？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.3009,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid_rerank"
         },
         {
@@ -52738,8 +52738,8 @@
           "question": "量子纠缠和隐变量理论有什么关系？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.349,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid_rerank"
         },
         {
@@ -52747,8 +52747,8 @@
           "question": "家用轿车的机油一般多久更换一次？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.2708,
-          "top_bm25": 5.7003,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid_rerank"
         },
         {
@@ -52756,8 +52756,8 @@
           "question": "贝多芬第九交响曲第四乐章的合唱选自哪首诗？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.2226,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid_rerank"
         },
         {
@@ -52765,8 +52765,8 @@
           "question": "光合作用中卡尔文循环的主要产物是什么？",
           "rejected": true,
           "kept": 0,
-          "top_score": 0.3365,
-          "top_bm25": 0.0,
+          "top_score": null,
+          "top_bm25": null,
           "mode": "hybrid_rerank"
         }
       ]

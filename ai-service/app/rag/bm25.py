@@ -12,7 +12,6 @@ import re
 import threading
 
 import jieba
-from rank_bm25 import BM25Okapi
 
 logger = logging.getLogger(__name__)
 
@@ -211,15 +210,17 @@ def fuse_order(
 
 
 class Bm25Index:
-    """惰性、可失效的 BM25Okapi 索引。写路径调用 invalidate，下次检索再重建。"""
+    """惰性、可失效的 BM25 索引，内部是 LangChain 的 JiebaBM25Retriever。
+
+    写路径调用 invalidate，下次检索再从 Chroma 集合重建。
+    """
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._generation = 0
         self._built_gen = -1
         self._ready = False
-        self._bm25: BM25Okapi | None = None
-        self._records: list[dict] = []
+        self._retriever = None
 
     def invalidate(self) -> None:
         with self._lock:
@@ -233,53 +234,26 @@ class Bm25Index:
             self._built_gen = self._generation
             self._ready = True
 
-    def search(self, query: str, top_n: int, doc_types: list[int] | None, loader) -> list[dict]:
+    def retriever(self, loader=None):
+        """当前的 JiebaBM25Retriever（索引为空时为 None）。"""
         with self._lock:
             self._ensure(loader)
-            bm25 = self._bm25
-            records = list(self._records)
-        if bm25 is None or not records:
+            return self._retriever
+
+    def search(self, query: str, top_n: int, doc_types: list[int] | None, loader) -> list[dict]:
+        retriever = self.retriever(loader)
+        if retriever is None:
             return []
-        tokens = tokenize(query)
-        if not tokens:
-            return []
-        unique_tokens = list(dict.fromkeys(tokens))
-        scores = bm25.get_scores(tokens)
-        allowed = None if not doc_types else {int(item) for item in doc_types}
-        ranked: list[tuple[float, int, dict]] = []
-        for index, score in enumerate(scores):
-            raw = float(score)
-            if raw <= 0:
-                continue
-            record = records[index]
-            if allowed is not None:
-                meta = record.get("metadata") or {}
-                try:
-                    doc_type = int(meta.get("doc_type") or 0)
-                except (TypeError, ValueError):
-                    doc_type = 0
-                if doc_type not in allowed:
-                    continue
-            ranked.append((raw, index, record))
-        ranked.sort(key=lambda item: item[0], reverse=True)
-        limit = max(1, int(top_n))
         hits = []
-        for raw, index, record in ranked[:limit]:
-            doc_freq = bm25.doc_freqs[index]
-            matched = sum(1 for token in unique_tokens if doc_freq.get(token))
-            hits.append(
-                {
-                    "id": record.get("id") or "",
-                    "bm25": raw,
-                    "terms": matched,
-                    "document": record.get("document") or "",
-                    "metadata": record.get("metadata") or {},
-                }
-            )
+        for doc in retriever.invoke(query, doc_types=doc_types, k=max(1, int(top_n))):
+            meta = dict(doc.metadata or {})
+            raw = float(meta.pop("bm25", 0.0))
+            terms = int(meta.pop("bm25_terms", 0))
+            hits.append({"id": doc.id or "", "bm25": raw, "terms": terms, "document": doc.page_content or "", "metadata": meta})
         return hits
 
     def _ensure(self, loader) -> None:
-        if self._ready and self._built_gen == self._generation and self._bm25 is not None:
+        if self._ready and self._built_gen == self._generation and (self._retriever is not None or loader is None):
             return
         gen = self._generation
         records = loader() if loader else []
@@ -291,20 +265,13 @@ class Bm25Index:
             self._ready = False
 
     def _install(self, records: list[dict]) -> None:
-        usable: list[dict] = []
-        tokenized: list[list[str]] = []
-        for record in records:
-            text = record.get("text") or ""
-            tokens = tokenize(text) or ["\u0000"]
-            usable.append(record)
-            tokenized.append(tokens)
-        self._records = usable
-        if not tokenized:
-            self._bm25 = None
+        from app.rag.lc_retrievers import JiebaBM25Retriever
+
+        self._retriever = JiebaBM25Retriever.from_records(records)
+        if self._retriever is None:
             logger.info("BM25 索引为空")
             return
-        self._bm25 = BM25Okapi(tokenized)
-        logger.info("BM25 索引已构建，切片 %s", len(tokenized))
+        logger.info("BM25 索引已构建，切片 %s", len(records))
 
 
 _index = Bm25Index()
