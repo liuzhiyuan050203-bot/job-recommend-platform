@@ -13,7 +13,13 @@
 | 5 | P1-4 | 发岗技能必填与候选人匹配分 | `ea174e2` | `14-candidate-match.sh`（37）+ SkillMatchTest 4 |
 | 6 | P1-5 | PDF 技能同步默认简历与投递预览 | `066b4ed` | `15-apply-resume-sync.sh`（23）+ ResumeSkillSyncTest 3 |
 
-回归：`bash tests/run-all.sh` 在 P1-2/P1-4 落地后为 **795/0**（`runall_item45.log`，含 01–14）；P1-5 专项 23/0。最终全量见 notes。
+回归：
+
+- P1-2/P1-4 落地后全量（01–14）：**795/0**（`/workspace/bishe-logs/uxfix/runall_item45.log`）。
+- P1-5 纳入后最终全量（01–15）：**816/2**（`runall_final.log`）。2 条失败经复跑均为环境/模型偶发，非本轮回归：
+  1. `10-company-assistant`「企业兜底回答无学生话术」：SSE 偶发模型口吻；单独复跑 **25/0**。
+  2. `11-demo-data`「临时账号已收尾」：执行器调试会话 `trap - EXIT` 留下的 `pdfdbg*` 未回收；清理后单独复跑 **21/0**。
+- 专项：`13`=21、`14`=37、`15`=23。
 
 ---
 
