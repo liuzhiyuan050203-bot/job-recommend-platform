@@ -157,6 +157,11 @@ def prepare_boss(stats: dict) -> pd.DataFrame:
             "salary_months": int(m.group(3)) if m.group(3) else 12,
             "avg_salary": (low + high) / 2, "tokens": tokens_of(title, skills),
             "keyword_group": r["keyword_group"],
+            # 以下为数据改善实验（experiments/data_improve）追加的列，生产模型按列名读取，不受影响
+            "company_name": str(r["公司名称"]).strip() if pd.notna(r["公司名称"]) else "",
+            "company_type": "",
+            "welfare": str(r["福利"]).strip() if pd.notna(r["福利"]) else "",
+            "row_id": "b23_" + hashlib.sha1("|".join(str(r[c]) for c in key_cols).encode("utf-8")).hexdigest()[:12],
         })
     stats["boss_dropped"] = drop
     df = pd.DataFrame(rows)
@@ -171,7 +176,7 @@ def prepare_job51(stats: dict) -> pd.DataFrame:
     exp_map = {"无工作经验": 0.0, "1年经验": 1.0, "2年经验": 2.0, "3-4年经验": 3.5, "5-7年经验": 6.0,
                "8-9年经验": 8.5, "10年以上经验": 10.0}
     rows, drop = [], {"学历超出平台口径": 0, "城市非具体城市(其他/国外/省名)": 0, "月薪越界(<1000或>100000)": 0, "非IT职类": 0}
-    for r in d.itertuples(index=False):
+    for idx, r in enumerate(d.itertuples(index=False)):
         edu = str(r.education)
         if edu not in edu_map:
             drop["学历超出平台口径"] += 1
@@ -199,6 +204,10 @@ def prepare_job51(stats: dict) -> pd.DataFrame:
             "company_size": SIZE_ORD.get(str(r.company_people), 0), "industry": industry,
             "skills": "", "salary_min": round(low, 2), "salary_max": round(high, 2), "salary_months": 12,
             "avg_salary": round(avg, 2), "tokens": tokens_of(t1, t2), "keyword_group": "it_all",
+            "company_name": "",
+            "company_type": "" if pd.isna(r.company_type) else str(r.company_type),
+            "welfare": "" if pd.isna(r.welfare) else str(r.welfare),
+            "row_id": f"j18_{idx:06d}",
         })
     stats["job51_dropped"] = drop
     df = pd.DataFrame(rows)

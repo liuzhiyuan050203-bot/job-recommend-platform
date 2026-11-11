@@ -1,0 +1,9 @@
+step,variant,train_source,model,n_train,n_golden,mae,rmse,r2,r2_ci95,mae_ci95,fit_s
+step0,baseline,core,MeanBaseline,8907,300,5726.1,7852.1,-0.0007,"[-0.017, -0.000]","[5166, 6331]",
+step0,prod_pooled_real,core+51job,SparkRF(prod),49803,300,4106.2,6254.8,0.365,"[0.276, 0.457]","[3582, 4652]",13.3
+step0,core:base,core,SparkRandomForest,8907,300,3744.5,5735.8,0.466,"[0.375, 0.560]","[3276, 4241]",3.0
+step0,core:base,core,SparkGBT,8907,300,3719.8,5757.0,0.4621,"[0.336, 0.576]","[3274, 4226]",18.0
+step0,core:base+company,core,SparkRandomForest,8907,300,3502.3,5427.8,0.5218,"[0.421, 0.617]","[3055, 3995]",5.0
+step0,core:base+company,core,SparkGBT,8907,300,3559.9,5391.6,0.5282,"[0.427, 0.610]","[3143, 4034]",17.3
+step0,core:base+company+text,core,SparkRandomForest,8907,300,3407.0,5165.3,0.567,"[0.466, 0.653]","[2999, 3858]",8.1
+step0,core:base+company+text,core,SparkGBT,8907,300,3385.1,4859.8,0.6167,"[0.518, 0.701]","[3021, 3796]",18.0

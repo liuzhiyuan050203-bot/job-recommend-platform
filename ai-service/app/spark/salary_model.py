@@ -48,6 +48,15 @@ GRID_EDUCATION = (1, 2, 3, 4)
 GRID_EXPERIENCE = (0.0, 1.0, 3.0, 5.0)
 PREDICT_YEAR = 2023.0
 REAL_DIR = Path(__file__).resolve().parents[3] / "data" / "real_salary"
+# 数据改善实验的固定黄金测试集（及其同公司同标题近重复行），永不进入生产训练；文件缺失时不排除。
+EXCLUDE_IDS_PATH = Path(__file__).resolve().parents[3] / "experiments" / "data_improve" / "train_exclude_ids.csv"
+
+
+def _excluded_ids() -> list[str]:
+    if not EXCLUDE_IDS_PATH.is_file():
+        return []
+    lines = EXCLUDE_IDS_PATH.read_text(encoding="utf-8").splitlines()
+    return [x.strip() for x in lines[1:] if x.strip()]
 
 _TRAIN_SCHEMA = StructType(
     [
@@ -62,6 +71,7 @@ _TRAIN_SCHEMA = StructType(
         StructField("skill_arr", ArrayType(StringType()), False),
         StructField("avg_salary", DoubleType(), False),
         StructField("source", StringType(), False),
+        StructField("row_id", StringType(), True),
     ]
 )
 
@@ -97,6 +107,7 @@ def _load_real(spark):
                 F.col("skills").cast("string"),
                 F.lit(year).alias("data_year"),
                 F.lit(name.split("_")[0]).alias("source"),
+                (F.col("row_id") if "row_id" in raw.columns else F.lit(None)).cast("string").alias("row_id"),
             )
             .filter(F.col("avg_salary").isNotNull() & (F.col("avg_salary") > 0))
             .filter(F.col("city").isNotNull() & F.col("tech_direction").isNotNull())
@@ -129,12 +140,16 @@ def _load_real(spark):
                 "skill_arr",
                 "avg_salary",
                 "source",
+                "row_id",
             )
         )
         frames.append(framed)
     out = frames[0]
     for part in frames[1:]:
         out = out.unionByName(part)
+    excluded = _excluded_ids()
+    if excluded:
+        out = out.filter(F.col("row_id").isNull() | ~F.col("row_id").isin(excluded))
     return out
 
 
