@@ -16,7 +16,7 @@ PATTERNS="title LIKE '招聘流程测试%' OR title LIKE '越权隔离职位%' O
 N=$(db_sql "SELECT COUNT(*) FROM job_position WHERE deleted = 0 AND ($PATTERNS)")
 [ "$N" = 0 ] && ok "库中没有残留的测试职位" || { HTTP=-; BODY="残留 $N 条"; bad "库中没有残留的测试职位"; }
 
-N=$(db_sql "SELECT COUNT(*) FROM sys_user WHERE deleted = 0 AND role IN (1,2) AND NOT (username IN ('student','company') OR username LIKE 'demo\\_%' OR username LIKE 'real\\_%')")
+N=$(db_sql "SELECT COUNT(*) FROM sys_user WHERE deleted = 0 AND role IN (1,2) AND NOT (username IN ('student','company') OR username LIKE 'demo\\_%' OR username LIKE 'real\\_%' OR username LIKE 'ext\\_%')")
 [ "$N" = 0 ] && ok "测试注册的临时账号已收尾" || { HTTP=-; BODY="残留 $N 个"; bad "测试注册的临时账号已收尾"; }
 
 for kw in 越权隔离职位 招聘流程测试 UX-IDOR; do

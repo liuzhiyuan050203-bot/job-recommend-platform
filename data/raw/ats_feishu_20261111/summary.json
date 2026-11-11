@@ -1,0 +1,117 @@
+{
+  "started_at": "2026-11-11T21:52:07+08:00",
+  "interval_s": 1.2,
+  "per_company": 300,
+  "companies": {
+    "nio": {
+      "label": "蔚来",
+      "domain": "nio.jobs.feishu.cn",
+      "portal": "campus",
+      "portal_type": null,
+      "total_listed": 1117,
+      "fetched": 300,
+      "with_salary": 0
+    },
+    "xpeng": {
+      "label": "小鹏集团",
+      "domain": "xiaopeng.jobs.feishu.cn",
+      "portal": "campus",
+      "portal_type": null,
+      "total_listed": 611,
+      "fetched": 300,
+      "with_salary": 0
+    },
+    "thundersoft": {
+      "label": "中科创达",
+      "domain": "thundersoft.jobs.feishu.cn",
+      "portal": "campus",
+      "portal_type": null,
+      "total_listed": 137,
+      "fetched": 137,
+      "with_salary": 0
+    },
+    "hesai": {
+      "label": "禾赛科技",
+      "domain": "kwh0jtf778.jobs.feishu.cn",
+      "portal": "229043",
+      "portal_type": null,
+      "total_listed": 153,
+      "fetched": 153,
+      "with_salary": 0
+    },
+    "sensetime": {
+      "label": "商汤科技",
+      "domain": "sensetime.jobs.feishu.cn",
+      "portal": "edu",
+      "portal_type": null,
+      "total_listed": 142,
+      "fetched": 142,
+      "with_salary": 0
+    },
+    "minimax": {
+      "label": "MiniMax",
+      "domain": "vrfi1sk8a0.jobs.feishu.cn",
+      "portal": "379481",
+      "portal_type": null,
+      "total_listed": 109,
+      "fetched": 109,
+      "with_salary": 0
+    },
+    "desaysv": {
+      "label": "德赛西威",
+      "domain": "yesv-desaysv.jobs.feishu.cn",
+      "portal": "campus",
+      "portal_type": null,
+      "total_listed": 116,
+      "fetched": 116,
+      "with_salary": 0
+    },
+    "insta360": {
+      "label": "影石创新",
+      "domain": "arashivision.jobs.feishu.cn",
+      "portal": "campus",
+      "portal_type": null,
+      "total_listed": 140,
+      "fetched": 140,
+      "with_salary": 0
+    },
+    "dcar": {
+      "label": "懂车帝",
+      "domain": "dcar.jobs.feishu.cn",
+      "portal": "index",
+      "portal_type": null,
+      "total_listed": 655,
+      "fetched": 300,
+      "with_salary": 0
+    },
+    "kargobot": {
+      "label": "卡尔动力",
+      "domain": "kargobot.jobs.feishu.cn",
+      "portal": "267069",
+      "portal_type": null,
+      "total_listed": 30,
+      "fetched": 30,
+      "with_salary": 0
+    },
+    "intchains": {
+      "label": "芯动科技(intchains)",
+      "domain": "intchains.jobs.feishu.cn",
+      "portal": "749649",
+      "portal_type": null,
+      "total_listed": 6,
+      "fetched": 6,
+      "with_salary": 0
+    },
+    "dexteleop": {
+      "label": "灵御智能",
+      "domain": "dexteleop.jobs.feishu.cn",
+      "portal": "index",
+      "portal_type": null,
+      "total_listed": 24,
+      "fetched": 24,
+      "with_salary": 0
+    }
+  },
+  "skipped": {},
+  "finished_at": "2026-11-11T21:54:55+08:00"
+}

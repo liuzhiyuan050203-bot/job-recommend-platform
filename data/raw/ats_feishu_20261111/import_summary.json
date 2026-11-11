@@ -1,0 +1,24 @@
+{
+  "imported_jobs": 600,
+  "tags": 1198,
+  "by_company": {
+    "dcar": 63,
+    "desaysv": 67,
+    "dexteleop": 12,
+    "hesai": 47,
+    "insta360": 35,
+    "intchains": 5,
+    "kargobot": 16,
+    "minimax": 76,
+    "nio": 21,
+    "sensetime": 97,
+    "thundersoft": 109,
+    "xpeng": 52
+  },
+  "data_source_counts": {
+    "ext_ats": 600,
+    "platform": 3202,
+    "self_crawl": 1758
+  },
+  "imported_at": "2026-11-11T22:15:56+08:00"
+}

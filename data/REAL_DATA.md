@@ -138,3 +138,13 @@ curl -s -X POST http://127.0.0.1:8000/recommend/run \
 .venv/bin/python experiments/salary/prepare_real_salary.py
 .venv/bin/python experiments/salary/run_salary_experiment.py --folds 5
 ```
+
+---
+
+## 外部扩充库：飞书招聘公开门户（2026-11-11）
+
+`data/crawl_feishu_ats.py` 从 12 家企业的 `*.jobs.feishu.cn` 公开门户抓取职位，共 1757 条（不登录，请求间隔 1.2 s）。`data/import_ats_jobs.py` 只把其中 600 条 IT 岗导入为 `job_position.data_source='ext_ats'`，账号为 `ext_*`，信用代码前缀 `EXTA`。
+
+这批职位保存了官网 JD 原文。薪资是估算值，不参与薪资训练，前台排在核心库之后。
+
+Moka 的接口返回加密数据，已放弃该源。详见 `experiments/data_improve/REPORT.md` 第 4 节。

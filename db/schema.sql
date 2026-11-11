@@ -253,6 +253,7 @@ CREATE TABLE job_position (
   description     TEXT         NULL COMMENT '岗位职责',
   requirement     TEXT         NULL COMMENT '任职要求',
   welfare         VARCHAR(500) NULL COMMENT '福利待遇',
+  data_source     VARCHAR(16)  NOT NULL DEFAULT 'platform' COMMENT '数据来源：platform平台发布 self_crawl自爬核心库 ext_ats外部扩充库',
   shelf_status    TINYINT      NOT NULL DEFAULT 0 COMMENT '上下架状态：0下架 1上架',
   audit_status    TINYINT      NOT NULL DEFAULT 0 COMMENT '职位审核状态：0待审核 1已通过 2已驳回',
   audit_remark    VARCHAR(255) NULL COMMENT '职位审核意见',
@@ -273,6 +274,7 @@ CREATE TABLE job_position (
   KEY idx_job_position_city_dir (city, tech_direction, education),
   KEY idx_job_position_province (province, city),
   KEY idx_job_position_salary (salary_min, salary_max),
+  KEY idx_job_position_source (data_source, shelf_status, deleted),
   CONSTRAINT fk_job_position_company FOREIGN KEY (company_id) REFERENCES ent_company (id)
     ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT fk_job_position_category FOREIGN KEY (category_id) REFERENCES job_category (id)
@@ -286,7 +288,8 @@ CREATE TABLE job_position (
   CONSTRAINT chk_job_position_type CHECK (job_type IN (1, 2, 3)),
   CONSTRAINT chk_job_position_headcount CHECK (headcount >= 1),
   CONSTRAINT chk_job_position_shelf CHECK (shelf_status IN (0, 1)),
-  CONSTRAINT chk_job_position_audit CHECK (audit_status IN (0, 1, 2))
+  CONSTRAINT chk_job_position_audit CHECK (audit_status IN (0, 1, 2)),
+  CONSTRAINT chk_job_position_source CHECK (data_source IN ('platform', 'self_crawl', 'ext_ats'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='招聘职位';
 
 CREATE TABLE job_position_tag (

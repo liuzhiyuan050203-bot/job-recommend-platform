@@ -7,7 +7,7 @@
 历史遗留。
 
 识别规则（全部按名称/归属精确匹配，不按编号取模，不改任何正常数据的状态）：
-- 夹具账号：学生/企业角色、用户名不属于演示账号 admin/student/company、demo_*、real_* 的账号
+- 夹具账号：学生/企业角色、用户名不属于演示账号 admin/student/company、demo_*、real_*、ext_*（外部扩充企业）的账号
   （测试脚本注册的 stu*/com*/rstu*/rcom*/cold*/secu*/m1*/rsm*/uxcom* 等）。
 - 夹具职位：夹具企业的全部职位；演示企业职位中标题匹配测试前缀的（见 JOB_TITLE_PATTERNS）。
 - 夹具简历：夹具账号的简历；演示学生名下标题匹配测试前缀的简历（见 RESUME_TITLE_PATTERNS）。
@@ -29,7 +29,7 @@ import sys
 import pymysql
 
 DEMO_USERNAMES = ("admin", "student", "company")
-DEMO_PREFIXES = ("demo\\_%", "real\\_%")
+DEMO_PREFIXES = ("demo\\_%", "real\\_%", "ext\\_%")
 JOB_TITLE_PATTERNS = (
     "招聘流程测试%",
     "越权隔离职位%",

@@ -772,6 +772,12 @@ def main() -> int:
             elif args.append_csv:
                 csv_n = append_csv(jobs, csv_path)
                 print(f"[import] appended CSV rows={csv_n} -> {csv_path}")
+            # 已执行 db/migrations/phase7_job_data_source.sql 时，把本批职位标为自爬核心库
+            cur.execute("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() "
+                        "AND TABLE_NAME='job_position' AND COLUMN_NAME='data_source'")
+            if cur.fetchone()[0]:
+                cur.execute("UPDATE job_position p JOIN ent_company c ON c.id=p.company_id SET p.data_source='self_crawl' "
+                            "WHERE c.credit_code LIKE %s", (CREDIT_PREFIX + "%",))
             conn.commit()
             # verify seed accounts intact
             cur.execute("SELECT username FROM sys_user WHERE username IN ('admin','student','company')")

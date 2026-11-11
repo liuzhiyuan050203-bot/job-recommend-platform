@@ -1,0 +1,10 @@
+step,variant,train_source,model,n_train,n_golden,mae,rmse,r2,r2_ci95,mae_ci95,n_features,target,fit_s
+step2,S2a core only (F6+year),core_boss2023,SparkRF,8907,300,3463.5,5414.4,0.5242,"[0.418, 0.629]","[3048, 3943]",165,mid,13.1
+step2,S2a core only (F6+year),core_boss2023,SparkGBT,8907,300,3374.8,5336.0,0.5379,"[0.385, 0.664]","[2953, 3892]",165,mid,25.5
+step2,S2a core only (F6+year),core_boss2023,LightGBM,8907,300,3263.5,5076.4,0.5817,"[0.479, 0.683]","[2868, 3722]",165,mid,0.8
+step2,S2b core+51job(权重1),mixed,SparkRF,49803,300,3686.3,5859.8,0.4427,"[0.325, 0.558]","[3208, 4221]",177,mid,15.6
+step2,S2b core+51job(权重1),mixed,SparkGBT,49803,300,3440.9,5406.4,0.5256,"[0.412, 0.633]","[3020, 3955]",177,mid,38.3
+step2,S2b core+51job(权重1),mixed,LightGBM,49803,300,3231.0,5034.7,0.5886,"[0.486, 0.684]","[2850, 3700]",177,mid,1.3
+step2,S2c core+51job(权重0.3),mixed,SparkRF,49803,300,3574.2,5696.5,0.4733,"[0.360, 0.587]","[3121, 4082]",177,mid,12.9
+step2,S2c core+51job(权重0.3),mixed,SparkGBT,49803,300,3347.3,5133.2,0.5723,"[0.472, 0.668]","[2923, 3812]",177,mid,37.5
+step2,S2c core+51job(权重0.3),mixed,LightGBM,49803,300,3288.3,5079.3,0.5813,"[0.487, 0.671]","[2893, 3770]",177,mid,1.3

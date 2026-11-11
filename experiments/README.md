@@ -95,6 +95,8 @@ bash scripts/start-spark-cluster.sh && .venv/bin/python experiments/spark_cluste
 
 ## 1. 薪资预测严谨性
 
+> 数据改善与固定黄金集消融（step0–2）见 [`data_improve/REPORT.md`](data_improve/REPORT.md)。
+
 脚本：`experiments/salary/{prepare_real_salary,export_platform_jobs,run_salary_experiment}.py`  
 数据说明：`data/REAL_DATA.md`（公开 MIT 数据集）与 `data/real_salary/`。
 
