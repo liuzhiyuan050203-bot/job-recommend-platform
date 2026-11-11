@@ -44,18 +44,28 @@
           </template>
         </el-table-column>
         <el-table-column prop="updateTime" label="最近更新" width="170" />
-        <el-table-column label="操作" min-width="280" fixed="right">
+        <el-table-column label="操作" width="230" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row)">简历</el-button>
-            <el-button
-              v-for="next in row.nextStatuses || []"
-              :key="next.status"
-              link
-              :type="next.status === 4 ? 'danger' : 'success'"
-              @click="move(row, next)"
-            >{{ next.statusName }}</el-button>
-            <el-button v-if="row.status === 0 || row.status === 1" link @click="openNotice(row, 1)">发笔试</el-button>
-            <el-button v-if="row.status === 0 || row.status === 1 || row.status === 2" link @click="openNotice(row, 2)">发面试</el-button>
+            <el-button link type="primary" @click="openDetail(row)">查看简历</el-button>
+            <el-dropdown v-if="(row.nextStatuses || []).length" trigger="click" @command="(next) => move(row, next)">
+              <el-button link type="success">推进状态<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-for="next in row.nextStatuses" :key="next.status" :command="next">
+                    <span :class="{ danger: next.status === 4 }">标记为「{{ next.statusName }}」</span>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            <el-dropdown v-if="row.status <= 2" trigger="click" @command="(type) => openNotice(row, type)">
+              <el-button link>发通知<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-if="row.status <= 1" :command="1">笔试通知</el-dropdown-item>
+                  <el-dropdown-item :command="2">面试通知</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
         <template #empty>
@@ -251,10 +261,17 @@ function matchTip(row) {
 }
 
 async function move(row, next) {
-  const { value } = await ElMessageBox.prompt(`将状态变更为「${next.statusName}」`, '状态流转', {
-    inputPlaceholder: '备注，可空',
-    inputValue: ''
-  })
+  let value = ''
+  try {
+    ;({ value } = await ElMessageBox.prompt(`将「${row.studentName || '该候选人'}」的状态变更为「${next.statusName}」`, '状态流转', {
+      inputPlaceholder: '备注（可空），学生可在投递详情中看到',
+      inputValue: '',
+      confirmButtonText: '确认变更',
+      cancelButtonText: '取消'
+    }))
+  } catch {
+    return
+  }
   await updateApplicationStatus(row.id, { toStatus: next.status, remark: value || '' })
   ElMessage.success('状态已更新')
   await refreshAfterChange(row.id)
@@ -301,6 +318,8 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.danger { color: var(--el-color-danger); }
+:deep(.el-dropdown) { vertical-align: middle; margin-left: 10px; }
 .card-header { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; }
 .title { font-weight: 600; }
 .filters { display: flex; gap: 8px; flex-wrap: wrap; }

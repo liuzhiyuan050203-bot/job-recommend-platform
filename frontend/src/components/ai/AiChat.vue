@@ -5,19 +5,24 @@
         <span>会话</span>
         <el-button type="primary" size="small" @click="newChat">新对话</el-button>
       </div>
+      <el-input v-if="sessions.length > 5" v-model="sessionFilter" size="small" clearable placeholder="搜索历史会话" class="session-search" />
       <div v-loading="sessionsLoading" class="session-list">
-        <div v-if="!sessions.length" class="session-empty">还没有会话</div>
+        <div v-if="!sessions.length" class="session-empty">还没有会话，直接在右侧提问即可开始</div>
+        <div v-else-if="!filteredSessions.length" class="session-empty">没有匹配的会话</div>
         <div
-          v-for="item in sessions"
+          v-for="item in filteredSessions"
           :key="item.id"
           class="session-item"
           :class="{ active: item.id === sessionId }"
           @click="openSession(item)"
         >
-          <div class="session-title">{{ item.title }}</div>
-          <div class="session-actions" @click.stop>
-            <el-button link type="primary" @click="rename(item)">重命名</el-button>
-            <el-button link type="danger" @click="remove(item)">删除</el-button>
+          <div class="session-title" :title="item.title">{{ item.title }}</div>
+          <div class="session-meta">
+            <span>{{ sessionTime(item) }}</span>
+            <span class="session-actions" @click.stop>
+              <el-button link type="primary" size="small" @click="rename(item)">重命名</el-button>
+              <el-button link type="danger" size="small" @click="remove(item)">删除</el-button>
+            </span>
           </div>
         </div>
       </div>
@@ -133,6 +138,15 @@ marked.setOptions({ gfm: true, breaks: true })
 const suggestions = computed(() => SUGGESTIONS[props.role] || [])
 const sessions = ref([])
 const sessionsLoading = ref(false)
+const sessionFilter = ref('')
+const filteredSessions = computed(() => {
+  const kw = sessionFilter.value.trim().toLowerCase()
+  return kw ? sessions.value.filter((s) => String(s.title || '').toLowerCase().includes(kw)) : sessions.value
+})
+function sessionTime(item) {
+  const raw = item.updateTime || item.createTime
+  return raw ? String(raw).replace('T', ' ').slice(5, 16) : ''
+}
 const sessionId = ref(null)
 const messages = ref([])
 const draft = ref('')
@@ -474,11 +488,28 @@ onMounted(loadSessions)
 .session-title {
   font-size: 14px;
   line-height: 1.4;
-  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #a0aec0;
+  min-height: 22px;
 }
 .session-actions {
-  display: flex;
-  gap: 4px;
+  display: none;
+  gap: 2px;
+}
+.session-item:hover .session-actions,
+.session-item.active .session-actions {
+  display: inline-flex;
+}
+.session-search {
+  margin-top: 10px;
 }
 .talk-card {
   flex: 1;

@@ -280,7 +280,7 @@ async function toggleShelf(row, online) {
 
 async function remove(row) {
   const ok = await ElMessageBox.confirm(
-    `删除职位「${row.title}」后不可恢复，已收到的投递记录仍会保留。确定删除吗？`,
+    `删除职位「${row.title}」后学生将无法再查看该职位，且不可恢复。确定删除吗？`,
     '删除职位',
     { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
   ).then(() => true).catch(() => false)

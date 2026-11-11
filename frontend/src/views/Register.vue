@@ -117,7 +117,7 @@
               </el-col>
               <el-col :xs="24" :sm="12">
                 <el-form-item label="统一社会信用代码" prop="creditCode">
-                  <el-input v-model="companyForm.creditCode" maxlength="32" placeholder="15-32 位字母或数字" />
+                  <el-input v-model="companyForm.creditCode" maxlength="18" placeholder="18 位，如 91330100MA2AB1C23D" />
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :sm="12">
@@ -270,7 +270,7 @@ const companyForm = reactive({
 const studentRules = {
   username: usernameRule,
   password: passwordRule,
-  confirmPassword: [{ validator: confirmRule(() => studentForm.password), trigger: 'blur' }],
+  confirmPassword: [{ required: true, validator: confirmRule(() => studentForm.password), trigger: 'blur' }],
   nickname: [{ required: true, message: '请输入昵称', trigger: 'blur' }],
   realName: [{ required: true, message: '请输入真实姓名', trigger: 'blur' }],
   education: [{ required: true, message: '请选择学历', trigger: 'change' }],
@@ -282,11 +282,16 @@ const studentRules = {
 const companyRules = {
   username: usernameRule,
   password: passwordRule,
-  confirmPassword: [{ validator: confirmRule(() => companyForm.password), trigger: 'blur' }],
+  confirmPassword: [{ required: true, validator: confirmRule(() => companyForm.password), trigger: 'blur' }],
   companyName: [{ required: true, message: '请输入企业全称', trigger: 'blur' }],
   creditCode: [
     { required: true, message: '请输入统一社会信用代码', trigger: 'blur' },
-    { pattern: /^[0-9A-Za-z]{15,32}$/, message: '信用代码需为 15-32 位字母或数字', trigger: 'blur' }
+    {
+      validator: (_r, v, cb) => (/^[0-9A-HJ-NPQRTUWXY]{2}\d{6}[0-9A-HJ-NPQRTUWXY]{10}$/.test(String(v || '').trim().toUpperCase())
+        ? cb()
+        : cb(new Error('统一社会信用代码应为 18 位数字或大写字母（不含 I、O、S、V、Z）'))),
+      trigger: 'blur'
+    }
   ],
   contactName: [{ required: true, message: '请输入联系人', trigger: 'blur' }],
   contactPhone: [{ validator: optionalPhone, trigger: 'blur' }],
@@ -310,7 +315,7 @@ const handleRegister = async () => {
       await registerStudent(omitConfirm(studentForm))
       ElMessage.success('学生注册成功，请登录')
     } else {
-      await registerCompany(omitConfirm(companyForm))
+      await registerCompany({ ...omitConfirm(companyForm), creditCode: companyForm.creditCode.trim().toUpperCase() })
       ElMessage.success('企业注册成功，请登录。资质审核通过前仅可维护企业资料')
     }
     router.push('/login')
