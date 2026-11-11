@@ -3,7 +3,10 @@
     <el-card shadow="never">
       <template #header>
         <div class="card-header">
-          <span class="title">面试安排</span>
+          <div>
+            <span class="title">面试安排</span>
+            <span class="hint head-hint">在「候选人管理」里给候选人发送笔试 / 面试通知后，安排会出现在这里</span>
+          </div>
           <el-select v-model="status" clearable placeholder="全部状态" style="width: 140px" @change="search">
             <el-option v-for="item in INTERVIEW_STATUS" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
@@ -18,11 +21,24 @@
           <template #default="{ row }">{{ row.interviewTypeName }}</template>
         </el-table-column>
         <el-table-column label="地点 / 链接" min-width="180">
-          <template #default="{ row }">{{ row.interviewType === 1 ? row.meetingUrl : row.location }}</template>
+          <template #default="{ row }">
+            <template v-if="row.interviewType === 1">
+              <a v-if="isUrl(row.meetingUrl)" :href="row.meetingUrl" target="_blank" rel="noopener noreferrer">{{ row.meetingUrl }}</a>
+              <span v-else>{{ row.meetingUrl || '未填写链接' }}</span>
+            </template>
+            <span v-else>{{ row.location || '未填写地点' }}</span>
+          </template>
         </el-table-column>
         <el-table-column label="状态" width="100">
-          <template #default="{ row }">{{ row.interviewStatusName }}</template>
+          <template #default="{ row }">
+            <el-tag size="small" :type="['warning', 'success', 'info', 'danger'][row.interviewStatus] || 'info'">{{ row.interviewStatusName }}</el-tag>
+          </template>
         </el-table-column>
+        <template #empty>
+          <el-empty v-if="!loading" description="暂无面试安排">
+            <el-button type="primary" @click="router.push('/company/candidates')">去候选人管理发送通知</el-button>
+          </el-empty>
+        </template>
         <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openResult(row)">记录结果</el-button>
@@ -40,7 +56,10 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="visible" title="记录面试结果" width="420px">
+    <el-dialog v-model="visible" title="记录面试结果" width="460px">
+      <el-alert v-if="current" type="info" :closable="false" class="target">
+        <template #title>{{ current.studentName }} · {{ current.jobTitle }} · {{ current.roundName }}（{{ current.interviewTime }}）</template>
+      </el-alert>
       <el-form label-width="80px">
         <el-form-item label="结果">
           <el-select v-model="result.interviewStatus" style="width: 100%">
@@ -48,7 +67,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="result.remark" type="textarea" />
+          <el-input v-model="result.remark" type="textarea" :rows="3" maxlength="255" show-word-limit placeholder="面试评价、结论或后续安排（选填）" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -62,10 +81,17 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
 import { getCompanyInterviews, saveInterviewResult } from '@/api/company'
 import { INTERVIEW_STATUS } from '@/utils/job'
 
+const router = useRouter()
+const current = ref(null)
 const loading = ref(false)
+
+function isUrl(v) {
+  return /^https?:\/\//i.test(v || '')
+}
 const saving = ref(false)
 const visible = ref(false)
 const status = ref(null)
@@ -94,6 +120,7 @@ function search() {
 }
 
 function openResult(row) {
+  current.value = row
   result.id = row.id
   result.interviewStatus = row.interviewStatus
   result.remark = row.remark || ''
@@ -104,7 +131,7 @@ async function submit() {
   saving.value = true
   try {
     await saveInterviewResult(result.id, { interviewStatus: result.interviewStatus, remark: result.remark })
-    ElMessage.success('已记录')
+    ElMessage.success('面试结果已保存')
     visible.value = false
     load()
   } finally {
@@ -116,7 +143,8 @@ onMounted(load)
 </script>
 
 <style scoped>
-.card-header { display: flex; justify-content: space-between; align-items: center; }
+.head-hint { display: block; margin-top: 4px; }
+.target { margin-bottom: 12px; }
 .title { font-weight: 600; }
 .pager { display: flex; justify-content: flex-end; margin-top: 16px; }
 </style>

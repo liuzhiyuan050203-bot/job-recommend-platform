@@ -201,14 +201,15 @@
 
             <div class="qual-btn-row">
               <el-button
-                type="warning"
+                :type="profile.auditStatus === 1 ? 'default' : 'warning'"
                 size="large"
                 :loading="submittingQual"
                 @click="handleSubmitQualification"
                 style="width: 100%"
               >
-                {{ profile.auditStatus === 1 ? '更新并重新提交资质审核' : '提交资质审核' }}
+                {{ profile.auditStatus === 1 ? '资质有变更？重新提交审核' : (profile.auditStatus === 2 ? '修改后重新提交审核' : '提交资质审核') }}
               </el-button>
+              <div v-if="profile.auditStatus === 1" class="qual-tip">资质已认证。仅在执照或信用代码变更时需要重新提交，提交后审核通过前将暂停职位发布与候选人管理。</div>
             </div>
           </el-form>
         </el-card>
@@ -263,9 +264,21 @@ const qualForm = reactive({
   licenseUrl: ''
 })
 
+const CREDIT_CODE = /^[0-9A-HJ-NPQRTUWXY]{2}\d{6}[0-9A-HJ-NPQRTUWXY]{10}$/
 const qualRules = {
-  creditCode: [{ required: true, message: '请输入统一社会信用代码', trigger: 'blur' }],
-  licenseUrl: [{ required: true, message: '请输入营业执照地址', trigger: 'blur' }]
+  creditCode: [
+    { required: true, message: '请输入统一社会信用代码', trigger: 'blur' },
+    {
+      validator: (_r, v, cb) => (CREDIT_CODE.test(String(v || '').trim().toUpperCase())
+        ? cb()
+        : cb(new Error('统一社会信用代码应为 18 位数字或大写字母（不含 I、O、S、V、Z）'))),
+      trigger: 'blur'
+    }
+  ],
+  licenseUrl: [
+    { required: true, message: '请输入营业执照图片地址', trigger: 'blur' },
+    { pattern: /^https?:\/\//i, message: '请填写以 http:// 或 https:// 开头的图片地址', trigger: 'blur' }
+  ]
 }
 
 const statusTagType = computed(() => {
@@ -312,7 +325,7 @@ const fetchProfile = async () => {
         licenseUrl: res.licenseUrl || ''
       })
       // 同步到 store
-      userStore.fetchCurrentUser()
+      userStore.fetchMe().catch(() => {})
     }
   } catch (err) {
     console.error(err)
@@ -329,7 +342,7 @@ const handleSaveInfo = async () => {
     try {
       await updateCompanyProfile(infoForm)
       ElMessage.success('基本资料保存成功')
-      userStore.fetchCurrentUser()
+      userStore.fetchMe().catch(() => {})
     } catch (err) {
       console.error(err)
     } finally {
@@ -343,11 +356,17 @@ const handleSubmitQualification = async () => {
   await qualFormRef.value.validate(async (valid) => {
     if (!valid) return
     try {
-      await ElMessageBox.confirm('提交后企业资质将重新进入【待审核】状态，确认提交吗？', '提示', { type: 'warning' })
+      await ElMessageBox.confirm(
+        profile.value.auditStatus === 1
+          ? '当前资质已认证。重新提交后将回到「待审核」，审核通过前不能发布职位和处理投递。确定重新提交吗？'
+          : '提交后企业资质进入「待审核」，管理员审核通过后即可发布职位。确认提交吗？',
+        '提交资质审核',
+        { type: 'warning', confirmButtonText: '确认提交', cancelButtonText: '取消' }
+      )
       submittingQual.value = true
       await submitCompanyQualification({
         companyName: infoForm.companyName,
-        creditCode: qualForm.creditCode.trim(),
+        creditCode: qualForm.creditCode.trim().toUpperCase(),
         licenseUrl: qualForm.licenseUrl.trim()
       })
       ElMessage.success('资质提交成功，请等待管理员审核')
@@ -367,7 +386,13 @@ onMounted(() => {
 
 <style scoped>
 .company-profile-container {
-  padding: 10px 0;
+  padding: 0;
+}
+.qual-tip {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.6;
 }
 .status-banner {
   margin-bottom: 20px;

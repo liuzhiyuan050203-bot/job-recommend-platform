@@ -11,7 +11,7 @@
             <el-select v-model="query.status" clearable placeholder="全部状态" style="width: 140px" @change="search">
               <el-option v-for="item in APP_STATUS" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
-            <el-input v-model="query.keyword" clearable placeholder="姓名或职位" style="width: 200px" @keyup.enter="search" />
+            <el-input v-model="query.keyword" clearable placeholder="姓名或职位" style="width: 200px" @keyup.enter="search" @clear="search" />
             <el-button type="primary" @click="search">筛选</el-button>
           </div>
         </div>
@@ -59,7 +59,7 @@
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty v-if="!loading" description="还没有候选人" />
+          <el-empty v-if="!loading" :description="query.jobId || (query.status !== null && query.status !== undefined && query.status !== '') || query.keyword ? '没有符合筛选条件的候选人' : '还没有收到投递，职位审核通过并上架后学生即可投递'" />
         </template>
       </el-table>
       <div class="pager">
@@ -168,11 +168,13 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getCompanyApplication, getCompanyApplications, getCompanyJobs, sendInterviewNotice, updateApplicationStatus } from '@/api/company'
 import { APP_STATUS, appTagType } from '@/utils/job'
 import SkillChips from '@/components/SkillChips.vue'
 
+const route = useRoute()
 const loading = ref(false)
 const saving = ref(false)
 const rows = ref([])
@@ -285,9 +287,16 @@ async function submitNotice() {
 }
 
 onMounted(async () => {
-  const res = await getCompanyJobs({ current: 1, size: 100 })
-  jobs.value = res.records || []
+  // 支持从工作台 / 职位管理带条件跳转：?status=0 或 ?jobId=xx
+  if (route.query.status !== undefined && route.query.status !== '') query.status = Number(route.query.status)
+  if (route.query.jobId) query.jobId = Number(route.query.jobId)
   load()
+  try {
+    const res = await getCompanyJobs({ current: 1, size: 100 })
+    jobs.value = res.records || []
+  } catch {
+    jobs.value = []
+  }
 })
 </script>
 

@@ -3,7 +3,10 @@
     <el-card shadow="never">
       <template #header>
         <div class="card-header">
-          <span class="title">职位管理</span>
+          <div>
+            <span class="title">职位管理</span>
+            <span class="hint head-hint">新发布或修改后的职位需管理员审核，审核通过且上架后学生才能看到</span>
+          </div>
           <el-button type="primary" icon="Plus" @click="openCreate">发布职位</el-button>
         </div>
       </template>
@@ -29,12 +32,20 @@
             <el-tag v-else :type="auditTagType(row.auditStatus)">{{ labelOf(AUDIT_STATUS, row.auditStatus) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="上架" width="90">
+        <el-table-column label="上架" width="120">
           <template #default="{ row }">
             <el-switch :model-value="row.shelfStatus === 1" @change="(val) => toggleShelf(row, val)" />
+            <div v-if="row.shelfStatus === 1 && row.auditStatus !== 1" class="shelf-tip">
+              {{ row.auditStatus === 2 ? '已驳回，修改后重新提交' : '审核通过后自动对学生可见' }}
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="applyCount" label="投递数" width="80" />
+        <el-table-column label="投递数" width="90">
+          <template #default="{ row }">
+            <el-button v-if="row.applyCount" link type="primary" @click="router.push({ path: '/company/candidates', query: { jobId: row.id } })">{{ row.applyCount }} 份</el-button>
+            <span v-else class="muted">0</span>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
@@ -42,7 +53,9 @@
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty v-if="!loading" description="还没有发布职位" />
+          <el-empty v-if="!loading" description="还没有发布职位">
+            <el-button type="primary" @click="openCreate">发布第一个职位</el-button>
+          </el-empty>
         </template>
       </el-table>
       <div class="pager">
@@ -133,11 +146,14 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
 import { getCategories, getSkillTags } from '@/api/public'
 import { createCompanyJob, deleteCompanyJob, getCompanyJob, getCompanyJobs, shelfCompanyJob, updateCompanyJob } from '@/api/company'
 import { extractSkillIds } from '@/utils/jobText'
 import { AUDIT_STATUS, EDUCATION, EXPERIENCE, JOB_TYPE, auditTagType, labelOf, mapCategoryOptions, salaryText } from '@/utils/job'
 
+const route = useRoute()
+const router = useRouter()
 const loading = ref(false)
 const saving = ref(false)
 const visible = ref(false)
@@ -222,7 +238,11 @@ async function openEdit(row) {
 }
 
 async function submit() {
-  await formRef.value.validate()
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) {
+    ElMessage.warning('请检查表单中标红的必填项')
+    return
+  }
   if (!form.province || !form.city) {
     ElMessage.warning('请填写省份和城市')
     return
@@ -239,7 +259,7 @@ async function submit() {
     } else {
       await createCompanyJob(payload)
     }
-    ElMessage.success('已保存')
+    ElMessage.success(form.id ? '已保存，职位将重新进入审核' : '已发布，等待管理员审核后对学生可见')
     visible.value = false
     load()
   } finally {
@@ -251,14 +271,20 @@ async function toggleShelf(row, online) {
   try {
     await shelfCompanyJob(row.id, online ? 1 : 0)
     row.shelfStatus = online ? 1 : 0
-    if (online) ElMessage.success('已上架')
+    if (online) ElMessage.success(row.auditStatus === 1 ? '已上架，学生现在可以看到该职位' : '已设为上架，审核通过后自动对学生可见')
+    else ElMessage.success('已下架，学生将看不到该职位')
   } catch {
     load()
   }
 }
 
 async function remove(row) {
-  await ElMessageBox.confirm(`删除职位「${row.title}」？`, '提示', { type: 'warning' })
+  const ok = await ElMessageBox.confirm(
+    `删除职位「${row.title}」后不可恢复，已收到的投递记录仍会保留。确定删除吗？`,
+    '删除职位',
+    { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+  ).then(() => true).catch(() => false)
+  if (!ok) return
   await deleteCompanyJob(row.id)
   ElMessage.success('已删除')
   load()
@@ -269,6 +295,7 @@ onMounted(async () => {
   categories.value = mapCategoryOptions(tree)
   skillTags.value = tags || []
   load()
+  if (route.query.create === '1') openCreate()
 })
 </script>
 
@@ -278,7 +305,9 @@ onMounted(async () => {
   gap: 8px;
   width: 100%;
 }
-.card-header { display: flex; justify-content: space-between; align-items: center; }
+.head-hint { display: block; margin-top: 4px; }
+.shelf-tip { font-size: 12px; color: #e6a23c; line-height: 1.4; margin-top: 2px; }
+.muted { color: var(--el-text-color-secondary); }
 .title { font-weight: 600; }
 .tag { margin-right: 4px; }
 .pager { display: flex; justify-content: flex-end; margin-top: 16px; }
