@@ -2,7 +2,7 @@
 
 > 目标：让学生 / 企业 / 管理员三端“真正能用”——导航清楚、每个角色有工作台首页、空态与报错有引导、外部来源职位不误导。
 > 环境：Vue 3 + Element Plus（5173）、Spring Boot（8080）、FastAPI + Spark（8000）、MySQL 8.4。
-> 验证：`bash tests/run-all.sh` 全部通过（16 个脚本 845 PASS / 0 FAIL）；`pnpm build` 通过；三端 44 个页面自动截图巡检，没有控制台错误，也没有接口报错。
+> 验证：`bash tests/run-all.sh` 全部通过（第二轮后为 17 个脚本 893 PASS / 0 FAIL），`mvn test` 20/20 通过；`pnpm build` 通过；三端 44 个页面自动截图巡检，没有控制台错误，也没有接口报错。
 
 ## 1. 整改前发现的问题
 
@@ -70,13 +70,23 @@
 
 其他整改后截图：外部职位详情 `after_student_07_student_jobs_12626.png`、薪资预测 `after_student_13_student_salary.png`、就业助手 `after_student_14_student_assistant.png`、招聘工作台 `after_company_02_company_dashboard.png`、候选人 `after_company_05_company_candidates.png`、Spark 任务 `after_admin_13_admin_spark.png`、职位审核 `after_admin_05_admin_jobs.png`、用户管理 `after_admin_03_admin_users.png`。
 
-## 5. 仍存在的问题
-- 后端仍允许企业在职位审核通过前先设为“上架”，前端只给了提示（REPORT P1-12）。
-- AI 助手回答质量取决于检索库和模型，本次没有调整。
-- 学生删除简历后，已投递记录中的简历快照是否完整显示，没有专门验证。
-- 自爬（self_crawl）职位仍允许在平台内投递，只有 ext_ats 被拦截。
-- `HealthControllerTest` 断言 AI 服务为 DOWN，在 AI 服务运行时会失败。这是测试本身依赖环境的旧问题，与本次改动无关。
-- 相似职位列表暂未显示来源标签（接口已经返回 `sourceCode`）。
+## 5. 第二轮：遗留问题收尾（2026-11-11 晚）
+
+| 遗留问题 | 处理 |
+|---|---|
+| 后端允许职位在审核通过前上架（P1-12） | `PUT /company/jobs/{id}/shelf` 上架前要求企业资质已通过（403）且职位已通过审核（待审 / 驳回返回 400，并给出对应提示）。下架、保存草稿不受限。企业资质未通过时，除资料接口外的企业接口本来就被拦截器拦截（403）。职位管理里待审核职位的上架开关禁用，悬停时提示原因。 |
+| `HealthControllerTest` 依赖本机 AI 服务 | 用 `@MockBean FastApiClient` 替身，分别覆盖 UP 和 DOWN 两种情况；`mvn test` 20/20 通过。 |
+| 相似职位不显示来源 | 接口原本就返回 `sourceCode`，前端的来源标签会显示在非企业发布职位上；本轮补上 `salaryEstimated`，估算薪资会带 * 标记。见 `after_student_selfcrawl_detail.png`。 |
+| 学生删除简历后，已有投递的显示 | 整改前：简历是逻辑删除，企业候选人详情里简历区块直接消失，没有任何说明；附件下载返回 404。整改后：投递详情读取包含已删除记录的简历，展示删除前的内容，标记 `resumeDeleted=true`，页面提示「简历已删除」；附件原件仍可下载。候选人详情新增「下载简历原件」，没有关联简历时显示说明。见 `after_company_candidate_resume_deleted.png`。 |
+| 自爬（self_crawl）职位可站内投递 | 核查后确认：这些职位所属的 16 个企业账号 `real_*`（字节、腾讯等）都由 `data/import_real_jobs.py` 创建，共用演示密码，并非企业本人运营，属于占位账号。因此改为与外部来源一致：详情页只提供「前往官网投递」（官网链接覆盖率经抽样为 200/200），后端站内投递返回 400，详情和列表新增 `applyInPlatform`，`source=internal` 改为只含企业发布职位。导入时已注入的历史演示投递保留，不受影响。 |
+
+新增测试 `tests/api/17-publish-guard-resume.sh`（37 项）：覆盖上架门槛、待审企业拦截、删除简历后学生端和企业端的投递显示，以及已删除简历不能再用于投递。`16-job-source.sh` 增加了校招官网职位不可站内投递、`applyInPlatform`、相似职位估算薪资等检查（共 38 项）。
+
+### 仍存在的问题
+- AI 助手的回答质量取决于检索库和模型，本次没有调整。
+- 投递保存的是简历引用而不是投递时的副本：学生在投递后**编辑**简历，企业看到的是编辑后的内容（删除的情况已处理）。如需严格的投递快照，需要新增快照字段并做数据迁移。
+- 后端注册接口的信用代码仍为 15-32 位宽松校验，前端已收紧为 18 位标准；如要统一，需同步调整接口测试的数据。
+- `HealthControllerTest` 仍需要本机 MySQL（数据库健康检查用真实数据源）。
 
 ## 6. 部署说明
 - **不需要新的数据库迁移**：依赖的 `job_position.data_source` 字段来自已有的 phase7 迁移（提交 e7cde96）及 ext_ats 导入。
