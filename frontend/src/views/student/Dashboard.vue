@@ -7,14 +7,24 @@
       <el-row :gutter="16">
         <el-col :xs="24" :lg="12">
           <el-card shadow="never">
-            <template #header><span class="title">投递状态</span></template>
+            <template #header>
+              <div class="card-header">
+                <span class="title">投递状态</span>
+                <el-button link type="primary" @click="router.push('/student/applications')">我的投递</el-button>
+              </div>
+            </template>
             <el-empty v-if="!statusTotal" description="还没有投递记录" />
             <EChart v-else :option="statusOption" height="320px" />
           </el-card>
         </el-col>
         <el-col :xs="24" :lg="12">
           <el-card shadow="never">
-            <template #header><span class="title">技能雷达</span></template>
+            <template #header>
+              <div class="card-header">
+                <span class="title">技能雷达</span>
+                <el-button link type="primary" @click="router.push('/student/profile')">完善技能</el-button>
+              </div>
+            </template>
             <el-empty v-if="!radarSkills.length" description="完善技能或等待推荐后展示对比" />
             <EChart v-else :option="radarOption" height="320px" />
           </el-card>
@@ -24,7 +34,12 @@
       <el-row :gutter="16">
         <el-col :xs="24" :lg="10">
           <el-card shadow="never">
-            <template #header><span class="title">薪资预测</span></template>
+            <template #header>
+              <div class="card-header">
+                <span class="title">薪资预测</span>
+                <el-button link type="primary" @click="router.push('/student/salary')">换条件预测</el-button>
+              </div>
+            </template>
             <p v-if="!canPredict" class="hint">
               请先在个人档案中填写期望城市、技术方向和学历。
               <el-button link type="primary" @click="router.push('/student/profile')">去完善</el-button>
@@ -203,6 +218,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.el-row { row-gap: 16px; }
 .page-container {
   display: flex;
   flex-direction: column;

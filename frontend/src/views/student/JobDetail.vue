@@ -1,11 +1,16 @@
 <template>
   <div v-loading="loading" class="page-container">
-    <el-page-header content="职位详情" @back="router.push('/student/jobs')" />
+    <el-page-header content="职位详情" @back="goBack" />
+    <el-card v-if="!loading && !job" class="detail" shadow="never">
+      <el-empty :description="loadError || '职位不存在或已下架'">
+        <el-button type="primary" @click="router.push('/student/jobs')">返回职位搜索</el-button>
+      </el-empty>
+    </el-card>
     <el-card v-if="job" class="detail" shadow="never">
       <div class="head">
         <div>
           <h2>{{ job.title }}</h2>
-          <p>{{ job.companyName }} · {{ job.province }} {{ job.city }} {{ job.district }} · {{ job.techDirection }}</p>
+          <p>{{ job.companyName }} · {{ placeText }} · {{ job.techDirection }}</p>
         </div>
         <div class="salary-block">
           <div class="salary">{{ salaryText(job.salaryMin, job.salaryMax, job.salaryMonths) }}<sup v-if="job.salaryEstimated" class="estimate-mark">*</sup></div>
@@ -29,19 +34,43 @@
         <el-tag>{{ labelOf(EDUCATION, job.education) }}</el-tag>
         <el-tag type="info">{{ labelOf(EXPERIENCE, job.experienceReq) }}</el-tag>
         <el-tag type="success">{{ labelOf(JOB_TYPE, job.jobType) }}</el-tag>
-        <el-tag v-for="name in job.tagNames || []" :key="name">{{ name }}</el-tag>
+        <el-tooltip v-for="name in job.tagNames || []" :key="name" :content="hasSkill(name) ? '你的档案里已有该技能' : '你的档案里还没有该技能'" placement="top">
+          <el-tag :type="hasSkill(name) ? 'success' : 'info'" :effect="hasSkill(name) ? 'light' : 'plain'">
+            <span v-if="hasSkill(name)">✓ </span>{{ name }}
+          </el-tag>
+        </el-tooltip>
       </div>
+      <p v-if="(job.tagNames || []).length && mySkills.length" class="skill-hint">
+        技能匹配：已掌握 {{ matchedCount }} / {{ job.tagNames.length }} 项
+        <el-button v-if="matchedCount < job.tagNames.length" link type="primary" @click="router.push('/student/profile')">去补充技能</el-button>
+      </p>
       <p class="stat">招聘 {{ job.headcount }} 人 · 浏览 {{ job.viewCount || 0 }} · 收藏 {{ job.favoriteCount || 0 }} · 投递 {{ job.applyCount || 0 }}</p>
+      <el-alert
+        v-if="external"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="external-alert"
+        title="外部来源职位：同步自企业招聘官网的公开信息，平台内不能直接投递，请点击「前往官网投递」。"
+      />
       <div class="actions">
-        <el-button :type="job.favorited ? 'warning' : 'default'" @click="toggleFavorite">
+        <el-button :type="job.favorited ? 'warning' : 'default'" :icon="job.favorited ? 'StarFilled' : 'Star'" :loading="favLoading" @click="toggleFavorite">
           {{ job.favorited ? '已收藏' : '收藏' }}
         </el-button>
-        <el-button type="primary" :disabled="job.applied" @click="openApply">
-          {{ job.applied ? '已投递' : '投递简历' }}
-        </el-button>
-        <el-button v-if="source && source.applyUrl" tag="a" :href="source.applyUrl" target="_blank" rel="noopener noreferrer">
-          前往官网查看/投递
-        </el-button>
+        <template v-if="external">
+          <el-button v-if="source && source.applyUrl" type="primary" tag="a" :href="source.applyUrl" target="_blank" rel="noopener noreferrer">
+            前往官网投递
+          </el-button>
+        </template>
+        <template v-else>
+          <el-button type="primary" :disabled="job.applied" @click="openApply">
+            {{ job.applied ? '已投递' : '投递简历' }}
+          </el-button>
+          <el-button v-if="job.applied" link type="primary" @click="router.push('/student/applications')">查看投递进度</el-button>
+          <el-button v-if="source && source.applyUrl" tag="a" :href="source.applyUrl" target="_blank" rel="noopener noreferrer">
+            前往官网查看
+          </el-button>
+        </template>
       </div>
       <h3>岗位职责</h3>
       <ol v-if="descriptionItems.length > 1" class="items">
@@ -68,10 +97,10 @@
       <el-empty v-if="!similar.length" description="暂无相似职位" />
       <div v-for="item in similar" :key="item.id" class="similar-item" @click="openSimilar(item)">
         <div>
-          <div class="job-title">{{ item.title }}</div>
+          <div class="job-title">{{ item.title }} <JobSourceTag :job="item" :show-estimate="false" /></div>
           <div class="sub">{{ item.companyName }} · {{ item.city }} · {{ item.techDirection }}</div>
         </div>
-        <div class="salary">{{ salaryText(item.salaryMin, item.salaryMax, item.salaryMonths) }}</div>
+        <div class="salary small">{{ salaryText(item.salaryMin, item.salaryMax, item.salaryMonths) }}<sup v-if="isEstimatedSalary(item)">*</sup></div>
       </div>
     </el-card>
 
@@ -128,7 +157,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getJob, getSimilarJobs } from '@/api/public'
 import { addFavorite, applyJob, getResumes, getStudentSkills, removeFavorite } from '@/api/student'
-import { EDUCATION, EXPERIENCE, JOB_TYPE, labelOf, salaryText } from '@/utils/job'
+import { EDUCATION, EXPERIENCE, JOB_TYPE, isEstimatedSalary, isExternalJob, labelOf, salaryText } from '@/utils/job'
+import JobSourceTag from '@/components/JobSourceTag.vue'
 import { parseJobText } from '@/utils/jobText'
 import { preferredApplyResume, pickApplyResumes, mergePreviewSkills } from '@/utils/resumePick'
 
@@ -156,6 +186,31 @@ const requirementItems = computed(() => (Array.isArray(job.value?.requirementIte
   ? job.value.requirementItems : parseJobText(job.value?.requirement)))
 const source = computed(() => job.value?.dataSource || null)
 const isCrawled = computed(() => source.value?.type === 'CRAWLER')
+const external = computed(() => isExternalJob(job.value))
+const favLoading = ref(false)
+const loadError = ref('')
+const mySkillNames = computed(() => new Set((mySkills.value || []).map((s) => String(s.tagName || s.name || '').toLowerCase())))
+function hasSkill(name) {
+  return mySkillNames.value.has(String(name || '').toLowerCase())
+}
+const matchedCount = computed(() => (job.value?.tagNames || []).filter(hasSkill).length)
+const placeText = computed(() => {
+  const j = job.value || {}
+  const parts = []
+  if (j.province && j.province !== j.city) parts.push(j.province)
+  if (j.city) parts.push(j.city)
+  if (j.district) parts.push(j.district)
+  return parts.join(' ') || '地点待定'
+})
+
+function goBack() {
+  if (window.history.state && window.history.state.back) {
+    router.back()
+  } else {
+    router.push('/student/jobs')
+  }
+}
+
 const crawledText = computed(() => {
   const raw = source.value?.crawledAt
   return raw ? String(raw).replace('T', ' ').slice(0, 16) : ''
@@ -163,8 +218,13 @@ const crawledText = computed(() => {
 
 async function load() {
   loading.value = true
+  loadError.value = ''
   try {
-    job.value = await getJob(route.params.id)
+    job.value = await getJob(route.params.id).catch((e) => {
+      loadError.value = e?.message && /[\u4e00-\u9fff]/.test(e.message) ? e.message : ''
+      return null
+    })
+    if (!job.value) return
     try {
       const list = await getSimilarJobs(route.params.id, 6)
       similar.value = Array.isArray(list) ? list : []
@@ -181,15 +241,25 @@ function openSimilar(item) {
 }
 
 async function toggleFavorite() {
-  if (!job.value) return
-  if (job.value.favorited) {
-    await removeFavorite(job.value.id)
-    ElMessage.success('已取消收藏')
-  } else {
-    await addFavorite(job.value.id)
-    ElMessage.success('已收藏')
+  if (!job.value || favLoading.value) return
+  favLoading.value = true
+  try {
+    if (job.value.favorited) {
+      await removeFavorite(job.value.id)
+      job.value.favorited = false
+      job.value.favoriteCount = Math.max(0, (job.value.favoriteCount || 1) - 1)
+      ElMessage.success('已取消收藏')
+    } else {
+      await addFavorite(job.value.id)
+      job.value.favorited = true
+      job.value.favoriteCount = (job.value.favoriteCount || 0) + 1
+      ElMessage.success('已收藏，可在「我的收藏」查看')
+    }
+  } catch {
+    // 拦截器已提示
+  } finally {
+    favLoading.value = false
   }
-  await load()
 }
 
 async function openApply() {
@@ -214,15 +284,19 @@ async function submitApply() {
   saving.value = true
   try {
     await applyJob({ jobId: job.value.id, resumeId: resumeId.value })
-    ElMessage.success('投递成功')
+    ElMessage.success('投递成功，可在「我的投递」跟踪进度')
     applyVisible.value = false
-    await load()
+    job.value.applied = true
+    job.value.applyCount = (job.value.applyCount || 0) + 1
   } finally {
     saving.value = false
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  getStudentSkills().then((list) => { mySkills.value = list || [] }).catch(() => {})
+})
 watch(() => route.params.id, () => {
   load()
 })
@@ -234,7 +308,11 @@ watch(() => route.params.id, () => {
 .salary { color: #e67e22; font-size: 20px; font-weight: 700; }
 .meta { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
 .stat { color: var(--el-text-color-secondary); }
-.actions { display: flex; gap: 8px; margin-bottom: 12px; }
+.actions { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+.external-alert { margin-bottom: 12px; }
+.skill-hint { color: var(--el-text-color-secondary); font-size: 13px; margin: -4px 0 8px; }
+.salary.small { font-size: 15px; }
+.salary sup { font-size: 12px; color: #e6a23c; }
 .text { white-space: pre-wrap; line-height: 1.7; }
 .items { margin: 0; padding-left: 22px; line-height: 1.8; }
 .muted { color: var(--el-text-color-secondary); line-height: 1.7; }
