@@ -81,3 +81,33 @@ export function mapCategoryOptions(list) {
     return item
   })
 }
+
+/** 职位数据来源：platform 企业发布 / self_crawl 校招官网同步 / ext_ats 外部来源（飞书招聘公开门户） */
+export const JOB_SOURCE = {
+  platform: { label: '企业发布', short: '企业发布', type: 'success', estimated: false },
+  self_crawl: { label: '校招官网同步', short: '校招官网', type: 'info', estimated: true },
+  ext_ats: { label: '外部来源', short: '外部来源', type: 'warning', estimated: true }
+}
+
+export const JOB_SOURCE_OPTIONS = [
+  { value: '', label: '全部来源' },
+  { value: 'platform', label: '企业发布' },
+  { value: 'self_crawl', label: '校招官网同步' },
+  { value: 'ext_ats', label: '外部来源（需官网投递）' }
+]
+
+export function sourceMeta(code) {
+  return JOB_SOURCE[code] || null
+}
+
+export function isExternalJob(job) {
+  return job?.sourceCode === 'ext_ats'
+}
+
+export function isEstimatedSalary(job) {
+  if (!job) return false
+  if (job.salaryEstimated === true) return true
+  return !!sourceMeta(job.sourceCode)?.estimated
+}
+
+export const ESTIMATE_TIP = '官网未公布薪资，此处为平台按技术方向与城市估算，仅供参考'

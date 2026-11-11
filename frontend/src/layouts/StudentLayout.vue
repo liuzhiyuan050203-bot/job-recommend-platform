@@ -2,54 +2,79 @@
   <AppLayout
     role-name="学生端"
     role-tag-type="primary"
-    :menu-items="menus"
+    home-path="/student/home"
+    :menu-groups="menus"
   >
     <template #banner>
       <el-alert
-        v-if="upcoming.length"
+        v-if="nextInterview && route.path !== '/student/home'"
         class="interview-alert"
         type="warning"
         show-icon
-        :closable="false"
-        title="即将到来的笔试 / 面试"
+        :closable="true"
       >
-        <div v-for="item in upcoming" :key="item.id" class="interview-line">
-          <span>{{ item.interviewTime }}</span>
-          <span>{{ item.roundName }}</span>
-          <span>{{ item.jobTitle }}</span>
-          <span>{{ item.companyName }}</span>
-          <span v-if="item.interviewType === 1">{{ item.meetingUrl || '线上' }}</span>
-          <span v-else>{{ item.location || '线下' }}</span>
-        </div>
+        <template #title>
+          <span class="interview-line">
+            近期安排：{{ nextInterview.interviewTime }} · {{ nextInterview.roundName }} ·
+            {{ nextInterview.jobTitle }}（{{ nextInterview.companyName }}）
+            <el-button link type="primary" @click="router.push('/student/applications')">查看投递进度</el-button>
+          </span>
+        </template>
       </el-alert>
     </template>
   </AppLayout>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppLayout from './AppLayout.vue'
 import { getUpcomingInterviews } from '@/api/student'
 
+const route = useRoute()
+const router = useRouter()
+
 const menus = [
-  { title: '首页', path: '/student/home', icon: 'HomeFilled' },
-  { title: '求职看板', path: '/student/dashboard', icon: 'DataAnalysis' },
-  { title: '职位搜索', path: '/student/jobs', icon: 'Search' },
-  { title: '为你推荐', path: '/student/recommend', icon: 'MagicStick' },
-  { title: '就业助手', path: '/student/assistant', icon: 'ChatLineRound' },
-  { title: '我的收藏', path: '/student/favorites', icon: 'Star' },
-  { title: '我的投递', path: '/student/applications', icon: 'Tickets' },
-  { title: '在线简历', path: '/student/resume', icon: 'Document' },
-  { title: '个人档案与技能', path: '/student/profile', icon: 'User' },
-  { title: '面经社区', path: '/student/community', icon: 'ChatDotRound' }
+  {
+    title: '工作台',
+    items: [
+      { title: '我的首页', path: '/student/home', icon: 'HomeFilled' },
+      { title: '求职看板', path: '/student/dashboard', icon: 'DataAnalysis' }
+    ]
+  },
+  {
+    title: '找工作',
+    items: [
+      { title: '职位搜索', path: '/student/jobs', icon: 'Search' },
+      { title: '为你推荐', path: '/student/recommend', icon: 'MagicStick' },
+      { title: '我的收藏', path: '/student/favorites', icon: 'Star' },
+      { title: '我的投递', path: '/student/applications', icon: 'Tickets' }
+    ]
+  },
+  {
+    title: '我的材料',
+    items: [
+      { title: '个人档案与技能', path: '/student/profile', icon: 'User' },
+      { title: '在线简历', path: '/student/resume', icon: 'Document' }
+    ]
+  },
+  {
+    title: '求职工具',
+    items: [
+      { title: '薪资预测', path: '/student/salary', icon: 'Money' },
+      { title: '就业助手', path: '/student/assistant', icon: 'ChatLineRound' },
+      { title: '我的面经', path: '/student/community', icon: 'ChatDotRound' }
+    ]
+  }
 ]
 
 const upcoming = ref([])
+const nextInterview = computed(() => upcoming.value[0] || null)
 
 onMounted(async () => {
   try {
     const list = await getUpcomingInterviews()
-    upcoming.value = Array.isArray(list) ? list.slice(0, 3) : []
+    upcoming.value = Array.isArray(list) ? list : []
   } catch {
     upcoming.value = []
   }
@@ -61,9 +86,9 @@ onMounted(async () => {
   margin-bottom: 12px;
 }
 .interview-line {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
-  gap: 10px;
-  line-height: 1.8;
+  align-items: center;
+  gap: 6px;
 }
 </style>

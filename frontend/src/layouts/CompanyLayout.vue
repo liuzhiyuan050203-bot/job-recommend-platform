@@ -2,7 +2,8 @@
   <AppLayout
     role-name="企业端"
     role-tag-type="success"
-    :menu-items="menus"
+    home-path="/company/dashboard"
+    :menu-groups="menus"
     :audit-alert="auditAlert"
   />
 </template>
@@ -18,12 +19,25 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const baseMenus = [
-  { title: '企业资料与资质', path: '/company/profile', icon: 'OfficeBuilding' },
-  { title: '招聘看板', path: '/company/dashboard', icon: 'DataAnalysis' },
-  { title: '职位管理', path: '/company/jobs', icon: 'Briefcase' },
-  { title: '候选人管理', path: '/company/candidates', icon: 'User' },
-  { title: '面试安排', path: '/company/interviews', icon: 'Calendar' },
-  { title: '招聘助手', path: '/company/assistant', icon: 'ChatLineRound' }
+  {
+    title: '工作台',
+    items: [{ title: '招聘工作台', path: '/company/dashboard', icon: 'HomeFilled' }]
+  },
+  {
+    title: '招聘管理',
+    items: [
+      { title: '职位管理', path: '/company/jobs', icon: 'Briefcase' },
+      { title: '候选人管理', path: '/company/candidates', icon: 'User' },
+      { title: '面试安排', path: '/company/interviews', icon: 'Calendar' }
+    ]
+  },
+  {
+    title: '企业与工具',
+    items: [
+      { title: '企业资料与资质', path: '/company/profile', icon: 'OfficeBuilding' },
+      { title: '招聘助手', path: '/company/assistant', icon: 'ChatLineRound' }
+    ]
+  }
 ]
 
 const auditPassed = computed(() => Number(userStore.companyAuditStatus) === 1)
@@ -32,9 +46,9 @@ const menus = computed(() => {
   if (auditPassed.value) {
     return baseMenus
   }
-  return baseMenus.map((item) => ({
-    ...item,
-    disabled: item.path !== '/company/profile'
+  return baseMenus.map((group) => ({
+    ...group,
+    items: group.items.map((item) => ({ ...item, disabled: item.path !== '/company/profile' }))
   }))
 })
 

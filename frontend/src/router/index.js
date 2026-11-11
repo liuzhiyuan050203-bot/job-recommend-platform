@@ -66,7 +66,7 @@ const routes = [
         path: 'home',
         name: 'StudentHome',
         component: () => import('@/views/student/Home.vue'),
-        meta: { title: '首页' }
+        meta: { title: '我的首页' }
       },
       {
         path: 'dashboard',
@@ -85,6 +85,12 @@ const routes = [
         name: 'StudentRecommend',
         component: () => import('@/views/student/Recommend.vue'),
         meta: { title: '为你推荐' }
+      },
+      {
+        path: 'salary',
+        name: 'StudentSalary',
+        component: () => import('@/views/student/SalaryPredict.vue'),
+        meta: { title: '薪资预测' }
       },
       {
         path: 'assistant',
@@ -126,7 +132,7 @@ const routes = [
         path: 'community',
         name: 'StudentCommunity',
         component: () => import('@/views/student/MyPosts.vue'),
-        meta: { title: '面经社区' }
+        meta: { title: '我的面经' }
       }
     ]
   },
@@ -138,7 +144,7 @@ const routes = [
       if (userStore.roleName === 'company' && Number(userStore.companyAuditStatus) !== 1) {
         return '/company/profile'
       }
-      return '/company/jobs'
+      return '/company/dashboard'
     },
     meta: { title: '企业端', roles: ['company'] },
     children: [
@@ -152,7 +158,7 @@ const routes = [
         path: 'dashboard',
         name: 'CompanyDashboard',
         component: () => import('@/views/company/Dashboard.vue'),
-        meta: { title: '招聘看板' }
+        meta: { title: '招聘工作台' }
       },
       {
         path: 'jobs',
@@ -183,9 +189,15 @@ const routes = [
   {
     path: '/admin',
     component: AdminLayout,
-    redirect: '/admin/users',
+    redirect: '/admin/dashboard',
     meta: { title: '管理员端', roles: ['admin'] },
     children: [
+      {
+        path: 'dashboard',
+        name: 'AdminDashboard',
+        component: () => import('@/views/admin/Dashboard.vue'),
+        meta: { title: '管理首页' }
+      },
       {
         path: 'users',
         name: 'AdminUsers',
@@ -208,19 +220,19 @@ const routes = [
         path: 'content',
         name: 'AdminContent',
         component: () => import('@/views/admin/ContentManage.vue'),
-        meta: { title: '内容审核' }
+        meta: { title: '社区内容审核' }
       },
       {
         path: 'banners',
         name: 'AdminBanners',
         component: () => import('@/views/admin/BannerManage.vue'),
-        meta: { title: '轮播图' }
+        meta: { title: '首页轮播图' }
       },
       {
         path: 'articles',
         name: 'AdminArticles',
         component: () => import('@/views/admin/ArticleManage.vue'),
-        meta: { title: '文章' }
+        meta: { title: '资讯文章' }
       },
       {
         path: 'categories',
@@ -245,6 +257,12 @@ const routes = [
         name: 'AdminAnalytics',
         component: () => import('@/views/admin/Analytics.vue'),
         meta: { title: '就业分析' }
+      },
+      {
+        path: 'spark',
+        name: 'AdminSpark',
+        component: () => import('@/views/admin/SparkTasks.vue'),
+        meta: { title: 'Spark 任务' }
       },
       {
         path: 'recommend',
