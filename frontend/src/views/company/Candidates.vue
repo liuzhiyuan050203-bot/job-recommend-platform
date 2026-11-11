@@ -44,7 +44,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="updateTime" label="最近更新" width="170" />
-        <el-table-column label="操作" width="230" fixed="right">
+        <el-table-column label="操作" width="270" fixed="right" class-name="nowrap-cell">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">查看简历</el-button>
             <el-dropdown v-if="(row.nextStatuses || []).length" trigger="click" @command="(next) => move(row, next)">
@@ -319,6 +319,7 @@ onMounted(async () => {
 
 <style scoped>
 .danger { color: var(--el-color-danger); }
+:deep(.nowrap-cell .cell) { white-space: nowrap; }
 :deep(.el-dropdown) { vertical-align: middle; margin-left: 10px; }
 .card-header { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; }
 .title { font-weight: 600; }
