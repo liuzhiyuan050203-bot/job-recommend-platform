@@ -74,6 +74,7 @@ def step0(spark, rows, preds):
 
     # (2) 现有生产模型：PySpark RF，pooled_real(BOSS+51job)，生产 _pipeline() 原样
     prod._excluded_ids = lambda: []  # 先读全量，再在这里按同一排除清单切分
+    prod.SKILL_SPLIT_PATTERN = prod.LEGACY_SKILL_SPLIT  # 复现 step0 时的生产口径
     full = prod._load_real(spark).cache()
     g_ids = list(golden["row_id"])
     train = full.filter(F.col("row_id").isNull() | ~F.col("row_id").isin(list(excluded))).cache()

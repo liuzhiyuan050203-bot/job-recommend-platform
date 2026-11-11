@@ -52,6 +52,12 @@ REAL_DIR = Path(__file__).resolve().parents[3] / "data" / "real_salary"
 EXCLUDE_IDS_PATH = Path(__file__).resolve().parents[3] / "experiments" / "data_improve" / "train_exclude_ids.csv"
 
 
+# 技能分隔符。BOSS 数据的技能标签以空格分隔，旧实现只按 、;/| 切分，整串成了一个「技能」，几乎进不了
+# CountVectorizer 词表（minDF=5）；数据改善 step1 起加入空白符。旧口径保留在 LEGACY_SKILL_SPLIT 供基线复现。
+LEGACY_SKILL_SPLIT = r"[、;/|]+"
+SKILL_SPLIT_PATTERN = r"[、;/|\s]+"
+
+
 def _excluded_ids() -> list[str]:
     if not EXCLUDE_IDS_PATH.is_file():
         return []
@@ -116,7 +122,7 @@ def _load_real(spark):
                 F.when(
                     F.col("skills").isNull() | (F.length(F.trim("skills")) == 0),
                     F.array().cast(ArrayType(StringType())),
-                ).otherwise(F.split(F.regexp_replace(F.col("skills"), r"[、;/|]+", ","), ",")),
+                ).otherwise(F.split(F.regexp_replace(F.col("skills"), SKILL_SPLIT_PATTERN, ","), ",")),
             )
             .withColumn("skill_arr", F.expr("filter(transform(skill_arr, x -> trim(x)), x -> x <> '')"))
             .withColumn(
