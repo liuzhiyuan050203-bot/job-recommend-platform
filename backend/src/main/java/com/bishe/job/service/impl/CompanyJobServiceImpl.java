@@ -116,6 +116,17 @@ public class CompanyJobServiceImpl implements CompanyJobService {
     public void shelf(Long id, JobShelfDTO dto) {
         EntCompany company = companySupport.requireCurrent();
         JobPosition job = requireOwn(id, company.getId());
+        if (Integer.valueOf(1).equals(dto.getShelfStatus())) {
+            // 未通过审核的企业或职位不能上架；下架（含草稿保存）不受限制
+            if (!Integer.valueOf(1).equals(company.getAuditStatus())) {
+                throw new BusinessException(403, "企业资质尚未通过审核，暂不能上架职位");
+            }
+            if (!Integer.valueOf(1).equals(job.getAuditStatus())) {
+                throw new BusinessException(400, Integer.valueOf(2).equals(job.getAuditStatus())
+                        ? "职位审核未通过，请按审核意见修改后重新提交审核"
+                        : "职位尚未通过审核，审核通过后才能上架");
+            }
+        }
         job.setShelfStatus(dto.getShelfStatus());
         if (Integer.valueOf(1).equals(dto.getShelfStatus())) {
             job.setPublishTime(LocalDateTime.now());

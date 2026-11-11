@@ -5,7 +5,7 @@
         <div class="card-header">
           <div>
             <span class="title">职位管理</span>
-            <span class="hint head-hint">新发布或修改后的职位需管理员审核，审核通过且上架后学生才能看到</span>
+            <span class="hint head-hint">新发布或修改后的职位需管理员审核；审核通过后再打开「上架」，学生才能看到</span>
           </div>
           <el-button type="primary" icon="Plus" @click="openCreate">发布职位</el-button>
         </div>
@@ -34,9 +34,17 @@
         </el-table-column>
         <el-table-column label="上架" width="120">
           <template #default="{ row }">
-            <el-switch :model-value="row.shelfStatus === 1" @change="(val) => toggleShelf(row, val)" />
-            <div v-if="row.shelfStatus === 1 && row.auditStatus !== 1" class="shelf-tip">
-              {{ row.auditStatus === 2 ? '已驳回，修改后重新提交' : '审核通过后自动对学生可见' }}
+            <el-tooltip :disabled="row.shelfStatus === 1 || row.auditStatus === 1" content="职位审核通过后才能上架" placement="top">
+              <el-switch
+                :model-value="row.shelfStatus === 1"
+                :disabled="row.shelfStatus !== 1 && row.auditStatus !== 1"
+                @change="(val) => toggleShelf(row, val)"
+              />
+            </el-tooltip>
+            <div v-if="row.auditStatus !== 1" class="shelf-tip">
+              <template v-if="row.auditStatus === 2">已驳回，修改后重新提交审核</template>
+              <template v-else-if="row.shelfStatus === 1">修改后待重新审核，通过后恢复可见</template>
+              <template v-else>待审核，通过后可上架</template>
             </div>
           </template>
         </el-table-column>
@@ -271,7 +279,7 @@ async function toggleShelf(row, online) {
   try {
     await shelfCompanyJob(row.id, online ? 1 : 0)
     row.shelfStatus = online ? 1 : 0
-    if (online) ElMessage.success(row.auditStatus === 1 ? '已上架，学生现在可以看到该职位' : '已设为上架，审核通过后自动对学生可见')
+    if (online) ElMessage.success('已上架，学生现在可以看到该职位')
     else ElMessage.success('已下架，学生将看不到该职位')
   } catch {
     load()
