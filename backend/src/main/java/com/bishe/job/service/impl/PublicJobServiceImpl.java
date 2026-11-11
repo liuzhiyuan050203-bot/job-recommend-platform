@@ -82,6 +82,9 @@ public class PublicJobServiceImpl implements PublicJobService {
         boolean estimated = cleaned.salaryEstimated() || isEstimatedSource(vo.getSourceCode());
         vo.setSalaryEstimated(estimated);
         vo.setSalaryNote(estimated ? JobTextCleaner.ESTIMATE_NOTE : null);
+        if (EXT_ATS.equals(vo.getSourceCode())) {
+            vo.setSalaryNote(EXT_ESTIMATE_NOTE);
+        }
         if (EXT_ATS.equals(vo.getSourceCode()) && cleaned.source() != null) {
             String label = cleaned.source().getLabel();
             cleaned.source().setLabel("外部来源 · " + (label == null ? "企业招聘官网" : label.replace("校招官网", "招聘官网")));
@@ -89,6 +92,8 @@ public class PublicJobServiceImpl implements PublicJobService {
     }
 
     public static final String EXT_ATS = "ext_ats";
+    static final String EXT_ESTIMATE_NOTE =
+            "该职位为外部来源，同步自企业招聘官网公开信息，官网未公布薪资，此处薪资为平台按技术方向与城市估算，仅供参考；投递请前往企业官网。";
 
     /** 自爬校招官网与外部扩充库的职位官网都未公布薪资，列表/详情的薪资均为平台估算。 */
     public static boolean isEstimatedSource(String sourceCode) {
