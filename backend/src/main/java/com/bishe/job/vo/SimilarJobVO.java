@@ -26,6 +26,8 @@ public class SimilarJobVO {
     private Integer education;
     private List<String> tagNames = new ArrayList<>();
     private Double similarity;
+    /** 自爬 / 外部来源职位的薪资为估算值 */
+    private Boolean salaryEstimated;
 
     @JsonIgnore
     private Double rawScore;

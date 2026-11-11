@@ -62,4 +62,6 @@ public class PublicJobVO {
     /** 薪资是否为平台估算（真实职位官网未公布薪资） */
     private Boolean salaryEstimated = false;
     private String salaryNote;
+    /** 是否可在平台内投递；自爬校招官网与外部来源职位为 false，需前往官网投递（列表与详情） */
+    private Boolean applyInPlatform;
 }

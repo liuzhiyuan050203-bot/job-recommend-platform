@@ -23,6 +23,6 @@ public class PublicJobQuery {
     private Integer jobType;
     private List<Long> tagIds;
     private String sort;
-    /** 数据来源：platform / self_crawl / ext_ats / internal（排除外部扩充库）；其他值忽略 */
+    /** 数据来源：platform / self_crawl / ext_ats / internal（只看可在平台内投递的企业发布职位）；其他值忽略 */
     private String source;
 }

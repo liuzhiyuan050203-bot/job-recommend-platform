@@ -51,7 +51,9 @@
         :closable="false"
         show-icon
         class="external-alert"
-        title="外部来源职位：同步自企业招聘官网的公开信息，平台内不能直接投递，请点击「前往官网投递」。"
+        :title="job.sourceCode === 'self_crawl'
+          ? '校招官网同步职位：同步自企业校招官网的公开信息，平台内不能直接投递，请点击「前往官网投递」。'
+          : '外部来源职位：同步自企业招聘官网的公开信息，平台内不能直接投递，请点击「前往官网投递」。'"
       />
       <div class="actions">
         <el-button :type="job.favorited ? 'warning' : 'default'" :icon="job.favorited ? 'StarFilled' : 'Star'" :loading="favLoading" @click="toggleFavorite">
@@ -61,6 +63,8 @@
           <el-button v-if="source && source.applyUrl" type="primary" tag="a" :href="source.applyUrl" target="_blank" rel="noopener noreferrer">
             前往官网投递
           </el-button>
+          <span v-else class="muted">官网投递链接暂缺，请到企业官网搜索该职位</span>
+          <el-button v-if="job.applied" link type="primary" @click="router.push('/student/applications')">查看历史投递</el-button>
         </template>
         <template v-else>
           <el-button type="primary" :disabled="job.applied" @click="openApply">

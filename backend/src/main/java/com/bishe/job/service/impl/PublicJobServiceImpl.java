@@ -50,7 +50,10 @@ public class PublicJobServiceImpl implements PublicJobService {
         jobQueryMapper.searchJobs(page, safe);
         fillTags(page.getRecords());
         fillStudentMarks(page.getRecords());
-        page.getRecords().forEach(job -> job.setSalaryEstimated(isEstimatedSource(job.getSourceCode())));
+        page.getRecords().forEach(job -> {
+            job.setSalaryEstimated(isEstimatedSource(job.getSourceCode()));
+            job.setApplyInPlatform(!isOfficialSiteOnly(job.getSourceCode()));
+        });
         return PageResult.of(page);
     }
 
@@ -85,6 +88,7 @@ public class PublicJobServiceImpl implements PublicJobService {
         if (EXT_ATS.equals(vo.getSourceCode())) {
             vo.setSalaryNote(EXT_ESTIMATE_NOTE);
         }
+        vo.setApplyInPlatform(!isOfficialSiteOnly(vo.getSourceCode()));
         if (EXT_ATS.equals(vo.getSourceCode()) && cleaned.source() != null) {
             String label = cleaned.source().getLabel();
             cleaned.source().setLabel("外部来源 · " + (label == null ? "企业招聘官网" : label.replace("校招官网", "招聘官网")));
@@ -94,6 +98,16 @@ public class PublicJobServiceImpl implements PublicJobService {
     public static final String EXT_ATS = "ext_ats";
     static final String EXT_ESTIMATE_NOTE =
             "该职位为外部来源，同步自企业招聘官网公开信息，官网未公布薪资，此处薪资为平台按技术方向与城市估算，仅供参考；投递请前往企业官网。";
+
+    public static final String SELF_CRAWL = "self_crawl";
+
+    /**
+     * 只能前往企业官网投递的来源。自爬校招官网（real_* 账号）与外部扩充库（ext_* 账号）的企业账号
+     * 都由导入脚本创建，并非企业本人运营，平台内投递不会有人处理，因此统一引导到官网投递。
+     */
+    public static boolean isOfficialSiteOnly(String sourceCode) {
+        return SELF_CRAWL.equals(sourceCode) || EXT_ATS.equals(sourceCode);
+    }
 
     /** 自爬校招官网与外部扩充库的职位官网都未公布薪资，列表/详情的薪资均为平台估算。 */
     public static boolean isEstimatedSource(String sourceCode) {

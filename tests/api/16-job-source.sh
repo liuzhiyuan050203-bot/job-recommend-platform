@@ -22,7 +22,8 @@ for src in platform self_crawl ext_ats; do
 done
 
 req GET "/public/jobs?current=1&size=50&source=internal"; expect_ok "来源筛选 internal"
-[ "$(jq '[.data.records[].sourceCode != "ext_ats"] | all' <<<"$BODY")" = true ] && ok "internal 排除外部扩充库" || bad "internal 排除外部扩充库"
+[ "$(jq '[.data.records[].sourceCode == "platform"] | all' <<<"$BODY")" = true ] && ok "internal 只含可站内投递的企业发布职位" || bad "internal 只含可站内投递的企业发布职位"
+[ "$(jq '[.data.records[].applyInPlatform == true] | all' <<<"$BODY")" = true ] && ok "internal 卡片 applyInPlatform=true" || bad "internal 卡片 applyInPlatform=true"
 req GET "/public/jobs?current=1&size=5&source=bogus"; expect_ok "非法来源取值按全部处理"
 
 EXT=$(db_sql "SELECT p.id FROM job_position p JOIN ent_company c ON c.id=p.company_id WHERE p.deleted=0 AND p.shelf_status=1 AND p.audit_status=1 AND c.audit_status=1 AND c.deleted=0 AND p.data_source='ext_ats' ORDER BY p.id LIMIT 1")
@@ -33,6 +34,7 @@ else
   expect_jq .data.sourceCode ext_ats "详情 sourceCode=ext_ats"
   jqv .data.dataSource.label | grep -q "^外部来源" && ok "来源徽标标明外部来源：$(jqv .data.dataSource.label)" || bad "来源徽标标明外部来源" "$(jqv .data.dataSource.label)"
   expect_jq .data.salaryEstimated true "外部来源职位标为估算薪资"
+  expect_jq .data.applyInPlatform false "外部来源职位 applyInPlatform=false"
   login student student123; T_STU=$TOKEN
   RID=$(db_sql "SELECT r.id FROM stu_resume r JOIN sys_user u ON u.id=r.user_id WHERE u.username='student' AND r.deleted=0 ORDER BY r.is_default DESC, r.id LIMIT 1")
   req POST /student/applications "$T_STU" "{\"jobId\":$EXT,\"resumeId\":${RID:-0}}"
@@ -40,6 +42,30 @@ else
   jqv .msg | grep -q "官网" && ok "提示前往官网投递" || bad "提示前往官网投递"
   N=$(db_sql "SELECT COUNT(*) FROM job_application a JOIN sys_user u ON u.id=a.user_id WHERE u.username='student' AND a.position_id=$EXT AND a.deleted=0")
   [ "$N" = 0 ] && ok "未产生投递记录" || bad "未产生投递记录" "$N"
+fi
+
+# 校招官网同步职位：企业账号（real_*）由导入脚本创建、非企业本人运营，同样只能官网投递
+SELF=$(db_sql "SELECT p.id FROM job_position p JOIN ent_company c ON c.id=p.company_id WHERE p.deleted=0 AND p.shelf_status=1 AND p.audit_status=1 AND c.audit_status=1 AND c.deleted=0 AND p.data_source='self_crawl' AND NOT EXISTS (SELECT 1 FROM job_application a JOIN sys_user u ON u.id=a.user_id WHERE u.username='student' AND a.position_id=p.id) ORDER BY p.id LIMIT 1")
+if [ -z "$SELF" ]; then
+  ok "库里没有校招官网同步职位，跳过"
+else
+  req GET "/public/jobs/$SELF"; expect_ok "校招官网同步职位详情"
+  expect_jq .data.applyInPlatform false "校招官网同步职位 applyInPlatform=false"
+  [ -n "$(jqv '.data.dataSource.applyUrl // empty')" ] && ok "提供官网投递链接" || bad "提供官网投递链接"
+  login student student123; T_STU=$TOKEN
+  RID=$(db_sql "SELECT r.id FROM stu_resume r JOIN sys_user u ON u.id=r.user_id WHERE u.username='student' AND r.deleted=0 ORDER BY r.is_default DESC, r.id LIMIT 1")
+  req POST /student/applications "$T_STU" "{\"jobId\":$SELF,\"resumeId\":${RID:-0}}"
+  expect_http 400 "校招官网同步职位不能站内投递"
+  jqv .msg | grep -q "前往官网投递" && ok "提示：$(jqv .msg)" || bad "校招官网投递提示" "$(jqv .msg)"
+  N=$(db_sql "SELECT COUNT(*) FROM job_application a JOIN sys_user u ON u.id=a.user_id WHERE u.username='student' AND a.position_id=$SELF AND a.deleted=0")
+  [ "$N" = 0 ] && ok "未产生投递记录" || bad "未产生投递记录" "$N"
+fi
+
+# 相似职位：外部 / 自爬来源带估算薪资标记
+if [ -n "$EXT" ]; then
+  req GET "/public/jobs/$EXT/similar?size=20"; expect_ok "外部职位的相似职位"
+  [ "$(jq '[.data[] | select(.sourceCode == "ext_ats" or .sourceCode == "self_crawl") | .salaryEstimated == true] | all' <<<"$BODY")" = true ] && ok "相似职位中自爬 / 外部来源标估算薪资" || bad "相似职位中自爬 / 外部来源标估算薪资"
+  [ "$(jq '[.data[] | select(.sourceCode == "platform") | .salaryEstimated == false] | all' <<<"$BODY")" = true ] && ok "相似职位中企业发布不标估算" || bad "相似职位中企业发布不标估算"
 fi
 
 login student student123; T_STU=$TOKEN

@@ -60,7 +60,7 @@
                 )
             </if>
             <if test="q.source == 'internal'">
-                AND p.data_source &lt;&gt; 'ext_ats'
+                AND (p.data_source IS NULL OR p.data_source = 'platform')
             </if>
             <if test="q.source == 'platform' or q.source == 'self_crawl' or q.source == 'ext_ats'">
                 AND p.data_source = #{q.source}

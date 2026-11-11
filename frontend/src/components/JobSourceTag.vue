@@ -26,7 +26,7 @@ const meta = computed(() => sourceMeta(sourceCode.value))
 const estimated = computed(() => isEstimatedSalary(props.job))
 const tip = computed(() => {
   if (sourceCode.value === 'ext_ats') return '外部来源：同步自企业招聘官网公开职位，需到官网投递'
-  if (sourceCode.value === 'self_crawl') return '同步自企业校招官网公开职位，可在平台投递，也可到官网投递'
+  if (sourceCode.value === 'self_crawl') return '校招官网同步：同步自企业校招官网公开职位，需到官网投递'
   return ''
 })
 </script>

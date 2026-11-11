@@ -118,6 +118,7 @@ public class RecommendServiceImpl implements RecommendService {
                 names.add(tag.getTagName());
             }
             row.setTagNames(names);
+            row.setSalaryEstimated(PublicJobServiceImpl.isEstimatedSource(row.getSourceCode()));
         }
         return rows;
     }

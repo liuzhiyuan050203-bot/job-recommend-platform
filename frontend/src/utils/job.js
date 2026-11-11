@@ -92,7 +92,7 @@ export const JOB_SOURCE = {
 export const JOB_SOURCE_OPTIONS = [
   { value: '', label: '全部来源' },
   { value: 'platform', label: '企业发布' },
-  { value: 'self_crawl', label: '校招官网同步' },
+  { value: 'self_crawl', label: '校招官网同步（需官网投递）' },
   { value: 'ext_ats', label: '外部来源（需官网投递）' }
 ]
 
@@ -100,8 +100,11 @@ export function sourceMeta(code) {
   return JOB_SOURCE[code] || null
 }
 
+/** 只能前往企业官网投递的职位：外部来源与校招官网同步（企业账号由平台导入，非企业本人运营） */
 export function isExternalJob(job) {
-  return job?.sourceCode === 'ext_ats'
+  if (!job) return false
+  if (job.applyInPlatform === false) return true
+  return job.sourceCode === 'ext_ats' || job.sourceCode === 'self_crawl'
 }
 
 export function isEstimatedSalary(job) {
