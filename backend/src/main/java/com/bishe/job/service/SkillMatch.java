@@ -11,13 +11,13 @@ import java.util.Map;
 /**
  * 候选人与职位的技能匹配分。
  *
- * <p>职位每个技能标签记 1 份，候选人有该技能时按熟练度给分：入门 0.6、掌握 0.7、熟悉 0.8、熟练 0.9、精通 1.0，
+ * <p>职位每个技能标签记 1 份，候选人有该技能时按熟练度给分：入门 0.6、熟悉 0.7、掌握 0.8、熟练 0.9、精通 1.0，
  * 没有记 0；匹配分 = 得分之和 / 职位技能数 × 100，四舍五入。职位没有技能标签时不打分（null），
  * 避免给出看似精确、其实没有依据的数字。</p>
  */
 public final class SkillMatch {
 
-    public static final String[] LEVEL_NAMES = {"入门", "掌握", "熟悉", "熟练", "精通"};
+    public static final String[] LEVEL_NAMES = {"入门", "熟悉", "掌握", "熟练", "精通"};
 
     private SkillMatch() {
     }

@@ -28,7 +28,7 @@ const props = defineProps({
   limit: { type: Number, default: 0 }
 })
 
-const LEVELS = ['入门', '掌握', '熟悉', '熟练', '精通']
+const LEVELS = ['入门', '熟悉', '掌握', '熟练', '精通']
 const levelName = (p) => LEVELS[Math.min(5, Math.max(1, Number(p) || 3)) - 1]
 const list = computed(() => props.skills || [])
 const shown = computed(() => (props.limit > 0 ? list.value.slice(0, props.limit) : list.value))

@@ -297,7 +297,7 @@
         </el-form-item>
 
         <el-form-item label="熟练度" prop="proficiency">
-          <el-rate v-model="skillForm.proficiency" :max="5" show-text :texts="['入门', '掌握', '熟悉', '熟练', '精通']" />
+          <el-rate v-model="skillForm.proficiency" :max="5" show-text :texts="['入门', '熟悉', '掌握', '熟练', '精通']" />
         </el-form-item>
       </el-form>
 

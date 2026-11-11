@@ -30,7 +30,7 @@ export function preferredApplyResume(list) {
 
 /** 合并档案技能与简历 skillDesc，并按职位 tagNames 标记命中。 */
 export function mergePreviewSkills(profileSkills, skillDesc, jobTagNames) {
-  const LEVELS = ['入门', '掌握', '熟悉', '熟练', '精通']
+  const LEVELS = ['入门', '熟悉', '掌握', '熟练', '精通']
   const jobSet = new Set((jobTagNames || []).map((n) => String(n).toLowerCase()))
   const map = new Map()
   for (const sk of profileSkills || []) {
