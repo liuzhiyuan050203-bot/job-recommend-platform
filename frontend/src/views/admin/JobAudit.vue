@@ -10,6 +10,11 @@
               <el-option label="已通过" :value="1" />
               <el-option label="已驳回" :value="2" />
             </el-select>
+            <el-select v-model="filterSource" placeholder="数据来源" clearable style="width: 130px" @change="handleSearch">
+              <el-option label="企业发布" value="platform" />
+              <el-option label="校招官网同步" value="self_crawl" />
+              <el-option label="外部来源" value="ext_ats" />
+            </el-select>
             <el-select v-model="filterShelf" placeholder="上下架" clearable style="width: 120px" @change="handleSearch">
               <el-option label="已上架" :value="1" />
               <el-option label="已下架" :value="0" />
@@ -35,6 +40,12 @@
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="title" label="职位名称" min-width="160" />
         <el-table-column prop="companyName" label="发布企业" min-width="150" />
+        <el-table-column label="来源" width="110">
+          <template #default="{ row }">
+            <el-tag v-if="sourceMeta(row.sourceCode)" size="small" :type="sourceMeta(row.sourceCode).type" effect="plain">{{ sourceMeta(row.sourceCode).short }}</el-tag>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="techDirection" label="技术方向" width="120">
           <template #default="{ row }">
             <el-tag effect="plain">{{ row.techDirection }}</el-tag>
@@ -47,7 +58,10 @@
         </el-table-column>
         <el-table-column label="薪资区间" width="140">
           <template #default="{ row }">
-            <span class="salary-text">{{ (row.salaryMin/1000).toFixed(0) }}k - {{ (row.salaryMax/1000).toFixed(0) }}k ({{ row.salaryMonths }}薪)</span>
+            <span class="salary-text">{{ salaryText(row.salaryMin, row.salaryMax, row.salaryMonths) }}</span>
+            <el-tooltip v-if="sourceMeta(row.sourceCode)?.estimated" content="官网未公布薪资，为平台估算" placement="top">
+              <sup class="est">估</sup>
+            </el-tooltip>
           </template>
         </el-table-column>
         <el-table-column prop="auditStatus" label="审核状态" width="100">
@@ -72,7 +86,7 @@
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty v-if="!loading" description="没有符合条件的职位" />
+          <el-empty v-if="!loading" :description="filterStatus === 0 ? '没有待审核的职位，可切换审核状态查看全部' : '没有符合条件的职位'" />
         </template>
       </el-table>
 
@@ -166,6 +180,8 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+import { salaryText, sourceMeta } from '@/utils/job'
 import { ElMessage } from 'element-plus'
 import { getAdminJobs, auditAdminJob } from '@/api/admin'
 import { parseJobText } from '@/utils/jobText'
@@ -175,6 +191,8 @@ const submittingAudit = ref(false)
 const jobs = ref([])
 const filterStatus = ref(0) // 默认待审
 const filterShelf = ref(null)
+const filterSource = ref(null)
+const route = useRoute()
 const keyword = ref('')
 
 const pagination = reactive({
@@ -199,6 +217,7 @@ const fetchJobs = async () => {
       size: pagination.size,
       auditStatus: filterStatus.value !== null && filterStatus.value !== '' ? filterStatus.value : undefined,
       shelfStatus: filterShelf.value !== null && filterShelf.value !== '' ? filterShelf.value : undefined,
+      source: filterSource.value || undefined,
       keyword: keyword.value.trim() || undefined
     }
     const res = await getAdminJobs(params)
@@ -247,12 +266,21 @@ const handleConfirmAudit = async () => {
 }
 
 onMounted(() => {
+  // 支持从管理首页带筛选条件跳转：/admin/jobs?source=ext_ats 或 ?auditStatus=0
+  if (route.query.source) {
+    filterSource.value = String(route.query.source)
+    filterStatus.value = null
+  }
+  if (route.query.auditStatus !== undefined && route.query.auditStatus !== '') {
+    filterStatus.value = Number(route.query.auditStatus)
+  }
   fetchJobs()
 })
 </script>
 
 <style scoped>
 .job-items { margin: 0; padding-left: 22px; line-height: 1.8; }
+.est { color: #e6a23c; margin-left: 2px; cursor: help; }
 .page-container {
   padding: 10px 0;
 }

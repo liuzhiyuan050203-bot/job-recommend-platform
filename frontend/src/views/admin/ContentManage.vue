@@ -173,6 +173,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getAdminPosts,
@@ -184,6 +185,7 @@ import {
 } from '@/api/admin'
 
 const activeTab = ref('posts')
+const route = useRoute()
 
 // 帖子列表状态
 const postLoading = ref(false)
@@ -316,6 +318,11 @@ const handleDeleteComment = async (id) => {
 }
 
 onMounted(() => {
+  if (route.query.tab === 'comments') {
+    activeTab.value = 'comments'
+    fetchComments()
+    return
+  }
   fetchPosts()
 })
 </script>

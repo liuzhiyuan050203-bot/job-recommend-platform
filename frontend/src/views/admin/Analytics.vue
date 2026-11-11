@@ -29,25 +29,13 @@
       <EChart v-else :option="ndcgOption" height="300px" />
     </el-card>
 
-    <el-card shadow="never">
-      <template #header>
-        <div class="card-header">
-          <span class="title">Spark 离线分析</span>
-          <el-button type="primary" :loading="running" @click="runAnalysis">运行 Spark 分析</el-button>
-        </div>
+    <el-alert type="info" :closable="false" show-icon>
+      <template #title>
+        以下统计由 Spark 离线批次计算（最近批次 {{ overview.lastBatchNo || '-' }}）。需要重新计算请到
+        <el-button link type="primary" @click="router.push('/admin/spark')">Spark 任务</el-button>
+        页面运行。
       </template>
-      <el-table :data="tasks" size="small" empty-text="还没有分析任务">
-        <el-table-column prop="batchNo" label="批次" min-width="160" />
-        <el-table-column prop="taskName" label="任务" min-width="140" />
-        <el-table-column label="状态" width="90">
-          <template #default="{ row }">{{ statusText(row.status) }}</template>
-        </el-table-column>
-        <el-table-column prop="inputCount" label="输入" width="80" />
-        <el-table-column prop="outputCount" label="输出" width="80" />
-        <el-table-column prop="resultMsg" label="结果" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="startTime" label="开始时间" min-width="170" />
-      </el-table>
-    </el-card>
+    </el-alert>
 
     <el-row :gutter="16">
       <el-col :xs="24" :lg="12">
@@ -89,10 +77,10 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
 import EChart from '@/components/EChart.vue'
 import { getRegionStats, getSalaryStats, getStatsOverview, getTechTrend } from '@/api/public'
-import { getAdminDashboard, getRecommendEval, getRecommendStats, getSparkTasks, runSparkAnalysis } from '@/api/admin'
+import { getAdminDashboard, getRecommendEval, getRecommendStats } from '@/api/admin'
 import { knowledgeStats } from '@/api/ai'
 
 const loading = ref(true)
@@ -100,8 +88,7 @@ const overview = ref({})
 const salary = ref({ records: [], byDirection: [], byCity: [] })
 const trend = ref({ months: [], series: [], ranking: [] })
 const region = ref([])
-const tasks = ref([])
-const running = ref(false)
+const router = useRouter()
 const recommendStats = ref({})
 const recommendEval = ref({ metrics: [] })
 const adminBoard = ref({ ai: {}, recommend: {} })
@@ -238,13 +225,6 @@ function roundK(value) {
   return Math.round((number / 1000) * 10) / 10
 }
 
-function statusText(status) {
-  if (status === 0) return '运行中'
-  if (status === 1) return '成功'
-  if (status === 2) return '失败'
-  return '-'
-}
-
 async function loadBoard() {
   const [overviewData, salaryData, trendData, regionData] = await Promise.all([
     getStatsOverview(),
@@ -256,11 +236,6 @@ async function loadBoard() {
   salary.value = salaryData || { records: [], byDirection: [], byCity: [] }
   trend.value = trendData || { months: [], series: [], ranking: [] }
   region.value = regionData || []
-}
-
-async function loadTasks() {
-  const page = await getSparkTasks({ current: 1, size: 8 })
-  tasks.value = page?.records || []
 }
 
 async function loadInsights() {
@@ -277,26 +252,9 @@ async function loadInsights() {
   knowledge.value = pick(3) || {}
 }
 
-async function runAnalysis() {
-  running.value = true
-  try {
-    const data = await runSparkAnalysis({})
-    if (data?.status === 'QUEUED') {
-      ElMessage.success(`已有批次在运行，批次 ${data.batchNo} 已排队，前一批结束后自动开始`)
-    } else {
-      ElMessage.success(data?.batchNo ? `已提交批次 ${data.batchNo}` : '分析任务已提交')
-    }
-    await loadTasks()
-  } catch {
-    // 拦截器已提示
-  } finally {
-    running.value = false
-  }
-}
-
 onMounted(async () => {
   try {
-    await Promise.all([loadBoard(), loadTasks(), loadInsights()])
+    await Promise.all([loadBoard(), loadInsights()])
   } catch {
     // 拦截器已提示
   } finally {

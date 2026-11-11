@@ -38,7 +38,7 @@
         <el-table-column prop="username" label="用户名" min-width="120" />
         <el-table-column prop="role" label="角色" width="100">
           <template #default="{ row }">
-            <el-tag :type="getRoleTagType(row.role)">{{ row.roleName }}</el-tag>
+            <el-tag :type="getRoleTagType(row.role)">{{ roleLabel(row.role) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="nickname" label="昵称 / 姓名" min-width="120" />
@@ -129,6 +129,8 @@ const pagination = reactive({
   size: 10,
   total: 0
 })
+
+const roleLabel = (role) => ({ 1: '学生', 2: '企业', 3: '管理员' }[role] || '未知')
 
 const getRoleTagType = (role) => {
   if (role === 1) return 'primary'
