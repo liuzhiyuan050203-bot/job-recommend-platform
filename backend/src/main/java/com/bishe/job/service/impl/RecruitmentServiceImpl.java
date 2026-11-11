@@ -93,6 +93,9 @@ public class RecruitmentServiceImpl implements RecruitmentService {
     public Long apply(ApplicationCreateDTO dto) {
         Long userId = UserContext.require().getId();
         JobPosition job = visibleJobSupport.require(dto.getJobId());
+        if (PublicJobServiceImpl.EXT_ATS.equals(job.getDataSource())) {
+            throw new BusinessException(400, "该职位来自外部招聘官网，请点击「前往官网投递」在企业官网投递");
+        }
         StuResume resume = stuResumeMapper.selectById(dto.getResumeId());
         if (resume == null) {
             throw new BusinessException(404, "简历不存在");

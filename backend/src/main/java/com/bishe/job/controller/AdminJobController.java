@@ -28,9 +28,10 @@ public class AdminJobController {
             @RequestParam(value = "shelfStatus", required = false) Integer shelfStatus,
             @RequestParam(value = "companyId", required = false) Long companyId,
             @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "source", required = false) String source,
             @RequestParam(value = "current", defaultValue = "1") long current,
             @RequestParam(value = "size", defaultValue = "10") long size) {
-        return Result.success(adminJobService.listJobs(auditStatus, shelfStatus, companyId, keyword, current, size));
+        return Result.success(adminJobService.listJobs(auditStatus, shelfStatus, companyId, keyword, source, current, size));
     }
 
     @PutMapping("/{id}/audit")

@@ -23,6 +23,7 @@
         SELECT
             r.position_id AS positionId,
             p.title,
+            p.data_source AS sourceCode,
             IF(c.short_name IS NOT NULL AND c.short_name &lt;&gt; '', c.short_name, c.company_name) AS companyName,
             p.city,
             p.province,
@@ -57,6 +58,7 @@
         SELECT
             p.id AS positionId,
             p.title,
+            p.data_source AS sourceCode,
             IF(c.short_name IS NOT NULL AND c.short_name &lt;&gt; '', c.short_name, c.company_name) AS companyName,
             p.city,
             p.province,
@@ -106,6 +108,7 @@
         SELECT
             p.id,
             p.title,
+            p.data_source AS sourceCode,
             IF(c.short_name IS NOT NULL AND c.short_name &lt;&gt; '', c.short_name, c.company_name) AS companyName,
             p.city,
             p.province,

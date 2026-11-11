@@ -38,7 +38,7 @@ public class AdminJobServiceImpl implements AdminJobService {
 
     @Override
     public PageResult<AdminJobVO> listJobs(Integer auditStatus, Integer shelfStatus, Long companyId,
-                                            String keyword, long current, long size) {
+                                            String keyword, String source, long current, long size) {
         Page<JobPosition> page = Pages.of(current, size);
         LambdaQueryWrapper<JobPosition> wrapper = new LambdaQueryWrapper<>();
 
@@ -50,6 +50,12 @@ public class AdminJobServiceImpl implements AdminJobService {
         }
         if (companyId != null) {
             wrapper.eq(JobPosition::getCompanyId, companyId);
+        }
+        if (StringUtils.hasText(source)) {
+            switch (source.trim()) {
+                case "platform", "self_crawl", "ext_ats" -> wrapper.eq(JobPosition::getDataSource, source.trim());
+                default -> { }
+            }
         }
         if (StringUtils.hasText(keyword)) {
             String kw = keyword.trim();
@@ -109,6 +115,7 @@ public class AdminJobServiceImpl implements AdminJobService {
         vo.setCompanyId(job.getCompanyId());
         vo.setCategoryId(job.getCategoryId());
         vo.setTitle(job.getTitle());
+        vo.setSourceCode(job.getDataSource());
         vo.setTechDirection(job.getTechDirection());
         vo.setProvince(job.getProvince());
         vo.setCity(job.getCity());

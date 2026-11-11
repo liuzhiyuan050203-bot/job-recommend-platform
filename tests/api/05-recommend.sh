@@ -83,7 +83,8 @@ req GET "/student/recommend?size=10" "$T_COLD"; expect_ok "冷启动学生推荐
 [ "$(jq '[.data.records[] | select(.cfScore > 0)] | length' <<<"$BODY")" = 0 ] && ok "冷启动无协同过滤分" || bad "冷启动无协同过滤分"
 [ "$(jq '[.data.records[:5][] | select(.techDirection == "后端开发" or .city == "北京")] | length' <<<"$BODY")" -ge 3 ] \
   && ok "冷启动前 5 条大多符合期望方向或城市" || bad "冷启动前 5 条大多符合期望方向或城市"
-COLD_FIRST=$(jq -r '.data.records[0].positionId' <<<"$BODY")
+# 外部来源职位（ext_ats）只能去官网投递，取首个可站内投递的推荐
+COLD_FIRST=$(jq -r '[.data.records[] | select(.sourceCode != "ext_ats")][0].positionId' <<<"$BODY")
 
 RESUME_JSON=$(jq -n --arg title "推荐测试简历$TS" '{title:$title, isDefault:1, educationExp:"本科", projectExp:"推荐测试", internshipExp:"无", skillDesc:"Java", selfEvaluation:"测试", attachmentUrl:""}')
 req POST /student/resumes "$T_COLD" "$RESUME_JSON"; expect_ok "冷启动学生创建简历"

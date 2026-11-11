@@ -36,6 +36,7 @@ public class PublicJobController {
             @RequestParam(value = "jobType", required = false) Integer jobType,
             @RequestParam(value = "tagIds", required = false) List<String> tagIds,
             @RequestParam(value = "sort", required = false) String sort,
+            @RequestParam(value = "source", required = false) String source,
             @RequestParam(value = "current", defaultValue = "1") long current,
             @RequestParam(value = "size", defaultValue = "10") long size) {
         PublicJobQuery query = new PublicJobQuery();
@@ -49,6 +50,7 @@ public class PublicJobController {
         query.setJobType(jobType);
         query.setTagIds(publicJobService.parseTagIds(tagIds));
         query.setSort(sort);
+        query.setSource(source);
         return Result.success(publicJobService.search(query, current, size));
     }
 

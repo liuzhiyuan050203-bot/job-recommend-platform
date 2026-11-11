@@ -119,6 +119,8 @@ public class StudentFavoriteServiceImpl implements StudentFavoriteService {
         }
         EntCompany company = companies.get(job.getCompanyId());
         vo.setTitle(job.getTitle());
+        vo.setSourceCode(job.getDataSource());
+        vo.setSalaryEstimated(PublicJobServiceImpl.isEstimatedSource(job.getDataSource()));
         vo.setTechDirection(job.getTechDirection());
         vo.setCategoryId(job.getCategoryId());
         vo.setProvince(job.getProvince());

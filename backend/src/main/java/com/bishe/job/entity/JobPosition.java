@@ -57,6 +57,9 @@ public class JobPosition {
 
     private String welfare;
 
+    /** 数据来源：platform 平台发布 / self_crawl 自爬校招官网 / ext_ats 外部扩充库（飞书招聘公开门户） */
+    private String dataSource;
+
     /** 上下架状态：0下架 1上架 */
     private Integer shelfStatus;
 

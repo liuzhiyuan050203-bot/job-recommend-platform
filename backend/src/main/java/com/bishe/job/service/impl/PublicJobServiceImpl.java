@@ -50,6 +50,7 @@ public class PublicJobServiceImpl implements PublicJobService {
         jobQueryMapper.searchJobs(page, safe);
         fillTags(page.getRecords());
         fillStudentMarks(page.getRecords());
+        page.getRecords().forEach(job -> job.setSalaryEstimated(isEstimatedSource(job.getSourceCode())));
         return PageResult.of(page);
     }
 
@@ -78,8 +79,20 @@ public class PublicJobServiceImpl implements PublicJobService {
         vo.setRequirement(String.join("\n", cleaned.requirementItems()));
         vo.setWelfare(cleaned.welfare());
         vo.setDataSource(cleaned.source());
-        vo.setSalaryEstimated(cleaned.salaryEstimated());
-        vo.setSalaryNote(cleaned.salaryEstimated() ? JobTextCleaner.ESTIMATE_NOTE : null);
+        boolean estimated = cleaned.salaryEstimated() || isEstimatedSource(vo.getSourceCode());
+        vo.setSalaryEstimated(estimated);
+        vo.setSalaryNote(estimated ? JobTextCleaner.ESTIMATE_NOTE : null);
+        if (EXT_ATS.equals(vo.getSourceCode()) && cleaned.source() != null) {
+            String label = cleaned.source().getLabel();
+            cleaned.source().setLabel("外部来源 · " + (label == null ? "企业招聘官网" : label.replace("校招官网", "招聘官网")));
+        }
+    }
+
+    public static final String EXT_ATS = "ext_ats";
+
+    /** 自爬校招官网与外部扩充库的职位官网都未公布薪资，列表/详情的薪资均为平台估算。 */
+    public static boolean isEstimatedSource(String sourceCode) {
+        return "self_crawl".equals(sourceCode) || EXT_ATS.equals(sourceCode);
     }
 
     @Override
@@ -135,7 +148,19 @@ public class PublicJobServiceImpl implements PublicJobService {
             query.setTagIds(null);
         }
         query.setSort(normalizeSort(query.getSort()));
+        query.setSource(normalizeSource(query.getSource()));
         return query;
+    }
+
+    /** 来源筛选白名单，其他取值按「全部」处理。 */
+    private String normalizeSource(String source) {
+        if (!StringUtils.hasText(source)) {
+            return null;
+        }
+        return switch (source.trim()) {
+            case "platform", "self_crawl", "ext_ats", "internal" -> source.trim();
+            default -> null;
+        };
     }
 
     private String normalizeSort(String sort) {

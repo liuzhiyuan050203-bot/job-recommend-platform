@@ -7,7 +7,7 @@ import com.bishe.job.vo.AdminJobVO;
 public interface AdminJobService {
 
     PageResult<AdminJobVO> listJobs(Integer auditStatus, Integer shelfStatus, Long companyId,
-                                    String keyword, long current, long size);
+                                    String keyword, String source, long current, long size);
 
     void auditJob(Long id, AuditDTO dto);
 }

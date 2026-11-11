@@ -14,6 +14,8 @@ public class SimilarJobVO {
 
     private Long id;
     private String title;
+    /** 数据来源代码：platform / self_crawl / ext_ats，前端据此显示来源徽标与估算薪资提示 */
+    private String sourceCode;
     private String companyName;
     private String city;
     private String province;

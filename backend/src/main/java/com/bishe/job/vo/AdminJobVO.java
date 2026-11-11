@@ -13,6 +13,8 @@ public class AdminJobVO {
     private Long categoryId;
     private String categoryName;
     private String title;
+    /** 数据来源代码：platform / self_crawl / ext_ats */
+    private String sourceCode;
     private String techDirection;
     private String province;
     private String city;
