@@ -74,3 +74,8 @@ export function saveInterviewResult(id, data) {
 export function getCompanyDashboard() {
   return request({ url: '/company/dashboard', method: 'get' })
 }
+
+/** 下载投递所用简历的附件原件（PDF / DOCX） */
+export function downloadApplicationResumeFile(id) {
+  return request({ url: `/company/applications/${id}/resume-file`, method: 'get', responseType: 'blob' })
+}

@@ -219,7 +219,8 @@ public class ResumeFileServiceImpl implements ResumeFileService {
         if (application.getResumeId() == null) {
             throw new BusinessException(404, "简历附件不存在");
         }
-        StuResume resume = stuResumeMapper.selectById(application.getResumeId());
+        // 投递时附件已发给企业；学生之后删除在线简历（逻辑删除）不影响企业查看原件
+        StuResume resume = stuResumeMapper.selectByIdIncludingDeleted(application.getResumeId());
         if (resume == null || !application.getUserId().equals(resume.getUserId())) {
             throw new BusinessException(404, "简历附件不存在");
         }

@@ -571,10 +571,12 @@ public class RecruitmentServiceImpl implements RecruitmentService {
             detail.setExpectCity(profile.getExpectCity());
         }
         if (application.getResumeId() != null) {
-            StuResume resume = stuResumeMapper.selectById(application.getResumeId());
+            // 学生删除简历是逻辑删除，投递详情仍展示删除前的内容并标记「简历已删除」
+            StuResume resume = stuResumeMapper.selectByIdIncludingDeleted(application.getResumeId());
             // 投递上的简历必须仍属于该学生，避免简历编号被改写后把别人的简历带出来
             if (resume != null && application.getUserId().equals(resume.getUserId())) {
                 detail.setResume(toResume(resume));
+                detail.setResumeDeleted(Integer.valueOf(1).equals(resume.getDeleted()));
             }
         }
         detail.setSkills(loadSkills(application.getUserId()));

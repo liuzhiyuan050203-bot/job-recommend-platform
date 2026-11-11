@@ -122,12 +122,27 @@
           </div>
         </div>
         <div v-if="detail.resume" class="block">
-          <h4>{{ detail.resume.title }}</h4>
+          <el-alert
+            v-if="detail.resumeDeleted"
+            type="info"
+            :closable="false"
+            show-icon
+            class="resume-deleted"
+            title="简历已删除：学生投递后删除了这份在线简历，以下为删除前保留的内容"
+          />
+          <h4 class="resume-head">
+            <span>{{ detail.resume.title }}<el-tag v-if="detail.resumeDeleted" size="small" type="info" class="tag">已删除</el-tag></span>
+            <el-button v-if="detail.resume.attachmentUrl" link type="primary" :loading="downloading" @click="downloadResume">下载简历原件</el-button>
+          </h4>
           <p><b>教育经历</b>{{ detail.resume.educationExp || '无' }}</p>
           <p><b>项目经历</b>{{ detail.resume.projectExp || '无' }}</p>
           <p><b>实习经历</b>{{ detail.resume.internshipExp || '无' }}</p>
           <p><b>技能概述</b>{{ detail.resume.skillDesc || '无' }}</p>
           <p><b>自我评价</b>{{ detail.resume.selfEvaluation || '无' }}</p>
+        </div>
+        <div v-else class="block">
+          <h4>在线简历</h4>
+          <p class="muted small">该投递没有关联在线简历，可参考上方的技能与基本信息。</p>
         </div>
         <div class="block">
           <h4>状态日志</h4>
@@ -180,7 +195,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getCompanyApplication, getCompanyApplications, getCompanyJobs, sendInterviewNotice, updateApplicationStatus } from '@/api/company'
+import { downloadApplicationResumeFile, getCompanyApplication, getCompanyApplications, getCompanyJobs, sendInterviewNotice, updateApplicationStatus } from '@/api/company'
 import { APP_STATUS, appTagType } from '@/utils/job'
 import SkillChips from '@/components/SkillChips.vue'
 
@@ -191,6 +206,26 @@ const rows = ref([])
 const jobs = ref([])
 const drawer = ref(false)
 const detail = ref(null)
+const downloading = ref(false)
+
+async function downloadResume() {
+  if (!detail.value) return
+  downloading.value = true
+  try {
+    const blob = await downloadApplicationResumeFile(detail.value.id)
+    const isPdf = blob?.type === 'application/pdf'
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${detail.value.studentName || '候选人'}-简历.${isPdf ? 'pdf' : 'docx'}`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  } catch {
+    // 错误提示由请求拦截器统一给出
+  } finally {
+    downloading.value = false
+  }
+}
 const noticeVisible = ref(false)
 const query = reactive({ jobId: null, status: null, keyword: '', sort: undefined })
 const page = reactive({ current: 1, size: 10, total: 0 })
@@ -318,6 +353,8 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.resume-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.resume-deleted { margin-bottom: 8px; }
 .danger { color: var(--el-color-danger); }
 :deep(.nowrap-cell .cell) { white-space: nowrap; }
 :deep(.el-dropdown) { vertical-align: middle; margin-left: 10px; }
