@@ -9,7 +9,21 @@ cd /workspace/bishe/ai-service
 ../.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-依赖见 `requirements.txt`。虚拟环境为仓库根目录的 `.venv`。MySQL 8.4 `job_platform`（`job` / `job123`）和本地 Ollama（`http://127.0.0.1:11434/v1`，模型 `qwen2.5:3b`）需已启动。默认模型大约 19 token/s 生成、150 token/s 处理提示词，因此提示词控制在约 1500 字，回答 `max_tokens` 为 500，检索默认 4 个切片、每段最多 300 字。
+依赖见 `requirements.txt`。虚拟环境为仓库根目录的 `.venv`。MySQL 8.4 `job_platform`（`job` / `job123`）需已启动。默认 `LLM_PROVIDER=ollama`，使用本机 Ollama（`http://127.0.0.1:11434/v1`，模型 `qwen2.5:3b`）。默认模型大约 19 token/s 生成、150 token/s 处理提示词，因此提示词控制在约 1500 字，回答 `max_tokens` 为 500，检索默认 4 个切片、每段最多 300 字。
+
+### 切换大模型
+
+只改 `.env`（本目录或仓库根目录）并重启本服务，不必改代码。本机 WSL 若用 systemd，执行 `systemctl --user restart bishe-ai`。
+
+| 变量 | 说明 |
+| :--- | :--- |
+| `LLM_PROVIDER` | `ollama`（默认）/ `gemini` / `openai` / `offline`。`openai` 可接任意 OpenAI 兼容端点；旧值 `openai_compatible` 仍可用 |
+| `LLM_MODEL` | 如 `qwen2.5:3b`、`gemini-2.0-flash`、`deepseek-chat` |
+| `LLM_API_KEY` | 云端必填；本地 Ollama 可填 `ollama`。不要把真实密钥提交到仓库 |
+| `LLM_BASE_URL` | Ollama 默认 `http://127.0.0.1:11434/v1`；`openai` 指向兼容端点时必填；Gemini 可留空 |
+| `LLM_TEMPERATURE` / `LLM_TIMEOUT` | 采样温度与请求超时（秒） |
+
+`GET /ai/llm/health` 返回当前 `provider` 与 `model`，不会返回密钥。缺 Key 或 Key 无效时助手降级为离线摘录，服务不会崩溃。向量嵌入（bge）和重排序仍在本地。
 
 重建知识库（会清空 Chroma 集合和 `rag_document` 后全量写入）：
 
@@ -70,7 +84,7 @@ MySQL `rag_document` 一行对应一个切片。`content_hash` 是标题、章�
 
 ### 路由
 
-`LLM_TOOL_CALLING=auto` 且基址在本机，或模型名里参数量不超过 8B 时，使用关键词和槽位（城市、方向、学历、年限、职位编号、技能）做确定性路由，避免 3B 模型漏调工具。槽位词典来自 `app/spark/dicts.py` 和库里的技术方向、技能标签。`LLM_TOOL_CALLING=true` 时先用 LangChain `bind_tools`，没有合法工具调用再退回同一套路由。工具结果压成短文本后，由模型流式写最终回答。模型不可用时走【离线模式】：工具结果渲染成列表，知识库用 `OfflineGenerator` 做摘录。
+`LLM_TOOL_CALLING=auto` 且 `LLM_PROVIDER=ollama`，或模型名里参数量不超过 8B 时，使用关键词和槽位（城市、方向、学历、年限、职位编号、技能）做确定性路由，避免 3B 模型漏调工具。槽位词典来自 `app/spark/dicts.py` 和库里的技术方向、技能标签。`LLM_TOOL_CALLING=true` 时先用 LangChain `bind_tools`，没有合法工具调用再退回同一套路由。工具结果压成短文本后，由模型流式写最终回答。模型不可用时走【离线模式】：工具结果渲染成列表，知识库用 `OfflineGenerator` 做摘录。
 
 政策类问题排除职位切片。找岗位或「推荐适合我的岗位」时以 SQL 工具结果为准：回答保留一句导语，并按工具原文逐条列出城市和薪资，不把多个城市概括成同一个。
 

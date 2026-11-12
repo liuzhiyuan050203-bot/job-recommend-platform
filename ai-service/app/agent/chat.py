@@ -37,15 +37,25 @@ PROMPT_CHAR_BUDGET = 1500
 
 
 def use_model_tools() -> bool:
-    """auto 遇到本机或 8B 及以下模型时不用工具调用，改走确定性路由。"""
+    """auto 遇到本机 Ollama 或 8B 及以下模型时不用工具调用，改走确定性路由。"""
     mode = str(settings.LLM_TOOL_CALLING or "auto").strip().lower()
     if mode in {"1", "true", "yes", "on"}:
         return True
     if mode in {"0", "false", "no", "off"}:
         return False
-    base = (settings.LLM_BASE_URL or "").lower()
-    if any(host in base for host in ("127.0.0.1", "localhost", "0.0.0.0")):
+    from app.core.llm import normalize_provider
+
+    try:
+        provider = normalize_provider()
+    except Exception:
+        provider = (settings.LLM_PROVIDER or "").strip().lower()
+    if provider in {"ollama", "offline"}:
         return False
+    # 云端提供方若仍残留本机 Ollama 默认基址，不再因此关闭工具调用
+    if provider not in {"gemini", "openai"}:
+        base = (settings.LLM_BASE_URL or "").lower()
+        if any(host in base for host in ("127.0.0.1", "localhost", "0.0.0.0", "[::1]")):
+            return False
     matched = re.search(r"(\d+(?:\.\d+)?)b", (settings.LLM_MODEL or "").lower())
     if matched and float(matched.group(1)) <= 8:
         return False

@@ -25,6 +25,8 @@ langchain==1.4.7
 langchain-core==1.7.3
 langchain-community==0.4.2
 langchain-openai==1.7.3
+# ChatGoogleGenerativeAI；3.2.x 兼容本仓库的 langchain-core 1.7.3（4.x 需要 >=1.8）
+langchain-google-genai==3.2.0
 # Chroma 向量库适配、ContextualCompressionRetriever、create_agent 底层图
 langchain-chroma==1.1.0
 langchain-classic==1.0.8

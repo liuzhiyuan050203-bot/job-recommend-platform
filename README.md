@@ -254,7 +254,7 @@ Vue fetch（Authorization: Bearer JWT）
       → RunnableBranch 路由：规则路由先行（越权确定性拒答）→ 可选 create_agent 角色 Agent（StructuredTool + 角色白名单）
       → RunnableParallel：RAG 检索（langchain_chroma Chroma + jieba BM25Retriever → RRF 融合与阈值，
         可选 ContextualCompressionRetriever 交叉编码重排；集合 job_knowledge，嵌入 BAAI/bge-small-zh-v1.5）‖ 角色工具
-      → LCEL：ChatPromptTemplate | ChatOpenAI（Ollama 或任意 OpenAI 兼容接口）| StrOutputParser，.astream 推 SSE
+      → LCEL：ChatPromptTemplate | get_chat_model()（Ollama / Gemini / OpenAI 兼容接口，由 LLM_PROVIDER 切换）| StrOutputParser，.astream 推 SSE
       → 会话记忆：BaseChatMessageHistory 读 ai_message（最近 4 条）
 ```
 
@@ -281,21 +281,50 @@ bash scripts/stop-all.sh --with-mysql
 bash scripts/start-ollama.sh
 ```
 
-脚本若发现 `11434` 上没有服务，会 `nohup ollama serve`（日志 `/tmp/ollama-serve.log`）。模型默认 `qwen2.5:3b`：先 `ollama pull`，失败再从 Hugging Face 下载 `qwen2.5-3b-instruct-q4_k_m.gguf` 并用 Modelfile `ollama create`。可用 `OLLAMA_MODEL`、`HF_ENDPOINT` 覆盖。ai-service 默认 `LLM_BASE_URL=http://127.0.0.1:11434/v1`、`LLM_MODEL=qwen2.5:3b`、`LLM_API_KEY=ollama`。这台机器是 CPU，一条回答大约 2–40 秒。
+脚本若发现 `11434` 上没有服务，会 `nohup ollama serve`（日志 `/tmp/ollama-serve.log`）。模型默认 `qwen2.5:3b`：先 `ollama pull`，失败再从 Hugging Face 下载 `qwen2.5-3b-instruct-q4_k_m.gguf` 并用 Modelfile `ollama create`。可用 `OLLAMA_MODEL`、`HF_ENDPOINT` 覆盖。ai-service 默认 `LLM_PROVIDER=ollama`、`LLM_BASE_URL=http://127.0.0.1:11434/v1`、`LLM_MODEL=qwen2.5:3b`、`LLM_API_KEY=ollama`。这台机器是 CPU，一条回答大约 2–40 秒。
 
-`LLM_BASE_URL` 不是本机地址时，`start-all.sh` 不会启动 Ollama。
+`LLM_PROVIDER` 为 `gemini` / `openai`，或基址不是本机时，`start-all.sh` 不会启动 Ollama。
 
-### 换成 DeepSeek 等在线模型
+### 切换大模型（本地 Ollama / Gemini / OpenAI 兼容接口）
 
-在 `ai-service/.env` 或启动环境里设置（不要把真实密钥写进仓库）：
+开发和测试默认用本机 Ollama，正式演示或上线前只需改 `.env`、重启 ai-service，不必改代码。配置写在仓库根目录 `.env` 或 `ai-service/.env`（不要把真实密钥提交到仓库）。本机 WSL 的 systemd 用户服务名是 `bishe-ai`。
 
 ```bash
-LLM_PROVIDER=openai_compatible
+# 改完环境变量后重启
+# 仓库内：停掉再执行 bash scripts/start-all.sh
+# 本机已用 systemd 时：
+systemctl --user restart bishe-ai
+```
+
+| `LLM_PROVIDER` | 说明 | 必填 |
+| :--- | :--- | :--- |
+| `ollama`（默认） | 本机 Ollama，默认模型 `qwen2.5:3b` | `LLM_BASE_URL` 默认 `http://127.0.0.1:11434/v1`，`LLM_API_KEY` 可填 `ollama` |
+| `gemini` | Google Gemini（`langchain-google-genai`） | `LLM_API_KEY`、`LLM_MODEL`（如 `gemini-2.0-flash`） |
+| `openai` | 官方 OpenAI，或任意兼容端点（DeepSeek、通义、OpenRouter 等） | `LLM_API_KEY`、`LLM_MODEL`；兼容端点再设 `LLM_BASE_URL` |
+| `offline` | 不请求大模型，助手走知识库摘录 | 无 |
+
+其它可选项：`LLM_TEMPERATURE`、`LLM_TIMEOUT`、`LLM_MAX_TOKENS`、`LLM_TOOL_CALLING`。旧值 `openai_compatible` 仍可用：若基址仍是本机 11434，按 `ollama` 处理。
+
+Gemini 示例：
+
+```bash
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-2.0-flash
+LLM_API_KEY=your-gemini-api-key
+LLM_TOOL_CALLING=auto
+```
+
+DeepSeek（OpenAI 兼容）示例：
+
+```bash
+LLM_PROVIDER=openai
 LLM_BASE_URL=https://api.deepseek.com/v1
-LLM_API_KEY=sk-...
+LLM_API_KEY=sk-your-deepseek-api-key
 LLM_MODEL=deepseek-chat
 LLM_TOOL_CALLING=auto
 ```
+
+向量嵌入（bge）和重排序模型仍在本地，不随大模型切换。`GET /ai/llm/health` 会返回当前 `provider` 和 `model`，不会返回密钥。云端缺 Key 或 Key 无效时，健康检查为不可用，助手自动降级为离线摘录，而不会让服务崩溃。
 
 `LLM_TOOL_CALLING`：
 
@@ -303,13 +332,13 @@ LLM_TOOL_CALLING=auto
 | :--- | :--- |
 | `true` / `1` / `yes` / `on` | 规则路由先判越权；未拒答时由 LangChain `create_agent` 角色 Agent 选择并执行工具（仅限本角色白名单），没有合法调用再走关键词路由 |
 | `false` / `0` / `no` / `off` | 只用关键词和槽位路由 |
-| `auto`（默认） | 基址在本机，或模型名里的参数量不超过 8B 时，只用关键词路由；否则同 `true` |
+| `auto`（默认） | `LLM_PROVIDER=ollama`，或模型名里的参数量不超过 8B 时，只用关键词路由；云端大模型同 `true` |
 
 后端和 ai-service 都要能读到同一个 `AI_INTERNAL_TOKEN`。改完后重启两边。
 
 ### 离线模式
 
-`LLM_PROVIDER=offline`，或探测 `LLM_BASE_URL/models` 失败（连不上、超时、非 2xx）时，`meta.mode` 为 `offline`。回答以「【离线模式】」开头，附上工具结果表格和知识库摘录（`OfflineGenerator` 按字二元组抽句），HTTP 仍是 200 的 SSE，而不是 500。显式检索和统计不依赖大模型。
+`LLM_PROVIDER=offline`，密钥缺失或无效，或探测失败（连不上、超时、非 2xx；Ollama/OpenAI 探 `/models`，Gemini 探 Google 模型列表）时，`meta.mode` 为 `offline`。回答以「【离线模式】」开头，附上工具结果表格和知识库摘录（`OfflineGenerator` 按字二元组抽句），HTTP 仍是 200 的 SSE，而不是 500。显式检索和统计不依赖大模型。超过 `LLM_FIRST_TOKEN_TIMEOUT` / `LLM_ANSWER_DEADLINE` 时同样降级，`done.degraded` 为 `llm_timeout`。
 
 ### 重建知识库
 

@@ -117,13 +117,21 @@ else
 fi
 
 llm_base=${LLM_BASE_URL:-http://127.0.0.1:11434/v1}
+llm_provider=$(printf '%s' "${LLM_PROVIDER:-ollama}" | tr '[:upper:]' '[:lower:]' | tr '-' '_')
 llm_local=0
-case "$llm_base" in
-  *127.0.0.1*|*localhost*|*0.0.0.0*) llm_local=1 ;;
+case "$llm_provider" in
+  ollama|"")
+    llm_local=1
+    ;;
+  openai_compatible)
+    case "$llm_base" in
+      *127.0.0.1*|*localhost*|*0.0.0.0*) llm_local=1 ;;
+    esac
+    ;;
 esac
 
 if [ "$llm_local" != 1 ]; then
-  echo "==> LLM_BASE_URL 不是本机，跳过 Ollama"
+  echo "==> LLM_PROVIDER=${llm_provider:-ollama} 不使用本机模型，跳过 Ollama"
 elif curl -sf -m 2 -o /dev/null "http://127.0.0.1:11434/api/tags"; then
   echo "==> Ollama 已在运行"
   bash "$ROOT/scripts/start-ollama.sh" || echo "警告: 检查模型/推理线程失败，继续启动"

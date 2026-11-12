@@ -52,8 +52,10 @@ class Settings(BaseSettings):
     # Chroma 向量数据库目录 (解析为 ai-service 下绝对路径)
     CHROMA_DIR: str = "./data/chroma"
 
-    # 大模型与基础设施配置
-    LLM_PROVIDER: str = "openai_compatible"  # "openai_compatible" | "offline"
+    # 大模型与基础设施配置。LLM_PROVIDER: ollama | gemini | openai | offline
+    # openai 可指向任意 OpenAI 兼容端点（DeepSeek / 通义 / OpenRouter 等）；
+    # 旧值 openai_compatible 仍可用。默认本机 Ollama + qwen2.5:3b。
+    LLM_PROVIDER: str = "ollama"
     LLM_BASE_URL: str = "http://127.0.0.1:11434/v1"
     LLM_API_KEY: str = "ollama"
     LLM_MODEL: str = "qwen2.5:3b"
