@@ -16,7 +16,13 @@ import re
 from pathlib import Path
 
 from app.core.config import AI_SERVICE_DIR, settings
-from app.rag.chunking import split_markdown, split_text
+from app.rag.chunking import (
+    is_disclaimer,
+    merge_short_sections,
+    split_markdown,
+    split_text,
+    strip_disclaimer,
+)
 from app.rag.job_text import build_job_text, job_meta, clean_job_fields, _SOURCE_LABELS
 from app.rag.constants import CMS_TYPE_MAP, KNOWLEDGE_DOC_RULES
 from app.rag.store import (
@@ -48,17 +54,18 @@ def doc_type_for_filename(name: str) -> int:
 
 
 def _chunks_of(text: str) -> list[ChunkRecord]:
-    text = (text or "").replace("\r\n", "\n").strip()
+    text = strip_disclaimer((text or "").replace("\r\n", "\n")).strip()
     if len(text) < 8:
         return []
     if re.search(r"(?m)^#{1,3}\s+", text):
         parts = split_markdown(text)
     else:
         parts = [("", piece) for piece in split_text(text)]
+    parts = merge_short_sections(parts)
     records = []
     for section, content in parts:
-        content = content.strip()
-        if len(content) < 8:
+        content = (content or "").strip()
+        if is_disclaimer(content) or len(content) < 8:
             continue
         records.append(ChunkRecord(section=section, content=content))
     return records

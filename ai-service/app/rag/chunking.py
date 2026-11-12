@@ -170,3 +170,47 @@ def _hard_cut(text: str, size: int, overlap: int) -> list[str]:
             next_start = end
         start = next_start
     return chunks
+
+
+_DISCLAIMER = re.compile(r"示例资料|演示用示例|毕业设计演示用的通用示例内容")
+MIN_SECTION_CHARS = 40
+
+
+def is_disclaimer(text: str) -> bool:
+    """切片是否基本只含「演示用示例」免责声明。"""
+    body = re.sub(r"^>+\s*", "", (text or "").strip())
+    if not body or not _DISCLAIMER.search(body):
+        return False
+    remainder = _DISCLAIMER.sub("", body)
+    remainder = re.sub(r"[：:，,。\s>本文为具体以学校和当地最新政策为准]+", "", remainder)
+    return len(remainder.strip()) < 20
+
+
+def strip_disclaimer(text: str) -> str:
+    """去掉正文里的示例资料免责声明行，保留其余内容。"""
+    lines = []
+    for line in (text or "").splitlines():
+        body = re.sub(r"^>+\s*", "", line.strip())
+        if _DISCLAIMER.search(body) and re.search(r"演示|示例|毕业设计", body):
+            continue
+        lines.append(line)
+    cleaned = "\n".join(lines)
+    return re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+
+
+def merge_short_sections(
+    parts: list[tuple[str, str]], min_len: int = MIN_SECTION_CHARS
+) -> list[tuple[str, str]]:
+    """标题切分后过短的小节并入上一节；仅免责声明或空内容会被丢掉。"""
+    merged: list[tuple[str, str]] = []
+    for section, content in parts:
+        content = (content or "").strip()
+        if not content or is_disclaimer(content):
+            continue
+        if merged and len(content) < min_len:
+            prev_sec, prev = merged[-1]
+            extra = content if not section or section == prev_sec else f"{section}：{content}"
+            merged[-1] = (prev_sec, f"{prev}\n{extra}".strip())
+        else:
+            merged.append((section, content))
+    return merged
