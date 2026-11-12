@@ -52,3 +52,4 @@ derby.log
 # 实验下载的原始第三方文件（清洗结果进 git）
 experiments/data/raw/
 experiments/data/scale/
+experiments/results/.embed_cache/
