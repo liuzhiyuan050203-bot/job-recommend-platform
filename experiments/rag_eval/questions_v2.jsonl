@@ -1,0 +1,29 @@
+{"id":"h01","set":"hard","type":"paraphrase_no_title","question":"学校、用人单位和我本人签的那份就业意向书，和入职后要签的劳动合约是一回事吗？","gold":[{"file":"三方协议FAQ.md","section":"三方协议是什么"}]}
+{"id":"h02","set":"hard","type":"paraphrase_no_title","question":"已经在网上点了接受，后来因为考公不想去了，一般要先走什么手续、钱怎么谈？","gold":[{"file":"三方协议FAQ.md","section":"想违约怎么办"}]}
+{"id":"h03","set":"hard","type":"paraphrase_no_title","question":"还在考察期内自己不想干了，需要提前多久告诉公司？过了考察期呢？","gold":[{"file":"劳动合同与试用期权益.md","section":"离职与解除"}]}
+{"id":"h04","set":"hard","type":"paraphrase_no_title","question":"入职之后最晚什么时候要把正式劳动合约签下来？只签了就业意向算不算已经建立劳动关系？","gold":[{"file":"劳动合同与试用期权益.md","section":"何时签订劳动合同"},{"file":"三方协议FAQ.md","section":"三方协议是什么"}]}
+{"id":"h05","set":"hard","type":"paraphrase_no_title","question":"写招聘启事的时候能不能限定只要男生，或者让入职的人交培训费、必须买指定设备？","gold":[{"file":"企业招聘须知.md","section":"职位描述怎么写"}]}
+{"id":"h06","set":"hard","type":"paraphrase_no_title","question":"毕业还没找到单位，档案和户口能不能先转回老家的人才中心，以后签约再调走？","gold":[{"file":"档案与户口FAQ.md","section":"未就业期间的档案户口"}]}
+{"id":"h07","set":"hard","type":"paraphrase_no_title","question":"单位口头说能解决户口但协议里没有写指标，这能当作已经承诺了吗？","gold":[{"file":"档案与户口FAQ.md","section":"户口迁移"}]}
+{"id":"h08","set":"hard","type":"paraphrase_no_title","question":"不同期限的合同，前面那段考察时间最长分别能约定多久？考察期工资能不能低于约定工资的八成？","gold":[{"file":"劳动合同与试用期权益.md","section":"试用期上限与工资"}]}
+{"id":"m01","set":"multihop","type":"multi_hop","question":"已经签了就业协议后又反悔，和已经入职在考察期内自己离职，两边提前通知或解约的要求有什么不一样？","gold":[{"file":"三方协议FAQ.md","section":"想违约怎么办"},{"file":"劳动合同与试用期权益.md","section":"离职与解除"}]}
+{"id":"m02","set":"multihop","type":"multi_hop","question":"三方协议里的违约条款，和正式劳动合约里因为专项培训约定的服务期，分别在什么情况下才谈得上要给钱？","gold":[{"file":"三方协议FAQ.md","section":"想违约怎么办"},{"file":"劳动合同与试用期权益.md","section":"离职与解除"}]}
+{"id":"m03","set":"multihop","type":"multi_hop","question":"企业发布职位时怎样避免写出违规条件，学生如果遇到只要男生或要交培训费的岗位该以哪类资料为准？","gold":[{"file":"企业招聘须知.md","section":"职位描述怎么写"},{"file":"劳动合同与试用期权益.md","section":"发生争议怎么办"}]}
+{"id":"r01","set":"refusal","type":"near_domain","question":"考研报名费怎么交，在哪个网站缴费？","gold":[]}
+{"id":"r02","set":"refusal","type":"near_domain","question":"英语四级下一次考试是几月，准考证在哪打印？","gold":[]}
+{"id":"r03","set":"refusal","type":"near_domain","question":"第一次申办因私护照要带哪些材料、在哪个派出所预约？","gold":[]}
+{"id":"r04","set":"refusal","type":"near_domain","question":"国家公务员考试报名入口是哪个网址，应届生岗位怎么筛选？","gold":[]}
+{"id":"r05","set":"refusal","type":"near_domain","question":"北京积分落户申报系统今年几点开放，社保要满多少年？","gold":[]}
+{"id":"j01","set":"job","type":"job_retrieval","question":"懂车帝在招哪些产品经理？","gold":{"company":"懂车帝","title_has":["产品经理"]}}
+{"id":"j02","set":"job","type":"job_retrieval","question":"懂车帝杭州有没有后端或 Agent 开发岗位？","gold":{"company":"懂车帝","city":"杭州"}}
+{"id":"j03","set":"job","type":"job_retrieval","question":"杭州 Java 后端开发岗位有哪些，都是哪几家公司的？","gold":{"city":"杭州","title_or_direction":["Java","后端"]},"diversity":true}
+{"id":"j04","set":"job","type":"job_retrieval","question":"字节跳动的算法工程师在哪些城市招聘？","gold":{"company":"字节跳动","title_or_direction":["算法"]}}
+{"id":"j05","set":"job","type":"job_retrieval","question":"外部扩充库里懂车帝的飞书招聘岗位有哪些？","gold":{"company":"懂车帝","data_source":"ext_ats"}}
+{"id":"u01","set":"routing","type":"routing","question":"招候选人只限男性合不合规","role":"company","expect_tools":[],"forbid_tools":["screen_applicants"],"expect_doc_types":[4,6]}
+{"id":"u02","set":"routing","type":"routing","question":"向候选人收培训费合不合法","role":"company","expect_tools":[],"forbid_tools":["screen_applicants"],"expect_doc_types":[4,6]}
+{"id":"u03","set":"routing","type":"routing","question":"帮我筛选职位 1 的候选人","role":"company","expect_tools":["screen_applicants"],"forbid_tools":[],"expect_doc_types":[]}
+{"id":"u04","set":"routing","type":"routing","question":"杭州 Java 后端月薪多少","role":"student","expect_tools":["predict_salary","search_jobs"],"forbid_tools":[],"expect_doc_types":[7]}
+{"id":"u05","set":"routing","type":"routing","question":"我在上海做算法能拿多少","role":"student","expect_tools":["predict_salary","search_jobs"],"forbid_tools":[],"expect_doc_types":[7]}
+{"id":"u06","set":"routing","type":"routing","question":"杭州有哪些 Java 后端岗位","role":"student","expect_tools":["search_jobs"],"forbid_tools":["predict_salary"],"expect_doc_types":[7]}
+{"id":"u07","set":"routing","type":"routing","question":"懂车帝在招哪些产品经理","role":"student","expect_tools":["search_jobs"],"forbid_tools":[],"expect_doc_types":[7],"expect_slot":{"keyword":"懂车帝"}}
+{"id":"u08","set":"routing","type":"routing","question":"本周投递概况","role":"company","expect_tools":["application_stats"],"forbid_tools":["screen_applicants"],"expect_doc_types":[]}
