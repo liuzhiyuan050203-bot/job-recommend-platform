@@ -81,7 +81,11 @@ class Settings(BaseSettings):
     RAG_TOP_K: int = 4
     RAG_CHUNK_SIZE: int = 400
     RAG_CHUNK_OVERLAP: int = 60
-    RAG_PROMPT_CHUNK_CHARS: int = 300
+    # 写入提示词的单条资料字数、总预算、工具结果字数。0 或未填表示按提供方自动选择：
+    # 本地 ollama / offline 保持 300 / 1500 / 700，云端 gemini / openai 为 800 / 6000 / 2000。
+    RAG_PROMPT_CHUNK_CHARS: int = 0
+    RAG_PROMPT_CHAR_BUDGET: int = 0
+    RAG_PROMPT_TOOL_CHARS: int = 0
     # dense | bm25 | hybrid | hybrid_rerank。
     # 2026-11 评测：标题切分 + hybrid 的 Hit@1=0.92、MRR@10=0.947，约 15ms/问。
     # hybrid_rerank 的 Hit@1 同为 0.92，平均延迟约 1.86s，超过 1.5s，故默认 hybrid。
@@ -122,6 +126,43 @@ class Settings(BaseSettings):
                     pass
             return [item.strip() for item in v.split(",") if item.strip()]
         return v
+
+    @property
+    def is_cloud_llm(self) -> bool:
+        """gemini / openai（含兼容云端）视为云端；本机 Ollama 地址不算。"""
+        token = (self.LLM_PROVIDER or "").strip().lower()
+        if token in {"gemini", "openai"}:
+            return True
+        if token in {"openai_compatible", "openai-compatible"}:
+            base = (self.LLM_BASE_URL or "").strip().rstrip("/").lower()
+            if base.endswith("/v1"):
+                base = base[:-3].rstrip("/")
+            local = {
+                "http://127.0.0.1:11434",
+                "http://localhost:11434",
+                "http://0.0.0.0:11434",
+                "http://[::1]:11434",
+            }
+            return base not in local and "127.0.0.1:11434" not in base and "localhost:11434" not in base
+        return False
+
+    def _auto_or(self, configured: int, local_default: int, cloud_default: int) -> int:
+        value = int(configured or 0)
+        if value > 0:
+            return value
+        return cloud_default if self.is_cloud_llm else local_default
+
+    @property
+    def prompt_chunk_chars(self) -> int:
+        return self._auto_or(self.RAG_PROMPT_CHUNK_CHARS, 300, 800)
+
+    @property
+    def prompt_char_budget(self) -> int:
+        return self._auto_or(self.RAG_PROMPT_CHAR_BUDGET, 1500, 6000)
+
+    @property
+    def prompt_tool_chars(self) -> int:
+        return self._auto_or(self.RAG_PROMPT_TOOL_CHARS, 700, 2000)
 
     @property
     def database_url(self) -> str:

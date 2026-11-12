@@ -33,6 +33,7 @@ AGENT_NAMES = {
     "admin": "管理员数据助手",
 }
 ANSWER_TOKENS = 500
+# 兼容旧引用；实际预算以 settings.prompt_char_budget 为准（云端更大，本地 3B 仍约 1500）。
 PROMPT_CHAR_BUDGET = 1500
 
 
@@ -86,10 +87,24 @@ def _source_items(chunks: list[dict]) -> list[dict]:
 
 
 def _fit_prompt(question: str, history: list[dict], chunks: list[dict], tool_text: str, instruction: str) -> str:
-    """把资料、工具和历史压到约 1500 字，避免小模型上下文过长。"""
-    bodies = [settings.RAG_PROMPT_CHUNK_CHARS, 220, 160, 120]
+    """把资料、工具和历史压进提示词预算：本地小模型约 1500 字，云端默认更大。"""
+    budget = settings.prompt_char_budget
+    chunk_chars = settings.prompt_chunk_chars
+    if settings.is_cloud_llm:
+        bodies = [
+            chunk_chars,
+            max(chunk_chars * 3 // 4, 400),
+            max(chunk_chars // 2, 250),
+            max(chunk_chars // 3, 160),
+        ]
+    else:
+        bodies = [chunk_chars, 220, 160, 120]
     kept = list(chunks)
     text = ""
+    tool_limit = settings.prompt_tool_chars
+    hist_limit = 240 if settings.is_cloud_llm else 120
+    inst_limit = 400 if settings.is_cloud_llm else 200
+    q_limit = 1200 if settings.is_cloud_llm else 800
     for body_limit in bodies:
         lines = ["【资料】"]
         if kept:
@@ -100,23 +115,23 @@ def _fit_prompt(question: str, history: list[dict], chunks: list[dict], tool_tex
                 lines.append(body)
         else:
             lines.append("无")
-        tool_block = (tool_text or "无")[:700]
+        tool_block = (tool_text or "无")[:tool_limit]
         hist_lines = []
         for item in history:
             speaker = "用户" if item["role"] == "user" else "助手"
-            hist_lines.append(f"{speaker}: {item['content'][:120]}")
+            hist_lines.append(f"{speaker}: {item['content'][:hist_limit]}")
         parts = ["\n".join(lines), "【工具结果】\n" + tool_block]
         if hist_lines:
             parts.append("【最近对话】\n" + "\n".join(hist_lines))
         if instruction:
-            parts.append(instruction[:200])
-        parts.append("【问题】\n" + question.strip()[:800])
+            parts.append(instruction[:inst_limit])
+        parts.append("【问题】\n" + question.strip()[:q_limit])
         text = "\n\n".join(parts)
-        if len(text) <= PROMPT_CHAR_BUDGET:
+        if len(text) <= budget:
             return text
         if len(kept) > 2:
             kept = kept[:2]
-    return text[:PROMPT_CHAR_BUDGET]
+    return text[:budget]
 
 
 def _system_prompt(agent: str, has_sources: bool) -> str:
