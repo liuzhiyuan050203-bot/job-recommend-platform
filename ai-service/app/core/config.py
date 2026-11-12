@@ -95,6 +95,11 @@ class Settings(BaseSettings):
     RAG_DIVERSITY_PER_COMPANY: int = 2
     # 服务启动后在后台做一次职位增量同步（跳过未变切片、剔除过期），失败不影响启动。
     RAG_SYNC_JOBS_ON_START: bool = True
+    # 近域拒答：领域意图 + 稠密余弦门槛。OUT 意图默认 0.82，UNKNOWN 默认 0.62（dev 标定）。
+    RAG_SCOPE_GATE: bool = True
+    RAG_SCOPE_OUT_COSINE: float = 0.82
+    RAG_SCOPE_UNKNOWN_COSINE: float = 0.62
+    RAG_SCOPE_OUT_RERANK: float = 0.0
 
     # 跨域允许源 (支持 Spring Boot 8080 与 Vue 5173)
     CORS_ORIGINS: Union[List[str], str] = [

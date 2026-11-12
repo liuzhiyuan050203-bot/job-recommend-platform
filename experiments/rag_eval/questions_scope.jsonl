@@ -1,0 +1,13 @@
+{"id": "rd1", "split": "dev", "set": "refusal", "type": "near_domain", "question": "考研成绩什么时候公布，怎么申请调剂？", "gold": []}
+{"id": "rd2", "split": "dev", "set": "refusal", "type": "near_domain", "question": "托福考试报名截止日期是哪天？", "gold": []}
+{"id": "rd3", "split": "dev", "set": "refusal", "type": "near_domain", "question": "申办因私护照要去哪个出入境大厅预约？", "gold": []}
+{"id": "rd4", "split": "dev", "set": "refusal", "type": "near_domain", "question": "驾照科目一在哪里预约考试？", "gold": []}
+{"id": "rd5", "split": "dev", "set": "refusal", "type": "near_domain", "question": "去香港的旅游签证要准备哪些材料？", "gold": []}
+{"id": "rd6", "split": "dev", "set": "refusal", "type": "near_domain", "question": "居住证积分落户怎么打分、社保要交几年？", "gold": []}
+{"id": "rd7", "split": "dev", "set": "refusal", "type": "near_domain", "question": "英语六级成绩单丢失了怎么补办？", "gold": []}
+{"id": "rd8", "split": "dev", "set": "refusal", "type": "near_domain", "question": "国考准考证在哪个网站打印？", "gold": []}
+{"id": "r01", "split": "heldout", "set": "refusal", "type": "near_domain", "question": "考研报名费怎么交，在哪个网站缴费？", "gold": []}
+{"id": "r02", "split": "heldout", "set": "refusal", "type": "near_domain", "question": "英语四级下一次考试是几月，准考证在哪打印？", "gold": []}
+{"id": "r03", "split": "heldout", "set": "refusal", "type": "near_domain", "question": "第一次申办因私护照要带哪些材料、在哪个派出所预约？", "gold": []}
+{"id": "r04", "split": "heldout", "set": "refusal", "type": "near_domain", "question": "国家公务员考试报名入口是哪个网址，应届生岗位怎么筛选？", "gold": []}
+{"id": "r05", "split": "heldout", "set": "refusal", "type": "near_domain", "question": "北京积分落户申报系统今年几点开放，社保要满多少年？", "gold": []}

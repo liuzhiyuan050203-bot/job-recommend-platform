@@ -23,6 +23,7 @@ from app.agent.tools import Caller, render
 from app.core.config import settings
 from app.core.llm import OfflineGenerator, get_llm, is_available
 from app.rag.retrieve import fetch_chunks
+from app.rag.scope import refusal_answer
 from app.spark.dicts import CITY_PROVINCE
 
 logger = logging.getLogger(__name__)
@@ -156,16 +157,10 @@ def _system_prompt(agent: str, has_sources: bool) -> str:
 
 def _no_hit_text(role: str, tag: str = "") -> str:
     """知识库与工具都没有结果时的兜底话术，按角色区分。"""
-    lead = f"{tag}，" if tag else ""
-    if role == "company":
-        return (
-            f"{lead}企业招聘知识库中没有找到与该问题直接对应的资料。"
-            "想看本公司实时投递进展，可以问我「本周投递概况」「筛选职位 编号 的候选人」，"
-            "或到「招聘看板」「候选人管理」「职位管理」查看。"
-        )
-    if role == "admin":
-        return f"{lead}知识库中没有找到与该问题直接对应的资料，请换一种问法或查看管理端数据看板。"
-    return f"{lead}知识库中没有找到与该问题相关的资料，请以学校就业指导中心和当地最新政策为准。"
+    text = refusal_answer(role)
+    if tag:
+        return f"{tag}，{text}"
+    return text
 
 
 # 未写完的「[资料2」或「【资料2」先留在缓冲区，避免把半个引用拆进两个 delta。
@@ -492,10 +487,7 @@ async def iter_events(
             return
 
         if not chunk_list and not tool_text_parts:
-            if caller.role == "student":
-                fixed = "知识库中没有找到与该问题直接对应的资料。请换一种问法，或向学校就业指导中心核实最新政策。"
-            else:
-                fixed = _no_hit_text(caller.role)
+            fixed = _no_hit_text(caller.role)
             # 仍交给模型会增加幻觉，政策类问题在没有命中时直接说明
             if not decided.tools:
                 async for piece in emit_text(fixed):
