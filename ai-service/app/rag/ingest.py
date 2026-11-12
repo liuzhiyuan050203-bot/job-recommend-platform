@@ -13,6 +13,7 @@ import argparse
 import json
 import logging
 import re
+import threading
 from pathlib import Path
 
 from app.core.config import AI_SERVICE_DIR, settings
@@ -39,6 +40,10 @@ from app.rag.store import (
 from app.spark.db import connect
 
 logger = logging.getLogger(__name__)
+
+# 职位同步必须串行：上架请求若在「已读到在架」之后、写入之前被下架请求抢先删除，
+# 晚到的写入会把已下架职位重新送回知识库。可重入，避免 sync_jobs 调 ingest_source 死锁。
+_JOB_SYNC_LOCK = threading.RLock()
 
 KNOWLEDGE_DIR = AI_SERVICE_DIR.parent / "data" / "knowledge"
 UPLOAD_DIR = Path(settings.CHROMA_DIR).parent / "uploads"
@@ -321,16 +326,17 @@ def sync_jobs(job_ids: list[int] | None = None) -> dict[str, int]:
     指定编号时：在架且已审核的写入，其余（下架、删除、未过审）从索引移除。
     向量写入失败会抛错，调用方应捕获，避免影响职位业务操作。
     """
-    wanted = _normalize_ids(job_ids)
-    if wanted:
-        docs = load_jobs(ids=wanted)
-        result = _sync_batched(docs) if docs else {"skipped": 0, "rewritten": 0, "chunks": 0, "documents": 0}
-        result["documents"] = len(docs)
-        live = {int(doc.source_id) for doc in docs if doc.source_id}
-        stale = [f"job:{item}" for item in wanted if item not in live]
-        result["pruned"] = prune_doc_keys(stale) if stale else 0
-        return result
-    return ingest_source("jobs", rebuild=False)
+    with _JOB_SYNC_LOCK:
+        wanted = _normalize_ids(job_ids)
+        if wanted:
+            docs = load_jobs(ids=wanted)
+            result = _sync_batched(docs) if docs else {"skipped": 0, "rewritten": 0, "chunks": 0, "documents": 0}
+            result["documents"] = len(docs)
+            live = {int(doc.source_id) for doc in docs if doc.source_id}
+            stale = [f"job:{item}" for item in wanted if item not in live]
+            result["pruned"] = prune_doc_keys(stale) if stale else 0
+            return result
+        return ingest_source("jobs", rebuild=False)
 
 
 def ingest_source(source: str, rebuild: bool = False) -> dict[str, int]:
@@ -358,12 +364,13 @@ def ingest_source(source: str, rebuild: bool = False) -> dict[str, int]:
         result["pruned"] = _prune_missing(list_doc_keys(prefix="cms:"), {doc.doc_key for doc in docs})
         return result
     if source == "jobs":
-        if rebuild:
-            delete_by_source(5)
-        docs = load_jobs()
-        result = _sync_batched(docs)
-        result["pruned"] = _prune_missing(list_doc_keys(source_type=5), {doc.doc_key for doc in docs})
-        return result
+        with _JOB_SYNC_LOCK:
+            if rebuild:
+                delete_by_source(5)
+            docs = load_jobs()
+            result = _sync_batched(docs)
+            result["pruned"] = _prune_missing(list_doc_keys(source_type=5), {doc.doc_key for doc in docs})
+            return result
     raise ValueError("source 只能是 knowledge、cms、jobs、uploads")
 
 
@@ -483,11 +490,12 @@ def reindex_doc_key(doc_key: str) -> dict[str, int]:
             job_id = int(doc_key[4:])
         except ValueError as exc:
             raise ValueError("无法识别的职位 doc_key") from exc
-        docs = load_jobs(ids=[job_id])
-        if not docs:
-            prune_doc_keys([doc_key])
-            raise ValueError("职位不在架或未通过审核，已从知识库移除")
-        doc = docs[0]
+        with _JOB_SYNC_LOCK:
+            docs = load_jobs(ids=[job_id])
+            if not docs:
+                prune_doc_keys([doc_key])
+                raise ValueError("职位不在架或未通过审核，已从知识库移除")
+            return sync_documents(docs)
     else:
         raise ValueError("无法识别的 doc_key")
     return sync_documents([doc])
