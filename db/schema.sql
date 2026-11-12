@@ -35,6 +35,7 @@ DROP TABLE IF EXISTS com_comment;
 DROP TABLE IF EXISTS com_post;
 DROP TABLE IF EXISTS job_interview;
 DROP TABLE IF EXISTS job_application_log;
+DROP TABLE IF EXISTS job_application_resume;
 DROP TABLE IF EXISTS job_application;
 DROP TABLE IF EXISTS job_favorite;
 DROP TABLE IF EXISTS job_position_tag;
@@ -352,6 +353,26 @@ CREATE TABLE job_application (
     ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT chk_job_application_status CHECK (status IN (0, 1, 2, 3, 4))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='简历投递';
+
+CREATE TABLE job_application_resume (
+  id              BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+  application_id  BIGINT       NOT NULL COMMENT '投递编号，关联 job_application.id',
+  resume_id       BIGINT       NULL COMMENT '投递时使用的在线简历编号，关联 stu_resume.id',
+  title           VARCHAR(128) NOT NULL DEFAULT '' COMMENT '投递时的简历标题',
+  education_exp   TEXT         NULL COMMENT '投递时的教育经历',
+  project_exp     TEXT         NULL COMMENT '投递时的项目经历',
+  internship_exp  TEXT         NULL COMMENT '投递时的实习经历',
+  skill_desc      TEXT         NULL COMMENT '投递时的技能概述',
+  self_evaluation TEXT         NULL COMMENT '投递时的自我评价',
+  attachment_url  VARCHAR(512) NULL COMMENT '投递时的附件地址',
+  content_hash    CHAR(64)     NOT NULL DEFAULT '' COMMENT '内容 SHA-256，用于判断投递后是否被修改',
+  captured_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '快照写入时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_app_resume_application (application_id),
+  KEY idx_app_resume_resume (resume_id),
+  CONSTRAINT fk_app_resume_application FOREIGN KEY (application_id) REFERENCES job_application (id)
+    ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='投递时的简历快照，企业查看以此为准';
 
 CREATE TABLE job_application_log (
   id             BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',

@@ -128,10 +128,18 @@
             :closable="false"
             show-icon
             class="resume-deleted"
-            title="简历已删除：学生投递后删除了这份在线简历，以下为删除前保留的内容"
+            title="简历已删除：学生投递后删除了这份在线简历，以下为投递时保留的内容"
+          />
+          <el-alert
+            v-else-if="detail.resumeUpdatedAfterApply"
+            type="warning"
+            :closable="false"
+            show-icon
+            class="resume-updated"
+            title="投递后简历已更新：以下为投递时的简历内容，学生后来修改了在线简历"
           />
           <h4 class="resume-head">
-            <span>{{ detail.resume.title }}<el-tag v-if="detail.resumeDeleted" size="small" type="info" class="tag">已删除</el-tag></span>
+            <span>{{ detail.resume.title }}<el-tag v-if="detail.resumeDeleted" size="small" type="info" class="tag">已删除</el-tag><el-tag v-else-if="detail.resumeUpdatedAfterApply" size="small" type="warning" class="tag">投递后简历已更新</el-tag></span>
             <el-button v-if="detail.resume.attachmentUrl" link type="primary" :loading="downloading" @click="downloadResume">下载简历原件</el-button>
           </h4>
           <p><b>教育经历</b>{{ detail.resume.educationExp || '无' }}</p>

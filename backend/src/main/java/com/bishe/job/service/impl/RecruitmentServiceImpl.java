@@ -11,6 +11,7 @@ import com.bishe.job.dto.InterviewNoticeDTO;
 import com.bishe.job.dto.InterviewResultDTO;
 import com.bishe.job.entity.EntCompany;
 import com.bishe.job.entity.JobApplication;
+import com.bishe.job.entity.JobApplicationResume;
 import com.bishe.job.entity.JobApplicationLog;
 import com.bishe.job.entity.JobInterview;
 import com.bishe.job.entity.JobPosition;
@@ -22,6 +23,7 @@ import com.bishe.job.entity.SysUser;
 import com.bishe.job.mapper.EntCompanyMapper;
 import com.bishe.job.mapper.JobApplicationLogMapper;
 import com.bishe.job.mapper.JobApplicationMapper;
+import com.bishe.job.mapper.JobApplicationResumeMapper;
 import com.bishe.job.mapper.JobInterviewMapper;
 import com.bishe.job.mapper.JobPositionMapper;
 import com.bishe.job.mapper.SkillTagMapper;
@@ -36,6 +38,7 @@ import com.bishe.job.service.BehaviorLogService;
 import com.bishe.job.service.CompanySupport;
 import com.bishe.job.service.PositionTags;
 import com.bishe.job.service.RecruitmentService;
+import com.bishe.job.service.ResumeSnapshots;
 import com.bishe.job.service.SkillMatch;
 import com.bishe.job.service.VisibleJobSupport;
 import com.bishe.job.vo.AdminOverviewVO;
@@ -72,6 +75,7 @@ import java.util.stream.Collectors;
 public class RecruitmentServiceImpl implements RecruitmentService {
 
     private final JobApplicationMapper jobApplicationMapper;
+    private final JobApplicationResumeMapper jobApplicationResumeMapper;
     private final JobApplicationLogMapper jobApplicationLogMapper;
     private final JobInterviewMapper jobInterviewMapper;
     private final JobPositionMapper jobPositionMapper;
@@ -127,6 +131,7 @@ public class RecruitmentServiceImpl implements RecruitmentService {
             jobApplicationMapper.insert(created);
             applicationId = created.getId();
         }
+        saveResumeSnapshot(applicationId, resume);
         insertLog(applicationId, null, 0, userId, "学生提交投递");
         jobPositionMapper.incrApply(job.getId());
         behaviorLogService.logJob(BehaviorLogService.APPLY, job.getId());
@@ -570,15 +575,7 @@ public class RecruitmentServiceImpl implements RecruitmentService {
             detail.setGraduationYear(profile.getGraduationYear());
             detail.setExpectCity(profile.getExpectCity());
         }
-        if (application.getResumeId() != null) {
-            // 学生删除简历是逻辑删除，投递详情仍展示删除前的内容并标记「简历已删除」
-            StuResume resume = stuResumeMapper.selectByIdIncludingDeleted(application.getResumeId());
-            // 投递上的简历必须仍属于该学生，避免简历编号被改写后把别人的简历带出来
-            if (resume != null && application.getUserId().equals(resume.getUserId())) {
-                detail.setResume(toResume(resume));
-                detail.setResumeDeleted(Integer.valueOf(1).equals(resume.getDeleted()));
-            }
-        }
+        fillResumeSnapshot(detail, application);
         detail.setSkills(loadSkills(application.getUserId()));
         detail.setLogs(loadLogs(application.getId()));
         detail.setInterviews(toInterviews(jobInterviewMapper.selectList(new LambdaQueryWrapper<JobInterview>()
@@ -681,6 +678,45 @@ public class RecruitmentServiceImpl implements RecruitmentService {
             list.add(vo);
         }
         return list;
+    }
+
+
+    private void saveResumeSnapshot(Long applicationId, StuResume resume) {
+        JobApplicationResume row = ResumeSnapshots.fromResume(applicationId, resume, LocalDateTime.now());
+        JobApplicationResume existing = jobApplicationResumeMapper.selectByApplicationId(applicationId);
+        if (existing == null) {
+            jobApplicationResumeMapper.insert(row);
+            return;
+        }
+        row.setId(existing.getId());
+        jobApplicationResumeMapper.updateById(row);
+    }
+
+    private void fillResumeSnapshot(ApplicationDetailVO detail, JobApplication application) {
+        JobApplicationResume snapshot = jobApplicationResumeMapper.selectByApplicationId(application.getId());
+        StuResume current = null;
+        if (application.getResumeId() != null) {
+            StuResume loaded = stuResumeMapper.selectByIdIncludingDeleted(application.getResumeId());
+            // 投递上的简历必须仍属于该学生，避免简历编号被改写后把别人的简历带出来
+            if (loaded != null && application.getUserId().equals(loaded.getUserId())) {
+                current = loaded;
+            }
+        }
+        if (snapshot != null) {
+            detail.setResume(ResumeSnapshots.toResumeVo(snapshot));
+            if (snapshot.getResumeId() != null) {
+                detail.getResume().setUserId(application.getUserId());
+            }
+            boolean deleted = current == null || Integer.valueOf(1).equals(current.getDeleted());
+            detail.setResumeDeleted(deleted);
+            detail.setResumeUpdatedAfterApply(!deleted && !ResumeSnapshots.sameContent(current, snapshot));
+            return;
+        }
+        // 尚未回填快照的旧记录：退回当前简历（含已删除）
+        if (current != null) {
+            detail.setResume(toResume(current));
+            detail.setResumeDeleted(Integer.valueOf(1).equals(current.getDeleted()));
+        }
     }
 
     private ResumeVO toResume(StuResume resume) {

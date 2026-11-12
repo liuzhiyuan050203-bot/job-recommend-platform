@@ -5,12 +5,14 @@ import com.bishe.job.client.FastApiClient;
 import com.bishe.job.common.BusinessException;
 import com.bishe.job.entity.EntCompany;
 import com.bishe.job.entity.JobApplication;
+import com.bishe.job.entity.JobApplicationResume;
 import com.bishe.job.entity.SkillTag;
 import com.bishe.job.entity.StuProfile;
 import com.bishe.job.entity.StuResume;
 import com.bishe.job.entity.StuSkill;
 import com.bishe.job.entity.SysUser;
 import com.bishe.job.mapper.JobApplicationMapper;
+import com.bishe.job.mapper.JobApplicationResumeMapper;
 import com.bishe.job.mapper.SkillTagMapper;
 import com.bishe.job.mapper.StuProfileMapper;
 import com.bishe.job.mapper.StuResumeMapper;
@@ -60,6 +62,7 @@ public class ResumeFileServiceImpl implements ResumeFileService {
     private final StuProfileMapper stuProfileMapper;
     private final SysUserMapper sysUserMapper;
     private final JobApplicationMapper jobApplicationMapper;
+    private final JobApplicationResumeMapper jobApplicationResumeMapper;
     private final CompanySupport companySupport;
     private final FastApiClient fastApiClient;
     private final Path uploadRoot;
@@ -70,6 +73,7 @@ public class ResumeFileServiceImpl implements ResumeFileService {
                                  StuProfileMapper stuProfileMapper,
                                  SysUserMapper sysUserMapper,
                                  JobApplicationMapper jobApplicationMapper,
+                                 JobApplicationResumeMapper jobApplicationResumeMapper,
                                  CompanySupport companySupport,
                                  FastApiClient fastApiClient,
                                  @Value("${resume.upload-dir}") String uploadDir) {
@@ -79,6 +83,7 @@ public class ResumeFileServiceImpl implements ResumeFileService {
         this.stuProfileMapper = stuProfileMapper;
         this.sysUserMapper = sysUserMapper;
         this.jobApplicationMapper = jobApplicationMapper;
+        this.jobApplicationResumeMapper = jobApplicationResumeMapper;
         this.companySupport = companySupport;
         this.fastApiClient = fastApiClient;
         Path configured = Path.of(uploadDir);
@@ -216,10 +221,14 @@ public class ResumeFileServiceImpl implements ResumeFileService {
         if (!company.getId().equals(application.getCompanyId())) {
             throw new BusinessException(403, "无权查看该投递");
         }
+        // 优先用投递时快照的附件；学生之后改简历或删除不影响企业下载原件
+        JobApplicationResume snapshot = jobApplicationResumeMapper.selectByApplicationId(application.getId());
+        if (snapshot != null && StringUtils.hasText(snapshot.getAttachmentUrl())) {
+            return readStored(application.getUserId(), snapshot.getAttachmentUrl());
+        }
         if (application.getResumeId() == null) {
             throw new BusinessException(404, "简历附件不存在");
         }
-        // 投递时附件已发给企业；学生之后删除在线简历（逻辑删除）不影响企业查看原件
         StuResume resume = stuResumeMapper.selectByIdIncludingDeleted(application.getResumeId());
         if (resume == null || !application.getUserId().equals(resume.getUserId())) {
             throw new BusinessException(404, "简历附件不存在");
@@ -239,8 +248,12 @@ public class ResumeFileServiceImpl implements ResumeFileService {
     }
 
     private ResumeDownload readStored(StuResume resume) {
-        String key = resume.getAttachmentUrl();
-        if (!StringUtils.hasText(key) || !key.matches(resume.getUserId() + "/[0-9a-fA-F\\-]{36}\\.(pdf|docx)")) {
+        return readStored(resume.getUserId(), resume.getAttachmentUrl());
+    }
+
+    private ResumeDownload readStored(Long userId, String key) {
+        if (userId == null || !StringUtils.hasText(key)
+                || !key.matches(userId + "/[0-9a-fA-F\\-]{36}\\.(pdf|docx)")) {
             throw new BusinessException(404, "简历附件不存在");
         }
         Path file = resolveKey(key.trim());
