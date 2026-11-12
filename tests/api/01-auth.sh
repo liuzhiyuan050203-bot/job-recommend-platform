@@ -25,7 +25,7 @@ login "$SU" pass123; T_NSTU=$TOKEN; expect_ok "新学生登录"
 save_state NEW_STU "$SU"; save_state T_NSTU "$T_NSTU"
 
 # 注册新企业（待审核）
-CU="com$TS"; CC=$(printf '91330%013d' "$TS")
+CU="com$TS"; CC=$(credit_code "$TS")
 fixture_user "$CU"
 req POST /public/auth/register/company "" "{\"username\":\"$CU\",\"password\":\"pass123\",\"nickname\":\"测试企业$TS\",\"companyName\":\"测试科技有限公司$TS\",\"creditCode\":\"$CC\",\"contactName\":\"李HR\",\"contactPhone\":\"13800000000\",\"industry\":\"互联网\",\"scale\":2,\"province\":\"浙江\",\"city\":\"杭州\"}"
 expect_ok "企业注册"

@@ -14,6 +14,7 @@ import com.bishe.job.mapper.SysUserMapper;
 import com.bishe.job.security.AccountStatus;
 import com.bishe.job.security.JwtUtil;
 import com.bishe.job.security.RoleCodes;
+import com.bishe.job.service.CreditCodes;
 import com.bishe.job.service.AuthService;
 import com.bishe.job.service.UserAssembler;
 import com.bishe.job.vo.LoginVO;
@@ -121,7 +122,7 @@ public class AuthServiceImpl implements AuthService {
     public UserVO registerCompany(CompanyRegisterRequest request) {
         String username = request.getUsername().trim();
         assertUsernameAvailable(username);
-        String creditCode = request.getCreditCode().trim().toUpperCase();
+        String creditCode = CreditCodes.requireValid(request.getCreditCode());
         Long creditCount = entCompanyMapper.selectCount(new LambdaQueryWrapper<EntCompany>()
                 .eq(EntCompany::getCreditCode, creditCode));
         if (creditCount != null && creditCount > 0) {

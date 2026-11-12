@@ -223,6 +223,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getCompanyProfile, updateCompanyProfile, submitCompanyQualification } from '@/api/company'
 import { useUserStore } from '@/stores/user'
+import { CREDIT_CODE_MESSAGE, isValidCreditCode, normalizeCreditCode } from '@/utils/creditCode'
 
 const userStore = useUserStore()
 
@@ -264,14 +265,20 @@ const qualForm = reactive({
   licenseUrl: ''
 })
 
-const CREDIT_CODE = /^[0-9A-HJ-NPQRTUWXY]{2}\d{6}[0-9A-HJ-NPQRTUWXY]{10}$/
 const qualRules = {
   creditCode: [
     { required: true, message: '请输入统一社会信用代码', trigger: 'blur' },
     {
-      validator: (_r, v, cb) => (CREDIT_CODE.test(String(v || '').trim().toUpperCase())
-        ? cb()
-        : cb(new Error('统一社会信用代码应为 18 位数字或大写字母（不含 I、O、S、V、Z）'))),
+      validator: (_r, v, cb) => {
+        const code = normalizeCreditCode(v)
+        // 已绑定到本企业的代码（含演示 DEMO/REAL）再次提交时不强制校验，避免演示账号无法维护资质
+        if (code && code === normalizeCreditCode(profile.value.creditCode)) {
+          cb()
+          return
+        }
+        if (isValidCreditCode(code)) cb()
+        else cb(new Error(CREDIT_CODE_MESSAGE))
+      },
       trigger: 'blur'
     }
   ],

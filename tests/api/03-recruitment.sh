@@ -20,7 +20,7 @@ login "$SU" pass123; T_STU2=$TOKEN; expect_ok "第二个学生登录"
 
 CU="rcom$TS"
 fixture_user "$CU"
-CC=$(printf '91R%013d' "$((TS % 10000000000000))")
+CC=$(credit_code "r$TS")
 req POST /public/auth/register/company "" "{\"username\":\"$CU\",\"password\":\"pass123\",\"nickname\":\"流程企业$TS\",\"companyName\":\"流程科技$TS\",\"creditCode\":\"$CC\",\"contactName\":\"王招聘\",\"contactPhone\":\"13900000000\",\"industry\":\"互联网\",\"scale\":2,\"province\":\"浙江\",\"city\":\"杭州\"}"
 expect_ok "注册第二个企业"
 COM2_ID=$(jqv '.data.company.id')

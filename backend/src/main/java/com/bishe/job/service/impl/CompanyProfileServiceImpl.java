@@ -10,6 +10,7 @@ import com.bishe.job.mapper.EntCompanyMapper;
 import com.bishe.job.mapper.SysUserMapper;
 import com.bishe.job.security.UserContext;
 import com.bishe.job.service.CompanyProfileService;
+import com.bishe.job.service.CreditCodes;
 import com.bishe.job.vo.CompanyProfileVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -85,7 +86,7 @@ public class CompanyProfileServiceImpl implements CompanyProfileService {
             throw new BusinessException(404, "企业信息不存在");
         }
 
-        String creditCode = dto.getCreditCode().trim();
+        String creditCode = CreditCodes.requireForUpdate(dto.getCreditCode(), company.getCreditCode());
         // 校验统一社会信用代码是否已被其他企业使用
         EntCompany existingWithCode = entCompanyMapper.selectOne(new LambdaQueryWrapper<EntCompany>()
                 .eq(EntCompany::getCreditCode, creditCode)

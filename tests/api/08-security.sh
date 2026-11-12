@@ -83,7 +83,7 @@ login "$SUB" pass123; T_B=$TOKEN; expect_ok "学生乙登录"
 
 CU="seccom$TS"
 fixture_user "$CU"
-CC=$(printf '93S%013d' "$((TS % 10000000000000))")
+CC=$(credit_code "s$TS")
 req POST /public/auth/register/company "" "{\"username\":\"$CU\",\"password\":\"pass123\",\"nickname\":\"安全企业乙$TS\",\"companyName\":\"安全科技$TS\",\"creditCode\":\"$CC\",\"contactName\":\"赵招聘\",\"contactPhone\":\"13900001111\",\"industry\":\"互联网\",\"scale\":2,\"province\":\"浙江\",\"city\":\"杭州\"}"
 expect_ok "注册企业乙"
 COM2_ID=$(jqv '.data.company.id')

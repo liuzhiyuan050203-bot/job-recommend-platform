@@ -31,6 +31,25 @@ expect_jq() { local v; v=$(echo "$BODY" | jq -r "$1" 2>/dev/null); [ "$v" = "$2"
 jqv() { echo "$BODY" | jq -r "$1"; }
 login() { # login USER PASS -> 设置 $TOKEN（失败为空）
   req POST /public/auth/login "" "{\"username\":\"$1\",\"password\":\"$2\"}"; TOKEN=$(jqv '.data.token // empty'); }
+
+# credit_code [SEED] → 18 位符合 GB 32100 校验位的统一社会信用代码（前 8 位 91330100）
+credit_code() {
+  python3 -c '
+import hashlib, sys
+CHARSET = "0123456789ABCDEFGHJKLMNPQRTUWXY"
+WEIGHTS = [1, 3, 9, 27, 19, 26, 16, 17, 20, 29, 25, 13, 8, 24, 10, 30, 28]
+seed = (sys.argv[1] if len(sys.argv) > 1 else "").strip() or "0"
+mid = hashlib.sha256(seed.encode("utf-8")).hexdigest().upper()[:9]
+body = "91330100" + mid
+index = {ch: i for i, ch in enumerate(CHARSET)}
+total = sum(index[body[i]] * WEIGHTS[i] for i in range(17))
+check = 31 - (total % 31)
+if check == 31:
+    check = 0
+print(body + CHARSET[check])
+' "${1:-$(date +%s%N)}"
+}
+
 summary() { echo "== $(basename "$0"): PASS=$PASS FAIL=$FAIL"; echo "$(basename "$0") $PASS $FAIL" >> /tmp/job-api-test-summary.txt; [ "$FAIL" = 0 ]; }
 # Spark 批次轮询（直连 ai-service，不计入断言）。批次与助手问答同机争 CPU，后续脚本开始前要等批次结束。
 AI_BASE=${AI_BASE:-http://127.0.0.1:8000}

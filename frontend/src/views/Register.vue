@@ -169,6 +169,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { registerCompany, registerStudent } from '@/api/auth'
+import { CREDIT_CODE_MESSAGE, isValidCreditCode } from '@/utils/creditCode'
 
 const router = useRouter()
 const activeTab = ref('student')
@@ -287,9 +288,9 @@ const companyRules = {
   creditCode: [
     { required: true, message: '请输入统一社会信用代码', trigger: 'blur' },
     {
-      validator: (_r, v, cb) => (/^[0-9A-HJ-NPQRTUWXY]{2}\d{6}[0-9A-HJ-NPQRTUWXY]{10}$/.test(String(v || '').trim().toUpperCase())
+      validator: (_r, v, cb) => (isValidCreditCode(v)
         ? cb()
-        : cb(new Error('统一社会信用代码应为 18 位数字或大写字母（不含 I、O、S、V、Z）'))),
+        : cb(new Error(CREDIT_CODE_MESSAGE))),
       trigger: 'blur'
     }
   ],

@@ -30,7 +30,7 @@ public class CompanyRegisterRequest {
     private String shortName;
 
     @NotBlank(message = "统一社会信用代码不能为空")
-    @Size(min = 15, max = 32, message = "统一社会信用代码长度需为 15-32 位")
+    @Size(min = 18, max = 18, message = "统一社会信用代码须为 18 位")
     @Pattern(regexp = "^[0-9A-Za-z]+$", message = "统一社会信用代码仅能包含字母和数字")
     private String creditCode;
 

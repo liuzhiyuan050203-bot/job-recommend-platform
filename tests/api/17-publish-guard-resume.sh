@@ -34,7 +34,8 @@ expect_jq .data.applyInPlatform true "企业发布职位可站内投递"
 
 # ---- 2. 企业资质未过审：所有职位接口被拦截 ----
 CU="pg$TAIL"; fixture_user "$CU"
-req POST /public/auth/register/company "" "{\"username\":\"$CU\",\"password\":\"pass123\",\"nickname\":\"待审企业$TAIL\",\"companyName\":\"待审科技$TAIL\",\"creditCode\":\"9133010PG$TAIL\",\"contactName\":\"王HR\",\"contactPhone\":\"137${TAIL: -8}\",\"industry\":\"互联网\",\"scale\":2,\"province\":\"浙江\",\"city\":\"杭州\"}"
+CC=$(credit_code "pg$TAIL")
+req POST /public/auth/register/company "" "{\"username\":\"$CU\",\"password\":\"pass123\",\"nickname\":\"待审企业$TAIL\",\"companyName\":\"待审科技$TAIL\",\"creditCode\":\"$CC\",\"contactName\":\"王HR\",\"contactPhone\":\"137${TAIL: -8}\",\"industry\":\"互联网\",\"scale\":2,\"province\":\"浙江\",\"city\":\"杭州\"}"
 expect_ok "注册待审企业"
 login "$CU" pass123; T_PEND=$TOKEN; expect_ok "待审企业可登录"
 req POST /company/jobs "$T_PEND" "$JOB_JSON"; expect_http 403 "待审企业不能发布职位"
