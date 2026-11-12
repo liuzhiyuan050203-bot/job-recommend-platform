@@ -86,6 +86,21 @@ class CompanyStatsRouteTest(unittest.TestCase):
         decided = route("本周投递概况", "student")
         self.assertNotIn("application_stats", [t.name for t in decided.tools])
 
+    def test_compliance_does_not_screen(self):
+        for question in [
+            "招候选人只限男性合不合规",
+            "职位描述里写只招女生是否合规",
+            "向候选人收培训费合不合法",
+            "入职收费算不算可以写进任职要求",
+        ]:
+            with self.subTest(question=question):
+                decided = route(question, "company")
+                names = [item.name for item in decided.tools]
+                self.assertNotIn("screen_applicants", names, question)
+                self.assertTrue(decided.doc_types, question)
+                self.assertTrue(set(decided.doc_types) <= set(COMPANY_DOC_TYPES))
+                self.assertIn("合规", decided.instruction)
+
 
 class CompanyStatsToolTest(unittest.TestCase):
     @classmethod

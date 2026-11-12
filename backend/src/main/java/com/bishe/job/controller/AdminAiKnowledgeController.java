@@ -73,6 +73,14 @@ public class AdminAiKnowledgeController {
         return Result.success(aiKnowledgeService.syncJobs(jobIdsOf(body)));
     }
 
+    @PostMapping("/route")
+    public Result<JsonNode> previewRoute(@RequestBody Map<String, Object> body) {
+        String question = body == null ? "" : String.valueOf(body.getOrDefault("question", ""));
+        Object roleVal = body == null ? null : body.get("role");
+        String role = roleVal == null ? "student" : String.valueOf(roleVal);
+        return Result.success(aiKnowledgeService.previewRoute(question, role));
+    }
+
     @GetMapping("/search")
     public Result<JsonNode> search(@RequestParam("q") String q,
                                     @RequestParam(value = "topK", required = false) Integer topK,

@@ -15,7 +15,7 @@ from app.spark.db import connect
 from app.spark.dicts import CITY_PROVINCE, DIRECTION_ALIAS, EDU_TEXT
 
 _lock = threading.Lock()
-_lexicon = {"at": 0.0, "directions": [], "skills": []}
+_lexicon = {"at": 0.0, "directions": [], "skills": [], "companies": []}
 _TTL = 300.0
 
 
@@ -51,16 +51,17 @@ def wants_skill_list(text: str) -> bool:
     return bool(re.search(r"有哪些|排行|排名|\btop\b|top\s*\d+|前几|前\s*\d+|哪些", text or "", re.I))
 
 
-def _lexicon_get() -> tuple[list[tuple[str, str]], list[str]]:
+def _lexicon_get() -> tuple[list[tuple[str, str]], list[str], list[str]]:
     now = time.time()
     with _lock:
         if _lexicon["directions"] and now - _lexicon["at"] < _TTL:
-            return _lexicon["directions"], _lexicon["skills"]
+            return _lexicon["directions"], _lexicon["skills"], _lexicon["companies"]
     directions: dict[str, str] = {}
     for alias, canonical in DIRECTION_ALIAS.items():
         directions[alias] = canonical
         directions[canonical] = canonical
     skills: set[str] = set()
+    companies: set[str] = set()
     try:
         conn = connect()
         try:
@@ -80,17 +81,30 @@ def _lexicon_get() -> tuple[list[tuple[str, str]], list[str]]:
                 )
                 for row in cur.fetchall():
                     skills.add(str(row["name"]).strip())
+                cur.execute(
+                    """
+                    SELECT company_name, short_name FROM ent_company
+                    WHERE deleted = 0 AND audit_status = 1
+                    """
+                )
+                for row in cur.fetchall():
+                    for key in ("company_name", "short_name"):
+                        name = str(row.get(key) or "").strip()
+                        if len(name) >= 3:
+                            companies.add(name)
         finally:
             conn.close()
     except Exception:
         pass
     pairs = sorted(directions.items(), key=lambda item: len(item[0]), reverse=True)
     skill_list = sorted(skills, key=len, reverse=True)
+    company_list = sorted(companies, key=len, reverse=True)
     with _lock:
         _lexicon["at"] = time.time()
         _lexicon["directions"] = pairs
         _lexicon["skills"] = skill_list
-    return pairs, skill_list
+        _lexicon["companies"] = company_list
+    return pairs, skill_list, company_list
 
 
 def _find_city(text: str) -> str:
@@ -224,11 +238,14 @@ _COMPANY_ALIASES = [
     ("米哈游", ["米哈游", "miHoYo"]),
     ("携程", ["携程", "Ctrip"]),
     ("蔚来", ["蔚来", "NIO"]),
+    ("懂车帝", ["懂车帝"]),
+    ("理想汽车", ["理想汽车"]),
+    ("小鹏汽车", ["小鹏汽车"]),
 ]
 
 
-def _find_company(text: str) -> str:
-    """从问题中识别常见校招企业名，返回用于职位检索的关键词。"""
+def _find_company(text: str, companies: list[str] | None = None) -> str:
+    """从问题中识别校招企业名，返回用于职位检索的关键词。"""
     if not text:
         return ""
     candidates: list[tuple[int, str]] = []
@@ -239,6 +256,9 @@ def _find_company(text: str) -> str:
                 continue
             if alias.lower() in lowered:
                 candidates.append((len(alias), canonical))
+    for name in companies or []:
+        if name and name in text:
+            candidates.append((len(name), name))
     if not candidates:
         return ""
     candidates.sort(reverse=True)
@@ -251,7 +271,7 @@ def route(question: str, role: str) -> Route:
     refusal = _cross_role_refusal(text, role)
     if refusal:
         return Route(refusal=refusal, doc_types=[])
-    pairs, skills = _lexicon_get()
+    pairs, skills, companies = _lexicon_get()
     slots = {
         "city": _find_city(text),
         "direction": _find_direction(text, pairs),
@@ -262,8 +282,8 @@ def route(question: str, role: str) -> Route:
         "keyword": _find_skill(text, skills, ""),
         "title": _title_for_jd(text),
     }
-    # 公司名优先作为关键词（支持真实校招企业检索）
-    company_kw = _find_company(text)
+    # 公司名优先作为关键词（支持真实校招企业与外部扩充库企业）
+    company_kw = _find_company(text, companies)
     if company_kw:
         slots["keyword"] = company_kw
     if slots["keyword"] and slots["keyword"] == slots["direction"]:
@@ -281,6 +301,28 @@ def route(question: str, role: str) -> Route:
     return result
 
 
+def is_salary_question(text: str, slots: dict | None = None) -> bool:
+    """薪资预测或询问某城市/方向能拿多少。"""
+    slots = slots or {}
+    if re.search(r"薪资预测|能拿多少|工资多少|月薪多少|薪资大概|预测薪资|薪酬多少|能有多少(工资|月薪|薪资)", text or ""):
+        return True
+    return bool(
+        re.search(r"薪资|工资|月薪|薪酬", text or "")
+        and (slots.get("city") or slots.get("direction") or slots.get("keyword"))
+    )
+
+
+def _search_jobs_args(slots: dict) -> dict:
+    return {
+        "keyword": slots.get("keyword"),
+        "city": slots.get("city"),
+        "direction": slots.get("direction"),
+        "education": slots.get("education"),
+        "salary_min": slots.get("salary_min"),
+        "limit": 5,
+    }
+
+
 def _route_student(text: str, slots: dict, result: Route) -> Route:
     if re.search(r"技能还差|还差什么|技能差距|匹配度|能不能投|差哪些技能|技能差距", text):
         args = {}
@@ -292,42 +334,11 @@ def _route_student(text: str, slots: dict, result: Route) -> Route:
         result.doc_types = [5]
         result.instruction = "根据工具给出的匹配技能、缺失技能和匹配比例说明，不要编造简历中没有的技能。"
         return result
-    wants_jobs = bool(re.search(r"找|搜|有哪些|推荐几个|看几个|岗位|职位", text)) and not re.search(
+    salary = is_salary_question(text, slots)
+    wants_jobs = bool(re.search(r"找|搜|有哪些|在招|招聘|推荐几个|看几个|岗位|职位", text)) and not re.search(
         r"三方|违约|档案|户口|试用期|劳动合同|政策补贴", text
     )
-    if wants_jobs and re.search(r"找|搜|有哪些|推荐几个|看几个|岗位|职位", text):
-        if re.search(r"我的推荐|适合我|给我推荐", text) and not slots["city"] and not slots["keyword"]:
-            result.tools.append(ToolRequest("get_my_recommendations", {"limit": 5}))
-            result.doc_types = []
-            result.answer_shape = "job_list"
-            result.instruction = _JOB_LIST_INSTRUCTION
-            return result
-        result.tools.append(
-            ToolRequest(
-                "search_jobs",
-                {
-                    "keyword": slots["keyword"],
-                    "city": slots["city"],
-                    "direction": slots["direction"],
-                    "education": slots["education"],
-                    "salary_min": slots["salary_min"],
-                    "limit": 5,
-                },
-            )
-        )
-        result.doc_types = [7]
-        result.answer_shape = "job_list"
-        result.instruction = _JOB_LIST_INSTRUCTION
-        return result
-    if re.search(r"我的推荐|适合我的|给我推荐", text):
-        result.tools.append(ToolRequest("get_my_recommendations", {"limit": 5}))
-        result.doc_types = []
-        result.answer_shape = "job_list"
-        result.instruction = _JOB_LIST_INSTRUCTION
-        return result
-    if re.search(r"薪资预测|能拿多少|工资多少|月薪多少|薪资大概|预测薪资", text) or (
-        re.search(r"薪资|工资|月薪", text) and (slots["city"] or slots["direction"])
-    ):
+    if salary:
         result.tools.append(
             ToolRequest(
                 "predict_salary",
@@ -339,8 +350,31 @@ def _route_student(text: str, slots: dict, result: Route) -> Route:
                 },
             )
         )
+        result.tools.append(ToolRequest("search_jobs", _search_jobs_args(slots)))
+        result.doc_types = [7]
+        result.instruction = (
+            "先引用工具中的预测月薪和区间，并说明这是估计不是 offer；"
+            "再引用在招职位的薪资范围（资料或工具结果），注明是否为估算、来源是企业发布还是外部同步，"
+            "不要编造数字，也不要把不同职位概括成同一薪资。"
+        )
+        return result
+    if wants_jobs and re.search(r"找|搜|有哪些|在招|招聘|推荐几个|看几个|岗位|职位", text):
+        if re.search(r"我的推荐|适合我|给我推荐", text) and not slots["city"] and not slots["keyword"]:
+            result.tools.append(ToolRequest("get_my_recommendations", {"limit": 5}))
+            result.doc_types = []
+            result.answer_shape = "job_list"
+            result.instruction = _JOB_LIST_INSTRUCTION
+            return result
+        result.tools.append(ToolRequest("search_jobs", _search_jobs_args(slots)))
+        result.doc_types = [7]
+        result.answer_shape = "job_list"
+        result.instruction = _JOB_LIST_INSTRUCTION
+        return result
+    if re.search(r"我的推荐|适合我的|给我推荐", text):
+        result.tools.append(ToolRequest("get_my_recommendations", {"limit": 5}))
         result.doc_types = []
-        result.instruction = "薪资只引用工具中的预测值和区间，并说明这是估计不是 offer。"
+        result.answer_shape = "job_list"
+        result.instruction = _JOB_LIST_INSTRUCTION
         return result
     types = _policy_types(text)
     result.doc_types = types or [1, 2, 3, 4, 5, 6]
@@ -374,6 +408,29 @@ def _stats_window(text: str) -> int:
     return 7
 
 
+# 用工合规：即使问句里出现「候选人」，也不应当成筛选候选人。
+_COMPLIANCE = re.compile(
+    r"合不合规|是否合规|合不合法|违不违法|是否违法|算不算歧视|有没有歧视|歧不歧视|"
+    r"只限男|只限女|仅限男|仅限女|只要男|只要女|不要女生|不要男生|"
+    r"性别限制|性别要求|婚育限制|收培训费|入职收费|必须购买|收取押金|培训费"
+)
+_SCREEN = re.compile(
+    r"筛选|简历筛选|筛一下|"
+    r"(查看|看看|列出|有哪些|帮我看).{0,12}(候选人|投递的人|投递者)|"
+    r"(候选人|投递的人).{0,10}(名单|列表|匹配|排序|情况|简历)"
+)
+
+
+def is_compliance_question(text: str) -> bool:
+    return bool(_COMPLIANCE.search(text or ""))
+
+
+def is_screen_question(text: str) -> bool:
+    if is_compliance_question(text):
+        return False
+    return bool(_SCREEN.search(text or ""))
+
+
 def _route_company(text: str, slots: dict, result: Route) -> Route:
     if is_company_stats_question(text) and not re.search(r"筛选|筛一下|润色|改写|(写|生成|起草).{0,20}(JD|jd|描述)", text):
         result.tools.append(ToolRequest("application_stats", {"days": _stats_window(text)}))
@@ -384,7 +441,16 @@ def _route_company(text: str, slots: dict, result: Route) -> Route:
             "不要提及学校就业指导中心或学生求职建议。"
         )
         return result
-    if re.search(r"筛选|候选人|简历筛选|投递的人", text):
+    if is_compliance_question(text):
+        types = [value for value in _policy_types(text) if value in COMPANY_DOC_TYPES]
+        result.doc_types = types or list(COMPANY_DOC_TYPES)
+        result.instruction = (
+            "你在为企业 HR 回答用工合规问题。依据企业招聘须知和劳动用工资料说明，"
+            "不要编造审核结论或法条编号；涉及性别限制、入职收费等情形应明确指出不得作为招聘条件。"
+            "不要去筛选本公司候选人，不要给出面向学生的求职建议。"
+        )
+        return result
+    if is_screen_question(text):
         args = {}
         if slots["job_id"]:
             args["job_id"] = slots["job_id"]

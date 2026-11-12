@@ -292,7 +292,7 @@ def agent_tool_requests(question: str, caller: Caller, llm=None) -> list[ToolReq
 
 def doc_types_for_tools(tools: list[ToolRequest], role: str = "") -> list[int]:
     names = {item.name for item in tools}
-    if "search_jobs" in names:
+    if "search_jobs" in names or "predict_salary" in names:
         types = [7]
     elif "analyze_resume_gap" in names or "polish_job_description" in names or "generate_job_description" in names:
         types = [5, 4]

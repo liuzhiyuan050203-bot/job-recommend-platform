@@ -23,4 +23,6 @@ public interface AiKnowledgeService {
     JsonNode search(String q, int topK, Integer docType);
 
     JsonNode syncJobs(List<Long> jobIds);
+
+    JsonNode previewRoute(String question, String role);
 }

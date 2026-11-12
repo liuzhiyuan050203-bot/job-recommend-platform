@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.agent.chat import iter_events
+from app.agent.router import route
 from app.agent.tools import Caller
 from app.core.response import AppException, success
 from app.services.agent_service import agent_service
@@ -67,6 +68,34 @@ async def get_agent_info():
 @router.get("/status", summary="Agent 状态查询")
 async def get_agent_status():
     return success(data=agent_service.get_status(), msg="Agent service status retrieved")
+
+
+class RouteBody(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2000)
+    role: str = Field(default="student")
+
+
+@router.post("/route", summary="预览意图路由（不执行工具、不调用大模型）")
+async def preview_route(body: RouteBody):
+    question = (body.question or "").strip()
+    role = (body.role or "").strip().lower()
+    if not question:
+        raise AppException("问题不能为空", code=400)
+    if role not in _ROLE_BY_CODE.values():
+        raise AppException("role 应为 student、company 或 admin", code=400)
+    decided = route(question, role)
+    return success(
+        data={
+            "role": role,
+            "tools": [{"name": item.name, "args": item.args} for item in decided.tools],
+            "doc_types": decided.doc_types,
+            "answer_shape": decided.answer_shape,
+            "instruction": decided.instruction,
+            "refusal": decided.refusal,
+            "slots": decided.slots,
+        },
+        msg="意图路由",
+    )
 
 
 @router.get("/stream-demo", summary="Agent SSE 流式对话演示")

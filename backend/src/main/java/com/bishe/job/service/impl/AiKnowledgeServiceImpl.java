@@ -102,6 +102,18 @@ public class AiKnowledgeServiceImpl implements AiKnowledgeService {
     }
 
     @Override
+    public JsonNode previewRoute(String question, String role) {
+        if (!StringUtils.hasText(question)) {
+            throw new BusinessException(400, "问题不能为空");
+        }
+        String resolved = (role == null || role.isBlank()) ? "student" : role.trim().toLowerCase(Locale.ROOT);
+        if (!Set.of("student", "company", "admin").contains(resolved)) {
+            throw new BusinessException(400, "role 应为 student、company 或 admin");
+        }
+        return fastApiClient.agentRoute(question.trim(), resolved);
+    }
+
+    @Override
     public JsonNode syncJobs(List<Long> jobIds) {
         if (jobIds != null && jobIds.size() > 200) {
             throw new BusinessException(400, "单次最多同步 200 个职位");
