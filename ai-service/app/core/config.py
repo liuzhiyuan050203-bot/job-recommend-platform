@@ -100,6 +100,11 @@ class Settings(BaseSettings):
     RAG_SCOPE_OUT_COSINE: float = 0.82
     RAG_SCOPE_UNKNOWN_COSINE: float = 0.62
     RAG_SCOPE_OUT_RERANK: float = 0.0
+    # 查询改写 / 多路检索：默认开启规则改写；LLM 改写仅在云端提供方时启用。
+    RAG_QUERY_REWRITE: bool = True
+    RAG_QUERY_REWRITE_LLM: str = "auto"  # auto | true | false
+    # 仅对非岗位（政策）查询启用交叉编码器重排；默认关闭（CPU 约 1.8s/问）。
+    RAG_POLICY_RERANK: bool = False
 
     # 跨域允许源 (支持 Spring Boot 8080 与 Vue 5173)
     CORS_ORIGINS: Union[List[str], str] = [

@@ -24,6 +24,7 @@ from app.rag.bm25 import (
 )
 from app.rag.chunking import content_hash, embed_input
 from app.rag.diversity import diversify_hits
+from app.rag.rewrite import expand_queries, is_job_only, merge_multi_query
 from app.rag.constants import COLLECTION
 from app.rag.rerank import rerank_scores
 from app.spark.db import connect
@@ -560,6 +561,49 @@ def _pack_hit(doc) -> dict[str, Any]:
     }
 
 
+def _invoke_retriever(
+    query: str,
+    fetch_k: int,
+    score_threshold: float | None,
+    mode: str | None,
+    doc_types: list[int] | None,
+) -> list[dict[str, Any]]:
+    retriever = get_retriever(top_k=fetch_k, score_threshold=score_threshold, mode=mode)
+    docs = retriever.invoke(query, doc_types=doc_types or None)
+    return [_pack_hit(doc) for doc in docs]
+
+
+def _policy_rerank(query: str, hits: list[dict[str, Any]], doc_types: list[int] | None) -> list[dict[str, Any]]:
+    """仅对非岗位查询可选地做交叉编码器重排。模型不可用或未开启时原样返回。"""
+    if not hits or not bool(getattr(settings, "RAG_POLICY_RERANK", False)):
+        return hits
+    if is_job_only(doc_types):
+        return hits
+    from app.rag.bm25 import RERANK_WINDOW
+    from app.rag.chunking import embed_input
+    from app.rag.rerank import rerank_scores
+
+    window = hits[:RERANK_WINDOW]
+    passages = [
+        embed_input(item.get("title") or "", item.get("section") or "", item.get("content") or "")
+        for item in window
+    ]
+    scores = rerank_scores(query, passages)
+    if not scores or len(scores) != len(window):
+        return hits
+    ranked = sorted(
+        zip(window, scores),
+        key=lambda item: (float(item[1]), float(item[0].get("rrf") or 0.0)),
+        reverse=True,
+    )
+    out: list[dict[str, Any]] = []
+    for hit, score in ranked:
+        row = dict(hit)
+        row["rerank"] = float(score)
+        out.append(row)
+    return out + list(hits[len(window) :])
+
+
 def retrieve(
     query: str,
     top_k: int | None = None,
@@ -567,11 +611,14 @@ def retrieve(
     score_threshold: float | None = None,
     mode: str | None = None,
     diversify: bool | None = None,
+    rewrite: bool | None = None,
 ) -> list[dict[str, Any]]:
     """检索知识库切片（LangChain 检索器的薄封装，返回结构保持不变）。
 
     mode 为 dense / bm25 / hybrid / hybrid_rerank，默认 settings.RAG_RETRIEVAL_MODE（hybrid，重排默认关闭）。
     hybrid 用 RRF 融合两路前 N 条，N = max(20, top_k * 5)。
+    对政策类问题默认做规则改写（同义替换 + 多跳拆分），多路结果再用 RRF 融合；
+    仅检索职位（doc_type=7）时不改写。云端模型可额外做 LLM 改写。
     返回里的 score 始终是该切片的稠密余弦；rrf 是融合分。
     低于阈值且 BM25 不显著的候选丢弃，见 keep_candidate。
     默认按公司 / 职位做多样性截断，可用 diversify=False 关闭（评测对比用）。
@@ -592,9 +639,16 @@ def retrieve(
         else bool(diversify)
     )
     fetch_k = max(limit * 4, limit) if use_div else limit
-    retriever = get_retriever(top_k=fetch_k, score_threshold=score_threshold, mode=mode)
-    docs = retriever.invoke(query, doc_types=doc_types or None)
-    hits = [_pack_hit(doc) for doc in docs]
+    do_rewrite = bool(getattr(settings, "RAG_QUERY_REWRITE", True)) if rewrite is None else bool(rewrite)
+    if do_rewrite and not is_job_only(doc_types):
+        queries = expand_queries(query)
+    else:
+        queries = [query]
+    lists = [
+        _invoke_retriever(item, fetch_k, score_threshold, mode, doc_types) for item in queries
+    ]
+    hits = lists[0] if len(lists) == 1 else merge_multi_query(lists, fetch_k)
+    hits = _policy_rerank(query, hits, doc_types)
     if use_div:
         hits = diversify_hits(
             hits,
