@@ -7,9 +7,10 @@
 import asyncio
 
 from fastapi import APIRouter, File, Form, Query, UploadFile
+from pydantic import BaseModel, Field
 
 from app.core.response import AppException, success
-from app.rag.ingest import ingest_all, ingest_source, reindex_doc_key, remove_upload_files, save_upload
+from app.rag.ingest import ingest_all, ingest_source, reindex_doc_key, remove_upload_files, save_upload, sync_jobs
 from app.rag.store import delete_doc, list_documents, stats, sync_documents
 from app.services.rag_service import rag_service
 
@@ -37,6 +38,25 @@ async def search_knowledge(
         raise AppException("检索问题不能为空", code=400)
     results = await asyncio.to_thread(rag_service.search_knowledge, q.strip(), top_k, doc_type)
     return success(data=results, msg="Knowledge base search completed")
+
+
+class JobSyncBody(BaseModel):
+    """job_ids 为空或不传时，增量同步全部在招职位并剔除过期切片。"""
+
+    job_ids: list[int] | None = Field(default=None, description="要同步的职位编号，空则全量增量")
+
+
+@router.post("/jobs/sync", summary="增量同步在招职位到知识库")
+async def jobs_sync(body: JobSyncBody | None = None):
+    """按编号 upsert / 删除；空列表则对比全部在招职位与索引。失败时由调用方忽略，不打断职位操作。"""
+    ids = None if body is None else body.job_ids
+    if ids is not None and len(ids) > 200:
+        raise AppException("单次最多同步 200 个职位", code=400)
+    try:
+        data = await asyncio.to_thread(sync_jobs, ids)
+    except ValueError as exc:
+        raise AppException(str(exc), code=400) from exc
+    return success(data=data, msg="职位知识库已同步")
 
 
 @router.get("/admin/documents", summary="按逻辑文档分页")

@@ -19,6 +19,7 @@ import com.bishe.job.mapper.JobPositionTagMapper;
 import com.bishe.job.mapper.SkillTagMapper;
 import com.bishe.job.service.CompanyJobService;
 import com.bishe.job.service.CompanySupport;
+import com.bishe.job.service.JobKnowledgeSync;
 import com.bishe.job.service.PositionTags;
 import com.bishe.job.vo.CompanyJobVO;
 import com.bishe.job.vo.PositionTagVO;
@@ -47,6 +48,7 @@ public class CompanyJobServiceImpl implements CompanyJobService {
     private final JobCategoryMapper jobCategoryMapper;
     private final SkillTagMapper skillTagMapper;
     private final PositionTags positionTags;
+    private final JobKnowledgeSync jobKnowledgeSync;
 
     @Override
     public PageResult<CompanyJobVO> page(long current, long size) {
@@ -108,6 +110,7 @@ public class CompanyJobServiceImpl implements CompanyJobService {
         job.setAuditTime(null);
         job.setAuditorId(null);
         replaceTags(job.getId(), tagIds);
+        jobKnowledgeSync.afterChange(job.getId());
         return toVo(job, category.getName(), tagsOf(job.getId()));
     }
 
@@ -132,6 +135,7 @@ public class CompanyJobServiceImpl implements CompanyJobService {
             job.setPublishTime(LocalDateTime.now());
         }
         jobPositionMapper.updateById(job);
+        jobKnowledgeSync.afterChange(job.getId());
     }
 
     @Override
@@ -140,6 +144,7 @@ public class CompanyJobServiceImpl implements CompanyJobService {
         EntCompany company = companySupport.requireCurrent();
         requireOwn(id, company.getId());
         jobPositionMapper.deleteById(id);
+        jobKnowledgeSync.afterChange(id);
     }
 
     private JobPosition requireOwn(Long id, Long companyId) {

@@ -10,6 +10,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -98,6 +99,14 @@ public class AiKnowledgeServiceImpl implements AiKnowledgeService {
         }
         int limit = topK < 1 ? 4 : Math.min(topK, 10);
         return fastApiClient.ragSearch(q.trim(), limit, docType);
+    }
+
+    @Override
+    public JsonNode syncJobs(List<Long> jobIds) {
+        if (jobIds != null && jobIds.size() > 200) {
+            throw new BusinessException(400, "单次最多同步 200 个职位");
+        }
+        return fastApiClient.ragSyncJobs(jobIds);
     }
 
     private String safeName(String original) {

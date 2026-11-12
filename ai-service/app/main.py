@@ -4,6 +4,7 @@
 """
 
 import logging
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -35,6 +36,17 @@ async def lifespan(app: FastAPI):
     logger.info(f"Database target: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DB}")
     logger.info(f"Chroma storage dir: {settings.CHROMA_DIR}")
     logger.info(f"Configured CORS origins: {settings.CORS_ORIGINS}")
+    if settings.RAG_SYNC_JOBS_ON_START:
+        def _sync_jobs_bg() -> None:
+            try:
+                from app.rag.ingest import ingest_source
+
+                report = ingest_source("jobs", rebuild=False)
+                logger.info("启动时职位知识库增量同步完成: %s", report)
+            except Exception:
+                logger.exception("启动时职位知识库同步失败，服务继续运行")
+
+        threading.Thread(target=_sync_jobs_bg, name="rag-job-sync", daemon=True).start()
     yield
     shutdown_batches()
     stop_spark()

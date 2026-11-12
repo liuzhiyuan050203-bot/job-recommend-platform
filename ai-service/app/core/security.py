@@ -30,7 +30,11 @@ def requires_internal_token(path: str) -> bool:
         return True
     if path.startswith("/rag/admin"):
         return True
+    if path.startswith("/rag/jobs"):
+        return True
     if path == "/rag/search":
+        return True
+    if path == "/agent/route":
         return True
     if path.startswith("/recommend/user"):
         return True

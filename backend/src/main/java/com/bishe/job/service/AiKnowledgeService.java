@@ -1,6 +1,8 @@
 package com.bishe.job.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+
+import java.util.List;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -19,4 +21,6 @@ public interface AiKnowledgeService {
     JsonNode delete(String docKey);
 
     JsonNode search(String q, int topK, Integer docType);
+
+    JsonNode syncJobs(List<Long> jobIds);
 }

@@ -14,6 +14,7 @@ import com.bishe.job.mapper.JobCategoryMapper;
 import com.bishe.job.mapper.JobPositionMapper;
 import com.bishe.job.security.UserContext;
 import com.bishe.job.service.AdminJobService;
+import com.bishe.job.service.JobKnowledgeSync;
 import com.bishe.job.vo.AdminJobVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +36,7 @@ public class AdminJobServiceImpl implements AdminJobService {
     private final JobPositionMapper jobPositionMapper;
     private final EntCompanyMapper entCompanyMapper;
     private final JobCategoryMapper jobCategoryMapper;
+    private final JobKnowledgeSync jobKnowledgeSync;
 
     @Override
     public PageResult<AdminJobVO> listJobs(Integer auditStatus, Integer shelfStatus, Long companyId,
@@ -107,6 +109,7 @@ public class AdminJobServiceImpl implements AdminJobService {
         job.setAuditorId(adminId);
 
         jobPositionMapper.updateById(job);
+        jobKnowledgeSync.afterChange(job.getId());
     }
 
     private AdminJobVO toVO(JobPosition job) {

@@ -8,10 +8,15 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 管理员知识库代理。调用方只带自己的 JWT，内部令牌由服务端附加。
@@ -63,6 +68,11 @@ public class AdminAiKnowledgeController {
         return Result.success(aiKnowledgeService.delete(hasText(docKey) ? docKey : docKeySnake));
     }
 
+    @PostMapping("/jobs/sync")
+    public Result<JsonNode> syncJobs(@RequestBody(required = false) Map<String, Object> body) {
+        return Result.success(aiKnowledgeService.syncJobs(jobIdsOf(body)));
+    }
+
     @GetMapping("/search")
     public Result<JsonNode> search(@RequestParam("q") String q,
                                     @RequestParam(value = "topK", required = false) Integer topK,
@@ -73,7 +83,38 @@ public class AdminAiKnowledgeController {
         return Result.success(aiKnowledgeService.search(q, limit, first(docType, docTypeSnake)));
     }
 
+
+    private List<Long> jobIdsOf(Map<String, Object> body) {
+        if (body == null || body.isEmpty()) {
+            return List.of();
+        }
+        Object raw = body.get("jobIds");
+        if (raw == null) {
+            raw = body.get("job_ids");
+        }
+        if (raw == null) {
+            return List.of();
+        }
+        if (!(raw instanceof List<?> list)) {
+            return List.of();
+        }
+        List<Long> ids = new ArrayList<>();
+        for (Object item : list) {
+            if (item instanceof Number number) {
+                ids.add(number.longValue());
+            } else if (item != null) {
+                try {
+                    ids.add(Long.parseLong(item.toString().trim()));
+                } catch (NumberFormatException ignored) {
+                    // 跳过非法编号
+                }
+            }
+        }
+        return ids;
+    }
+
     private Integer first(Integer primary, Integer fallback) {
+
         return primary != null ? primary : fallback;
     }
 

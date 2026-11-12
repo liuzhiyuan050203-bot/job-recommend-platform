@@ -35,6 +35,7 @@ public class FastApiClient {
     private final RestTemplate restTemplate;
     private final RestTemplate sparkRestTemplate;
     private final RestTemplate aiRestTemplate;
+    private final RestTemplate jobSyncRestTemplate;
     private final ObjectMapper objectMapper;
     private final String baseUrl;
     private final String internalToken;
@@ -55,6 +56,10 @@ public class FastApiClient {
         aiFactory.setConnectTimeout(Duration.ofSeconds(5));
         aiFactory.setReadTimeout(Duration.ofSeconds(300));
         this.aiRestTemplate = new RestTemplate(aiFactory);
+        SimpleClientHttpRequestFactory syncFactory = new SimpleClientHttpRequestFactory();
+        syncFactory.setConnectTimeout(Duration.ofSeconds(3));
+        syncFactory.setReadTimeout(Duration.ofSeconds(30));
+        this.jobSyncRestTemplate = new RestTemplate(syncFactory);
     }
 
     /**
@@ -194,6 +199,39 @@ public class FastApiClient {
         HttpHeaders headers = tokenHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         return exchangeAi(URI.create(trimBase() + "/api/resume/parse"), HttpMethod.POST, new HttpEntity<>(body, headers));
+    }
+
+    /**
+     * 增量同步职位到知识库。单个或少量职位用短超时，避免拖住后台线程；
+     * 全量增量（jobIds 为空）用较长超时。调用方应自行吞掉异常。
+     */
+    public JsonNode ragSyncJobs(List<Long> jobIds) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("job_ids", jobIds == null ? List.of() : jobIds);
+        HttpHeaders headers = tokenHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        URI uri = URI.create(trimBase() + "/rag/jobs/sync");
+        boolean full = jobIds == null || jobIds.isEmpty();
+        RestTemplate template = full ? aiRestTemplate : jobSyncRestTemplate;
+        try {
+            ResponseEntity<JsonNode> response = template.exchange(
+                    uri, HttpMethod.POST, new HttpEntity<>(body, headers), JsonNode.class);
+            return unwrapAi(response.getBody());
+        } catch (HttpStatusCodeException e) {
+            throw translateAi(e);
+        } catch (RestClientException e) {
+            log.warn("AI 服务不可用: {}", e.getMessage());
+            throw new BusinessException(503, "AI 服务暂不可用");
+        }
+    }
+
+    public JsonNode agentRoute(String question, String role) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("question", question);
+        body.put("role", role);
+        HttpHeaders headers = tokenHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        return exchangeAi(URI.create(trimBase() + "/agent/route"), HttpMethod.POST, new HttpEntity<>(body, headers));
     }
 
     public JsonNode ragSearch(String q, int topK, Integer docType) {

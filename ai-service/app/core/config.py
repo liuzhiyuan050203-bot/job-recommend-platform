@@ -86,6 +86,8 @@ class Settings(BaseSettings):
     # 2026-11 评测：标题切分 + hybrid 的 Hit@1=0.92、MRR@10=0.947，约 15ms/问。
     # hybrid_rerank 的 Hit@1 同为 0.92，平均延迟约 1.86s，超过 1.5s，故默认 hybrid。
     RAG_RETRIEVAL_MODE: str = "hybrid"
+    # 服务启动后在后台做一次职位增量同步（跳过未变切片、剔除过期），失败不影响启动。
+    RAG_SYNC_JOBS_ON_START: bool = True
 
     # 跨域允许源 (支持 Spring Boot 8080 与 Vue 5173)
     CORS_ORIGINS: Union[List[str], str] = [

@@ -51,6 +51,8 @@ class LogicalDoc:
     title: str
     ref: str
     chunks: list[ChunkRecord] = field(default_factory=list)
+    # 附加元数据写入 Chroma（data_source / company / city / salary_estimated 等）
+    meta: dict[str, Any] = field(default_factory=dict)
 
 
 def _collection_name() -> str:
@@ -286,24 +288,39 @@ def _upsert_vector_batches(collection, texts: list[str], owners: list[tuple[Logi
                 ids.append(f"rag-{chunk.mysql_id}")
                 embeddings.append(vector)
                 documents.append(chunk.content)
-                metadatas.append(
-                    {
-                        "rag_doc_id": int(chunk.mysql_id or 0),
-                        "doc_type": int(doc.doc_type),
-                        "source_type": int(doc.source_type),
-                        "source_id": int(doc.source_id or 0),
-                        "title": doc.title[:120],
-                        "section": (chunk.section or "")[:120],
-                        "chunk_no": int(chunk.chunk_no),
-                        "doc_key": doc.doc_key[:120],
-                        "ref": (doc.ref or "")[:200],
-                    }
-                )
+                metadatas.append(_chroma_metadata(doc, chunk))
             collection.upsert(ids=ids, embeddings=embeddings, documents=documents, metadatas=metadatas)
             _mark_embedded(slice_chunks, ok=True)
         except Exception:
             logger.exception("向量批次写入失败，起始偏移 %s", offset)
             _mark_embedded(slice_chunks, ok=False)
+
+
+def _chroma_metadata(doc: LogicalDoc, chunk: ChunkRecord) -> dict[str, Any]:
+    """Chroma 元数据只接受 str / int / float / bool。"""
+    meta: dict[str, Any] = {
+        "rag_doc_id": int(chunk.mysql_id or 0),
+        "doc_type": int(doc.doc_type),
+        "source_type": int(doc.source_type),
+        "source_id": int(doc.source_id or 0),
+        "title": doc.title[:120],
+        "section": (chunk.section or "")[:120],
+        "chunk_no": int(chunk.chunk_no),
+        "doc_key": doc.doc_key[:120],
+        "ref": (doc.ref or "")[:200],
+    }
+    for key, value in (doc.meta or {}).items():
+        if value is None or key in meta:
+            continue
+        if isinstance(value, bool):
+            meta[key] = value
+        elif isinstance(value, (int, float)):
+            meta[key] = value
+        else:
+            text = str(value).strip()
+            if text:
+                meta[key] = text[:200]
+    return meta
 
 
 def prepare_doc(doc: LogicalDoc) -> None:
@@ -422,6 +439,15 @@ def _as_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def _as_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    text = str(value or "").strip().lower()
+    return text in {"1", "true", "yes", "y"}
+
+
 def _unique_ids(ids: list[str]) -> list[str]:
     seen: set[str] = set()
     ordered: list[str] = []
@@ -526,6 +552,10 @@ def _pack_hit(doc) -> dict[str, Any]:
         "content": doc.page_content or "",
         "score": round(float(meta.get("cosine") or 0.0), 4),
         "rrf": round(float(meta.get("rrf") or 0.0), 6),
+        "data_source": meta.get("data_source") or "",
+        "company": meta.get("company") or "",
+        "city": meta.get("city") or "",
+        "salary_estimated": _as_bool(meta.get("salary_estimated")),
     }
 
 

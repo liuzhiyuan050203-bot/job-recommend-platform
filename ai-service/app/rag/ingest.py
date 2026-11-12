@@ -175,8 +175,31 @@ def load_cms() -> list[LogicalDoc]:
     return docs
 
 
-def load_job_texts(limit: int | None = None) -> list[dict]:
-    """在招职位原文。拼接方式与 load_jobs 相同，limit 只给评测截断干扰项。"""
+def _normalize_ids(ids: list[int] | None) -> list[int]:
+    if not ids:
+        return []
+    out: list[int] = []
+    seen: set[int] = set()
+    for raw in ids:
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if value > 0 and value not in seen:
+            seen.add(value)
+            out.append(value)
+    return out
+
+
+def load_job_texts(limit: int | None = None, ids: list[int] | None = None) -> list[dict]:
+    """在招且企业已过审的职位原文。拼接方式与 load_jobs 相同。
+
+    ids 只取指定职位（仍要求在架、已审核）；limit 只给评测截断干扰项。
+    含 platform / self_crawl / ext_ats 三种 data_source。
+    """
+    wanted = _normalize_ids(ids)
+    if ids is not None and not wanted:
+        return []
     conn = connect()
     try:
         with conn.cursor() as cur:
@@ -184,7 +207,7 @@ def load_job_texts(limit: int | None = None) -> list[dict]:
             sql = """
                 SELECT p.id, p.title, p.city, p.tech_direction, p.salary_min, p.salary_max,
                        p.salary_months, p.education, p.experience_req, p.description,
-                       p.requirement, p.welfare, c.company_name,
+                       p.requirement, p.welfare, p.data_source, c.company_name,
                        (
                          SELECT GROUP_CONCAT(t.name ORDER BY t.name SEPARATOR '、')
                          FROM job_position_tag pt
@@ -192,12 +215,16 @@ def load_job_texts(limit: int | None = None) -> list[dict]:
                          WHERE pt.position_id = p.id AND pt.deleted = 0
                        ) AS skills
                 FROM job_position p
-                INNER JOIN ent_company c ON c.id = p.company_id AND c.deleted = 0
+                INNER JOIN ent_company c ON c.id = p.company_id AND c.deleted = 0 AND c.audit_status = 1
                 WHERE p.deleted = 0 AND p.shelf_status = 1 AND p.audit_status = 1
-                ORDER BY p.id
             """
             params: list = []
-            if limit is not None:
+            if wanted:
+                marks = ", ".join(["%s"] * len(wanted))
+                sql += f" AND p.id IN ({marks})"
+                params.extend(wanted)
+            sql += " ORDER BY p.id"
+            if limit is not None and not wanted:
                 sql += " LIMIT %s"
                 params.append(max(0, int(limit)))
             cur.execute(sql, params)
@@ -206,20 +233,26 @@ def load_job_texts(limit: int | None = None) -> list[dict]:
         conn.close()
     items: list[dict] = []
     for row in rows:
+        data_source = (row.get("data_source") or "platform").strip() or "platform"
+        estimated = data_source in {"self_crawl", "ext_ats"}
         items.append(
             {
                 "doc_key": f"job:{row['id']}",
                 "title": str(row["title"])[:128],
                 "source_id": int(row["id"]),
+                "data_source": data_source,
+                "company_name": str(row.get("company_name") or ""),
+                "city": str(row.get("city") or ""),
+                "salary_estimated": estimated,
                 "text": _job_text(row),
             }
         )
     return items
 
 
-def load_jobs(limit: int | None = None) -> list[LogicalDoc]:
+def load_jobs(limit: int | None = None, ids: list[int] | None = None) -> list[LogicalDoc]:
     docs: list[LogicalDoc] = []
-    for item in load_job_texts(limit):
+    for item in load_job_texts(limit, ids=ids):
         chunks = _chunks_of(item["text"])
         if not chunks:
             continue
@@ -232,9 +265,23 @@ def load_jobs(limit: int | None = None) -> list[LogicalDoc]:
                 title=item["title"],
                 ref=item["doc_key"],
                 chunks=chunks,
+                meta={
+                    "data_source": item["data_source"],
+                    "company": item["company_name"],
+                    "city": item["city"],
+                    "salary_estimated": bool(item["salary_estimated"]),
+                },
             )
         )
     return docs
+
+
+def _source_label(data_source: str) -> str:
+    return {
+        "platform": "企业发布",
+        "self_crawl": "校招官网同步（外部来源）",
+        "ext_ats": "飞书招聘公开门户（外部扩充库）",
+    }.get(data_source, data_source or "未知来源")
 
 
 def _job_text(row: dict) -> str:
@@ -242,6 +289,10 @@ def _job_text(row: dict) -> str:
     months = int(row["salary_months"] or 12)
     if months != 12:
         salary += f"，{months}薪"
+    data_source = (row.get("data_source") or "platform").strip() or "platform"
+    estimated = data_source in {"self_crawl", "ext_ats"}
+    if estimated:
+        salary += "（估算，以官网为准）"
     lines = [
         f"# {row['title']}",
         f"公司：{row['company_name']}",
@@ -251,6 +302,7 @@ def _job_text(row: dict) -> str:
         f"学历：{EDU_LABEL.get(int(row['education'] or 0), '不限')}",
         f"经验：{EXP_LABEL.get(int(row['experience_req'] or 0), '不限')}",
         f"技能：{row['skills'] or '未标注'}",
+        f"来源：{_source_label(data_source)}",
     ]
     if row.get("description"):
         lines.append("职责：" + str(row["description"]).strip()[:500])
@@ -283,6 +335,24 @@ def _upload_meta(path: Path) -> dict:
 def _prune_missing(existing: list[str], live: set[str]) -> int:
     stale = [key for key in existing if key not in live]
     return prune_doc_keys(stale)
+
+
+def sync_jobs(job_ids: list[int] | None = None) -> dict[str, int]:
+    """按职位编号增量同步知识库；job_ids 为空时同步全部在招职位并剔除过期切片。
+
+    指定编号时：在架且已审核的写入，其余（下架、删除、未过审）从索引移除。
+    向量写入失败会抛错，调用方应捕获，避免影响职位业务操作。
+    """
+    wanted = _normalize_ids(job_ids)
+    if wanted:
+        docs = load_jobs(ids=wanted)
+        result = _sync_batched(docs) if docs else {"skipped": 0, "rewritten": 0, "chunks": 0, "documents": 0}
+        result["documents"] = len(docs)
+        live = {int(doc.source_id) for doc in docs if doc.source_id}
+        stale = [f"job:{item}" for item in wanted if item not in live]
+        result["pruned"] = prune_doc_keys(stale) if stale else 0
+        return result
+    return ingest_source("jobs", rebuild=False)
 
 
 def ingest_source(source: str, rebuild: bool = False) -> dict[str, int]:
@@ -431,7 +501,11 @@ def reindex_doc_key(doc_key: str) -> dict[str, int]:
             raise ValueError("公告不存在或未发布")
         doc = docs[0]
     elif doc_key.startswith("job:"):
-        docs = [item for item in load_jobs() if item.doc_key == doc_key]
+        try:
+            job_id = int(doc_key[4:])
+        except ValueError as exc:
+            raise ValueError("无法识别的职位 doc_key") from exc
+        docs = load_jobs(ids=[job_id])
         if not docs:
             prune_doc_keys([doc_key])
             raise ValueError("职位不在架或未通过审核，已从知识库移除")
@@ -450,9 +524,15 @@ def main(argv: list[str] | None = None) -> None:
         help="只处理一个来源；all 与 --all 相同",
     )
     parser.add_argument("--rebuild", action="store_true", help="先删除该来源的旧切片再写入")
+    parser.add_argument("--job-ids", help="只同步这些职位编号，逗号分隔；与 --source jobs 连用也可单独使用")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    if args.all or args.source == "all":
+    job_ids = None
+    if args.job_ids:
+        job_ids = [item.strip() for item in str(args.job_ids).split(",") if item.strip()]
+    if job_ids is not None and not (args.all or args.source in {"all", "knowledge", "cms", "uploads"}):
+        report = sync_jobs(job_ids)
+    elif args.all or args.source == "all":
         report = ingest_all(rebuild=True)
     elif args.source:
         report = ingest_source(args.source, rebuild=args.rebuild)
