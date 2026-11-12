@@ -17,6 +17,7 @@ from pathlib import Path
 
 from app.core.config import AI_SERVICE_DIR, settings
 from app.rag.chunking import split_markdown, split_text
+from app.rag.job_text import build_job_text, job_meta, clean_job_fields, _SOURCE_LABELS
 from app.rag.constants import CMS_TYPE_MAP, KNOWLEDGE_DOC_RULES
 from app.rag.store import (
     ChunkRecord,
@@ -234,17 +235,21 @@ def load_job_texts(limit: int | None = None, ids: list[int] | None = None) -> li
     items: list[dict] = []
     for row in rows:
         data_source = (row.get("data_source") or "platform").strip() or "platform"
-        estimated = data_source in {"self_crawl", "ext_ats"}
+        row = dict(row)
+        row["data_source"] = data_source
+        text = _job_text(row)
+        cleaned = clean_job_fields(row.get("description"), row.get("requirement"), row.get("welfare"), data_source)
         items.append(
             {
                 "doc_key": f"job:{row['id']}",
                 "title": str(row["title"])[:128],
                 "source_id": int(row["id"]),
-                "data_source": data_source,
+                "data_source": cleaned.data_source,
                 "company_name": str(row.get("company_name") or ""),
                 "city": str(row.get("city") or ""),
-                "salary_estimated": estimated,
-                "text": _job_text(row),
+                "salary_estimated": cleaned.salary_estimated,
+                "text": text,
+                "cleaned": cleaned,
             }
         )
     return items
@@ -265,52 +270,18 @@ def load_jobs(limit: int | None = None, ids: list[int] | None = None) -> list[Lo
                 title=item["title"],
                 ref=item["doc_key"],
                 chunks=chunks,
-                meta={
-                    "data_source": item["data_source"],
-                    "company": item["company_name"],
-                    "city": item["city"],
-                    "salary_estimated": bool(item["salary_estimated"]),
-                },
+                meta=job_meta(item, item.get("cleaned")),
             )
         )
     return docs
 
 
 def _source_label(data_source: str) -> str:
-    return {
-        "platform": "企业发布",
-        "self_crawl": "校招官网同步（外部来源）",
-        "ext_ats": "飞书招聘公开门户（外部扩充库）",
-    }.get(data_source, data_source or "未知来源")
+    return _SOURCE_LABELS.get(data_source, data_source or "未知来源")
 
 
 def _job_text(row: dict) -> str:
-    salary = f"{int(row['salary_min'])}-{int(row['salary_max'])}元/月"
-    months = int(row["salary_months"] or 12)
-    if months != 12:
-        salary += f"，{months}薪"
-    data_source = (row.get("data_source") or "platform").strip() or "platform"
-    estimated = data_source in {"self_crawl", "ext_ats"}
-    if estimated:
-        salary += "（估算，以官网为准）"
-    lines = [
-        f"# {row['title']}",
-        f"公司：{row['company_name']}",
-        f"城市：{row['city']}",
-        f"方向：{row['tech_direction']}",
-        f"薪资：{salary}",
-        f"学历：{EDU_LABEL.get(int(row['education'] or 0), '不限')}",
-        f"经验：{EXP_LABEL.get(int(row['experience_req'] or 0), '不限')}",
-        f"技能：{row['skills'] or '未标注'}",
-        f"来源：{_source_label(data_source)}",
-    ]
-    if row.get("description"):
-        lines.append("职责：" + str(row["description"]).strip()[:500])
-    if row.get("requirement"):
-        lines.append("要求：" + str(row["requirement"]).strip()[:300])
-    if row.get("welfare"):
-        lines.append("福利：" + str(row["welfare"]).strip()[:120])
-    return "\n".join(lines)
+    return build_job_text(row)
 
 
 def _markdown_title(text: str) -> str:

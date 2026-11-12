@@ -86,6 +86,9 @@ class Settings(BaseSettings):
     # 2026-11 评测：标题切分 + hybrid 的 Hit@1=0.92、MRR@10=0.947，约 15ms/问。
     # hybrid_rerank 的 Hit@1 同为 0.92，平均延迟约 1.86s，超过 1.5s，故默认 hybrid。
     RAG_RETRIEVAL_MODE: str = "hybrid"
+    # 职位检索多样性：同一职位、同一公司在最终 top-k 中的切片上限；0 表示不限制。
+    RAG_DIVERSITY_PER_JOB: int = 1
+    RAG_DIVERSITY_PER_COMPANY: int = 2
     # 服务启动后在后台做一次职位增量同步（跳过未变切片、剔除过期），失败不影响启动。
     RAG_SYNC_JOBS_ON_START: bool = True
 

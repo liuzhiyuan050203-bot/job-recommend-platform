@@ -23,6 +23,7 @@ from app.rag.bm25 import (
     invalidate_bm25,
 )
 from app.rag.chunking import content_hash, embed_input
+from app.rag.diversity import diversify_hits
 from app.rag.constants import COLLECTION
 from app.rag.rerank import rerank_scores
 from app.spark.db import connect
@@ -565,6 +566,7 @@ def retrieve(
     doc_types: list[int] | None = None,
     score_threshold: float | None = None,
     mode: str | None = None,
+    diversify: bool | None = None,
 ) -> list[dict[str, Any]]:
     """检索知识库切片（LangChain 检索器的薄封装，返回结构保持不变）。
 
@@ -572,6 +574,7 @@ def retrieve(
     hybrid 用 RRF 融合两路前 N 条，N = max(20, top_k * 5)。
     返回里的 score 始终是该切片的稠密余弦；rrf 是融合分。
     低于阈值且 BM25 不显著的候选丢弃，见 keep_candidate。
+    默认按公司 / 职位做多样性截断，可用 diversify=False 关闭（评测对比用）。
     """
     query = (query or "").strip()
     if not query:
@@ -582,9 +585,24 @@ def retrieve(
     except Exception:
         logger.exception("Chroma 计数失败")
         return []
-    retriever = get_retriever(top_k=top_k, score_threshold=score_threshold, mode=mode)
+    limit = settings.RAG_TOP_K if top_k is None else max(1, int(top_k))
+    use_div = (
+        (settings.RAG_DIVERSITY_PER_JOB > 0 or settings.RAG_DIVERSITY_PER_COMPANY > 0)
+        if diversify is None
+        else bool(diversify)
+    )
+    fetch_k = max(limit * 4, limit) if use_div else limit
+    retriever = get_retriever(top_k=fetch_k, score_threshold=score_threshold, mode=mode)
     docs = retriever.invoke(query, doc_types=doc_types or None)
-    return [_pack_hit(doc) for doc in docs]
+    hits = [_pack_hit(doc) for doc in docs]
+    if use_div:
+        hits = diversify_hits(
+            hits,
+            limit,
+            per_job=settings.RAG_DIVERSITY_PER_JOB,
+            per_company=settings.RAG_DIVERSITY_PER_COMPANY,
+        )
+    return hits[:limit]
 
 
 def list_documents(

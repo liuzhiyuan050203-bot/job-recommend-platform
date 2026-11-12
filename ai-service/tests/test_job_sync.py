@@ -96,11 +96,31 @@ class LoadLiveJobsTest(unittest.TestCase):
         self.assertTrue(item["salary_estimated"])
         self.assertIn("外部扩充库", item["text"])
         self.assertIn("估算", item["text"])
+        self.assertNotIn("provenance", item["text"])
+        self.assertNotIn("【抓取时间】", item["text"])
         docs = load_jobs(ids=[job_id])
         self.assertEqual(len(docs), 1)
         self.assertEqual(docs[0].meta.get("data_source"), "ext_ats")
         self.assertTrue(docs[0].meta.get("salary_estimated"))
         self.assertEqual(docs[0].source_id, job_id)
+
+    def test_self_crawl_text_strips_provenance(self):
+        row = _one(
+            """
+            SELECT p.id FROM job_position p
+            INNER JOIN ent_company c ON c.id = p.company_id AND c.deleted = 0
+            WHERE p.deleted = 0 AND p.shelf_status = 1 AND p.audit_status = 1
+              AND p.data_source = 'self_crawl' AND p.requirement LIKE '{%%'
+            ORDER BY p.id LIMIT 1
+            """
+        )
+        if not row:
+            self.skipTest("没有带 provenance 的自爬职位")
+        item = load_job_texts(ids=[int(row["id"])])[0]
+        self.assertNotIn("provenance", item["text"])
+        self.assertNotIn('{"', item["text"])
+        self.assertIn("外部来源", item["text"])
+        self.assertIn("估算", item["text"])
 
     def test_deleted_job_not_live(self):
         row = _one(
